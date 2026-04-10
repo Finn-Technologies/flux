@@ -13,9 +13,7 @@ final isStreamingProvider = StateProvider<bool>((ref) => false);
 class ChatMessagesNotifier extends StateNotifier<List<_Message>> {
   ChatMessagesNotifier() : super([]);
 
-  void addMessage(_Message msg) {
-    state = [...state, msg];
-  }
+  void addMessage(_Message msg) => state = [...state, msg];
 
   void updateLastMessage(_Message msg) {
     if (state.isNotEmpty && !state.last.fromUser) {
@@ -37,7 +35,7 @@ class _Message {
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String? modelId;
-  const ChatScreen({super.key, this.modelId}) : super();
+  const ChatScreen({super.key, this.modelId});
 
   @override
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
@@ -47,6 +45,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
+  bool _isStreaming = false;
 
   void _sendMessage() async {
     final text = _controller.text.trim();
@@ -60,7 +59,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _scrollToBottom();
 
     final model = widget.modelId ?? 'Gemma 4 E2B';
-    ref.read(isStreamingProvider.notifier).state = true;
+    setState(() => _isStreaming = true);
     String accumulated = '';
     final stream = InferenceService().streamChat(modelId: model, prompt: text);
 
@@ -72,7 +71,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           );
       _scrollToBottom();
     }
-    if (mounted) ref.read(isStreamingProvider.notifier).state = false;
+    if (mounted) setState(() => _isStreaming = false);
   }
 
   void _scrollToBottom() {
@@ -87,11 +86,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
-  void _newChat() {
-    ref.read(chatMessagesProvider.notifier).clear();
-    ref.read(isStreamingProvider.notifier).state = false;
-  }
-
   @override
   void dispose() {
     _controller.dispose();
@@ -104,11 +98,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final messages = ref.watch(chatMessagesProvider);
-    final isStreaming = ref.watch(isStreamingProvider);
     final currentModel = widget.modelId ?? 'Gemma 4 E2B';
 
     return Scaffold(
-      backgroundColor: colorScheme.surface,
       appBar: AppBar(
         scrolledUnderElevation: 0,
         backgroundColor: colorScheme.surface,
@@ -118,50 +110,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: colorScheme.primary,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child:
-                  Icon(Icons.smart_toy, size: 16, color: colorScheme.onPrimary),
-            ),
-            const SizedBox(width: 10),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  currentModel,
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onSurface,
-                  ),
-                ),
-                Text(
-                  'Online',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: colorScheme.primary,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+        title:
+            _ModelSelector(modelName: currentModel, colorScheme: colorScheme),
         actions: [
-          IconButton(
-            icon:
-                Icon(Icons.edit_outlined, color: colorScheme.onSurfaceVariant),
-            onPressed: _newChat,
-            tooltip: 'New chat',
-          ),
+          if (messages.isNotEmpty)
+            IconButton(
+              icon: Icon(Icons.delete_outline,
+                  color: colorScheme.onSurfaceVariant),
+              tooltip: 'Clear chat',
+              onPressed: () {
+                ref.read(chatMessagesProvider.notifier).clear();
+                setState(() => _isStreaming = false);
+              },
+            ),
           const SizedBox(width: 4),
         ],
       ),
@@ -169,20 +130,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       body: Column(
         children: [
           Expanded(
-            child: messages.isEmpty && !isStreaming
-                ? _WelcomeView()
-                : _MessageList(
+            child: messages.isEmpty
+                ? _WelcomeView(
+                    colorScheme: colorScheme,
+                    onPresetTap: (preset) {
+                      _controller.text = preset;
+                      _sendMessage();
+                    })
+                : _MessagesList(
                     messages: messages,
                     scrollController: _scrollController,
-                    isStreaming: isStreaming,
+                    colorScheme: colorScheme,
                   ),
           ),
-          if (isStreaming) _StreamingBar(colorScheme: colorScheme),
+          if (_isStreaming)
+            _StreamingBanner(
+                colorScheme: colorScheme,
+                onStop: () => setState(() => _isStreaming = false)),
           _ChatInputBar(
             controller: _controller,
             focusNode: _focusNode,
             onSend: _sendMessage,
-            isStreaming: isStreaming,
+            colorScheme: colorScheme,
           ),
         ],
       ),
@@ -190,70 +159,161 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 }
 
-class _WelcomeView extends StatelessWidget {
+class _ModelSelector extends StatelessWidget {
+  final String modelName;
+  final ColorScheme colorScheme;
+
+  const _ModelSelector({required this.modelName, required this.colorScheme});
+
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    return GestureDetector(
+      onTap: () {},
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 30,
+            height: 30,
+            decoration: BoxDecoration(
+              color: colorScheme.primary,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child:
+                Icon(Icons.smart_toy, size: 16, color: colorScheme.onPrimary),
+          ),
+          const SizedBox(width: 10),
+          Text(modelName,
+              style:
+                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          const SizedBox(width: 4),
+          Icon(Icons.unfold_more,
+              size: 18, color: colorScheme.onSurfaceVariant),
+        ],
+      ),
+    );
+  }
+}
 
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [colorScheme.primary, colorScheme.tertiary],
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
+class _WelcomeView extends StatelessWidget {
+  final ColorScheme colorScheme;
+  final void Function(String) onPresetTap;
+
+  const _WelcomeView({required this.colorScheme, required this.onPresetTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final presets = [
+      'Explain quantum computing simply',
+      'Write a Python script to sort a list',
+      'Summarize this article for me',
+      'Help me plan a weekend trip',
+    ];
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        children: [
+          const SizedBox(height: 48),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: colorScheme.primaryContainer,
+              borderRadius: BorderRadius.circular(18),
+            ),
+            child: Icon(Icons.smart_toy,
+                size: 32, color: colorScheme.onPrimaryContainer),
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'What can I help you with?',
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.w600),
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'All conversations stay on your device.',
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
                 ),
-                borderRadius: BorderRadius.circular(24),
-                boxShadow: [
-                  BoxShadow(
-                    color: colorScheme.primary.withValues(alpha: 0.3),
-                    blurRadius: 24,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
-              ),
-              child:
-                  Icon(Icons.smart_toy, size: 40, color: colorScheme.onPrimary),
-            ),
-            const SizedBox(height: 28),
-            Text(
-              'Hello, I\'m Flux',
-              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.bold,
-                    color: colorScheme.onSurface,
-                  ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'Ask me anything. All conversations stay on your device.',
-              textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            textAlign: TextAlign.center,
+          ),
+          const SizedBox(height: 32),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Try asking',
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(
                     color: colorScheme.onSurfaceVariant,
+                    fontWeight: FontWeight.w600,
                   ),
             ),
-          ],
+          ),
+          const SizedBox(height: 10),
+          ...presets.map((p) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _PresetCard(
+                    preset: p,
+                    onTap: () => onPresetTap(p),
+                    colorScheme: colorScheme),
+              )),
+          const SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _PresetCard extends StatelessWidget {
+  final String preset;
+  final VoidCallback onTap;
+  final ColorScheme colorScheme;
+
+  const _PresetCard(
+      {required this.preset, required this.onTap, required this.colorScheme});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+          child: Row(
+            children: [
+              Icon(Icons.auto_awesome_outlined,
+                  size: 18, color: colorScheme.primary),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(preset, style: const TextStyle(fontSize: 14)),
+              ),
+              Icon(Icons.north_west,
+                  size: 16, color: colorScheme.onSurfaceVariant),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _MessageList extends StatelessWidget {
+class _MessagesList extends StatelessWidget {
   final List<_Message> messages;
   final ScrollController scrollController;
-  final bool isStreaming;
+  final ColorScheme colorScheme;
 
-  const _MessageList({
+  const _MessagesList({
     required this.messages,
     required this.scrollController,
-    required this.isStreaming,
+    required this.colorScheme,
   });
 
   @override
@@ -263,94 +323,90 @@ class _MessageList extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 16),
       itemCount: messages.length,
       itemBuilder: (context, index) {
-        final message = messages[index];
-        final showAvatar = index == messages.length - 1 ||
+        final msg = messages[index];
+        final showModelAvatar = index == messages.length - 1 ||
             (index < messages.length - 1 && messages[index + 1].fromUser);
-        return _ChatBubble(
-          message: message,
-          showAvatar: showAvatar,
-        );
+        return _Bubble(
+            msg: msg,
+            showModelAvatar: showModelAvatar,
+            colorScheme: colorScheme);
       },
     );
   }
 }
 
-class _ChatBubble extends StatelessWidget {
-  final _Message message;
-  final bool showAvatar;
+class _Bubble extends StatelessWidget {
+  final _Message msg;
+  final bool showModelAvatar;
+  final ColorScheme colorScheme;
 
-  const _ChatBubble({required this.message, required this.showAvatar});
+  const _Bubble(
+      {required this.msg,
+      required this.showModelAvatar,
+      required this.colorScheme});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
+    final isUser = msg.fromUser;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 3),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          if (!message.fromUser)
+          if (!isUser)
             AnimatedOpacity(
-              opacity: showAvatar ? 1.0 : 0.0,
+              opacity: showModelAvatar ? 1.0 : 0.0,
               duration: const Duration(milliseconds: 150),
               child: Container(
-                width: 32,
-                height: 32,
-                margin: const EdgeInsets.only(right: 10, top: 4),
+                width: 28,
+                height: 28,
+                margin: const EdgeInsets.only(right: 8),
                 decoration: BoxDecoration(
                   color: colorScheme.primary,
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(
-                  Icons.smart_toy,
-                  size: 18,
-                  color: colorScheme.onPrimary,
-                ),
+                child: Icon(Icons.smart_toy,
+                    size: 14, color: colorScheme.onPrimary),
               ),
-            )
-          else
-            const SizedBox(width: 42),
-          Expanded(
+            ),
+          Flexible(
             child: Column(
-              crossAxisAlignment: message.fromUser
-                  ? CrossAxisAlignment.end
-                  : CrossAxisAlignment.start,
+              crossAxisAlignment:
+                  isUser ? CrossAxisAlignment.end : CrossAxisAlignment.start,
               children: [
                 Container(
                   padding:
-                      const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
                   decoration: BoxDecoration(
-                    color: message.fromUser
+                    color: isUser
                         ? colorScheme.primary
                         : colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.only(
-                      topLeft: const Radius.circular(20),
-                      topRight: const Radius.circular(20),
-                      bottomLeft: message.fromUser
-                          ? const Radius.circular(20)
-                          : Radius.zero,
-                      bottomRight: message.fromUser
-                          ? Radius.zero
-                          : const Radius.circular(20),
+                      topLeft: const Radius.circular(18),
+                      topRight: const Radius.circular(18),
+                      bottomLeft:
+                          isUser ? const Radius.circular(18) : Radius.zero,
+                      bottomRight:
+                          isUser ? Radius.zero : const Radius.circular(18),
                     ),
                   ),
                   child: Text(
-                    message.text,
+                    msg.text,
                     style: TextStyle(
                       fontSize: 15,
-                      height: 1.4,
-                      color: message.fromUser
+                      color: isUser
                           ? colorScheme.onPrimary
                           : colorScheme.onSurface,
                     ),
                   ),
                 ),
-                const SizedBox(height: 4),
                 Padding(
-                  padding: const EdgeInsets.only(left: 4, right: 4),
+                  padding: const EdgeInsets.only(top: 4, left: 4, right: 4),
                   child: Text(
-                    _formatTime(message.time),
+                    '${msg.time.hour.toString().padLeft(2, '0')}:${msg.time.minute.toString().padLeft(2, '0')}',
                     style: TextStyle(
                       fontSize: 11,
                       color:
@@ -361,50 +417,40 @@ class _ChatBubble extends StatelessWidget {
               ],
             ),
           ),
-          if (message.fromUser) const SizedBox(width: 42),
+          if (isUser) const SizedBox(width: 36),
         ],
       ),
     );
   }
-
-  String _formatTime(DateTime t) {
-    return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-  }
 }
 
-class _StreamingBar extends StatelessWidget {
+class _StreamingBanner extends StatelessWidget {
   final ColorScheme colorScheme;
-  const _StreamingBar({required this.colorScheme});
+  final VoidCallback onStop;
+
+  const _StreamingBanner({required this.colorScheme, required this.onStop});
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
       child: Row(
         children: [
-          _DotsIndicator(color: colorScheme.primary),
+          _WaveDots(color: colorScheme.primary),
           const SizedBox(width: 10),
-          Text(
-            'Generating',
-            style: TextStyle(
-              fontSize: 12,
-              color: colorScheme.primary,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
+          Text('Generating',
+              style: TextStyle(
+                  fontSize: 12,
+                  color: colorScheme.primary,
+                  fontWeight: FontWeight.w500)),
           const Spacer(),
           TextButton(
-            onPressed: () {
-              // Stop streaming - would need to cancel the stream
-            },
+            onPressed: onStop,
             style: TextButton.styleFrom(
-              visualDensity: VisualDensity.compact,
-              padding: const EdgeInsets.symmetric(horizontal: 12),
-            ),
-            child: Text(
-              'Stop',
-              style: TextStyle(color: colorScheme.error, fontSize: 12),
-            ),
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(horizontal: 8)),
+            child: Text('Stop',
+                style: TextStyle(fontSize: 12, color: colorScheme.error)),
           ),
         ],
       ),
@@ -412,25 +458,23 @@ class _StreamingBar extends StatelessWidget {
   }
 }
 
-class _DotsIndicator extends StatefulWidget {
+class _WaveDots extends StatefulWidget {
   final Color color;
-  const _DotsIndicator({required this.color});
+  const _WaveDots({required this.color});
 
   @override
-  State<_DotsIndicator> createState() => _DotsIndicatorState();
+  State<_WaveDots> createState() => _WaveDotsState();
 }
 
-class _DotsIndicatorState extends State<_DotsIndicator>
+class _WaveDotsState extends State<_WaveDots>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
-
   @override
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    )..repeat();
+        vsync: this, duration: const Duration(milliseconds: 1000))
+      ..repeat();
   }
 
   @override
@@ -447,14 +491,12 @@ class _DotsIndicatorState extends State<_DotsIndicator>
         return Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(3, (i) {
-            final offset = (i - 1) * 0.2;
-            final animValue = (((_ctrl.value + offset) % 1.0));
-            final scale = 0.5 +
-                (animValue < 0.5 ? animValue * 2 : (1 - animValue) * 2) * 0.5;
+            final t = ((_ctrl.value + i * 0.33) % 1.0);
+            final scale = 0.4 + (t < 0.5 ? t * 2 : (1 - t) * 2) * 0.6;
             return Container(
               margin: const EdgeInsets.symmetric(horizontal: 2),
-              width: 6,
-              height: 6,
+              width: 5,
+              height: 5,
               decoration: BoxDecoration(
                 color: widget.color.withValues(alpha: scale),
                 shape: BoxShape.circle,
@@ -471,13 +513,13 @@ class _ChatInputBar extends StatefulWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final VoidCallback onSend;
-  final bool isStreaming;
+  final ColorScheme colorScheme;
 
   const _ChatInputBar({
     required this.controller,
     required this.focusNode,
     required this.onSend,
-    required this.isStreaming,
+    required this.colorScheme,
   });
 
   @override
@@ -495,9 +537,81 @@ class _ChatInputBarState extends State<_ChatInputBar> {
 
   void _onTextChanged() {
     final hasText = widget.controller.text.trim().isNotEmpty;
-    if (hasText != _hasText) {
-      setState(() => _hasText = hasText);
-    }
+    if (hasText != _hasText) setState(() => _hasText = hasText);
+  }
+
+  void _showAttachmentSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: Theme.of(context).colorScheme.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 36,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: Theme.of(context).colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.image_outlined,
+                      color: widget.colorScheme.onPrimaryContainer),
+                ),
+                title: const Text('Photo'),
+                subtitle: const Text('Attach from gallery'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+              ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.document_scanner_outlined,
+                      color: widget.colorScheme.onPrimaryContainer),
+                ),
+                title: const Text('Document'),
+                subtitle: const Text('Attach a PDF or text file'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+              ListTile(
+                leading: Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: widget.colorScheme.primaryContainer,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Icon(Icons.camera_alt_outlined,
+                      color: widget.colorScheme.onPrimaryContainer),
+                ),
+                title: const Text('Camera'),
+                subtitle: const Text('Take a photo'),
+                onTap: () => Navigator.pop(ctx),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   @override
@@ -508,128 +622,86 @@ class _ChatInputBarState extends State<_ChatInputBar> {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final bottomPadding = MediaQuery.of(context).viewInsets.bottom +
+    final colorScheme = widget.colorScheme;
+    final bottom = MediaQuery.of(context).viewInsets.bottom +
         MediaQuery.of(context).padding.bottom;
 
     return Container(
-      padding: EdgeInsets.fromLTRB(12, 8, 12, bottomPadding + 8),
+      padding: EdgeInsets.fromLTRB(12, 8, 12, bottom + 8),
       decoration: BoxDecoration(
         color: colorScheme.surface,
         border: Border(
-          top: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-          ),
-        ),
+            top: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
       ),
-      child: Container(
-        decoration: BoxDecoration(
-          color: colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(24),
-          border: Border.all(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.3),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          IconButton(
+            icon: Icon(Icons.add_circle_outline,
+                color: colorScheme.onSurfaceVariant),
+            onPressed: () => _showAttachmentSheet(context),
+            iconSize: 22,
           ),
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            const SizedBox(width: 4),
-            IconButton(
-              icon: Icon(
-                Icons.add_circle_outline,
-                color: colorScheme.onSurfaceVariant,
+          Expanded(
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 120),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(20),
               ),
-              onPressed: () {},
-              iconSize: 22,
-            ),
-            Expanded(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxHeight: 120),
-                child: TextField(
-                  controller: widget.controller,
-                  focusNode: widget.focusNode,
-                  maxLines: null,
-                  minLines: 1,
-                  textInputAction: TextInputAction.newline,
-                  style: const TextStyle(fontSize: 15),
-                  decoration: InputDecoration(
-                    hintText: 'Message Flux...',
-                    hintStyle: TextStyle(
+              child: TextField(
+                controller: widget.controller,
+                focusNode: widget.focusNode,
+                maxLines: null,
+                minLines: 1,
+                textInputAction: TextInputAction.newline,
+                style: const TextStyle(fontSize: 15),
+                decoration: InputDecoration(
+                  hintText: 'Message Flux…',
+                  hintStyle: TextStyle(
                       color:
-                          colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.fromLTRB(4, 10, 4, 10),
-                  ),
+                          colorScheme.onSurfaceVariant.withValues(alpha: 0.6)),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.fromLTRB(16, 10, 12, 10),
                 ),
               ),
             ),
-            _MicButton(hasText: _hasText, colorScheme: colorScheme),
-            _SendButton(
+          ),
+          const SizedBox(width: 6),
+          _SendButton(
               hasText: _hasText,
-              isStreaming: widget.isStreaming,
               colorScheme: colorScheme,
-              onPressed: widget.onSend,
-            ),
-            const SizedBox(width: 4),
-          ],
-        ),
+              onSend: widget.onSend),
+        ],
       ),
-    );
-  }
-}
-
-class _MicButton extends StatelessWidget {
-  final bool hasText;
-  final ColorScheme colorScheme;
-
-  const _MicButton({required this.hasText, required this.colorScheme});
-
-  @override
-  Widget build(BuildContext context) {
-    return IconButton(
-      icon: Icon(
-        Icons.mic_none,
-        color: colorScheme.onSurfaceVariant,
-      ),
-      onPressed: () {},
-      iconSize: 22,
     );
   }
 }
 
 class _SendButton extends StatelessWidget {
   final bool hasText;
-  final bool isStreaming;
   final ColorScheme colorScheme;
-  final VoidCallback onPressed;
+  final VoidCallback onSend;
 
-  const _SendButton({
-    required this.hasText,
-    required this.isStreaming,
-    required this.colorScheme,
-    required this.onPressed,
-  });
+  const _SendButton(
+      {required this.hasText, required this.colorScheme, required this.onSend});
 
   @override
   Widget build(BuildContext context) {
     return AnimatedContainer(
       duration: const Duration(milliseconds: 200),
-      width: hasText ? 42 : 0,
+      width: hasText ? 40 : 0,
       curve: Curves.easeOut,
       child: hasText
           ? Container(
-              margin: const EdgeInsets.only(right: 4, bottom: 4),
               decoration: BoxDecoration(
                 color: colorScheme.primary,
                 borderRadius: BorderRadius.circular(12),
               ),
               child: IconButton(
-                icon: Icon(
-                  Icons.arrow_upward,
-                  color: colorScheme.onPrimary,
-                ),
-                onPressed: isStreaming ? null : onPressed,
+                icon: Icon(Icons.arrow_upward, color: colorScheme.onPrimary),
+                onPressed: onSend,
                 iconSize: 20,
                 padding: EdgeInsets.zero,
               ),

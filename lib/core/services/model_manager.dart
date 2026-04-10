@@ -9,19 +9,11 @@ class ModelManager {
   //   - Pause / resume / cancel downloads
   //   - Auto-select best quantization (Q4_K_M, Q5_K_S, etc.)
 
-  static const int defaultRamGB = 6;
-
-  Future<List<HFModel>> getCompatibleModels({
-    int? deviceRamGB,
-    int? freeStorageMB,
-  }) async {
-    // TODO: Wire to real device info via:
-    //   - device_info_plus: for device RAM
-    //   - path_provider + Stat: for free storage
-    final ram = deviceRamGB ?? defaultRamGB;
+  Future<List<HFModel>> getCompatibleModels(
+      {int? deviceRamGB, int? freeStorageMB}) async {
+    // TODO: Wire to real device info via device_info_plus and path_provider
+    final ram = deviceRamGB ?? 6;
     final free = freeStorageMB ?? 8000;
-
-    // Mock: filter out models that need > 1.5x available RAM or > available storage
     final all = getMockModels();
     return all.where((m) {
       final ramNeededMB = (ram * 1024 * 0.6).round();
@@ -30,40 +22,16 @@ class ModelManager {
   }
 
   Future<void> downloadModel(HFModel model) async {
-    // TODO: Use background_downloader to download model files.
-    //   1. Enqueue task: backgroundDownloader.enqueue(
-    //        url: 'https://huggingface.co/${model.id}/resolve/main/...',
-    //        savedName: '${model.id}.bin',
-    //        directory: 'models/',
-    //      );
-    //   2. Track progress via backgroundDownloaderupdates stream.
-    //   3. On complete, persist model metadata to Hive/Isar.
-    await Future.delayed(const Duration(seconds: 1));
+    // TODO: backgroundDownloader.enqueue(url: '...', savedName: '${model.id}.bin', directory: 'models/')
   }
 
-  Future<void> pauseDownload(HFModel model) async {
-    // TODO: backgroundDownloader.pause(model.downloadTaskId);
-  }
-
-  Future<void> resumeDownload(HFModel model) async {
-    // TODO: backgroundDownloader.resume(model.downloadTaskId);
-  }
+  Future<void> pauseDownload(HFModel model) async {}
+  Future<void> resumeDownload(HFModel model) async {}
 
   Future<void> deleteModel(HFModel model) async {
-    // TODO: backgroundDownloader.cancel(model.downloadTaskId);
-    // TODO: Delete local files + Hive/Isar entry.
-    await Future.delayed(const Duration(milliseconds: 300));
+    // TODO: Cancel download, delete files, remove Hive/Isar entry
   }
 
-  Future<int> getUsedStorageMB() async {
-    // TODO: Sum sizes of all installed model files on disk.
-    await Future.delayed(const Duration(milliseconds: 100));
-    return 2300;
-  }
-
-  Future<int> getFreeStorageMB() async {
-    // TODO: Use path_provider + Platform info to query free space.
-    await Future.delayed(const Duration(milliseconds: 100));
-    return 8000;
-  }
+  Future<int> getUsedStorageMB() async => 2300;
+  Future<int> getFreeStorageMB() async => 8000;
 }

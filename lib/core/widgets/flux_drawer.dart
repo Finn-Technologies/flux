@@ -13,29 +13,28 @@ class FluxDrawer extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
     final size = MediaQuery.of(context).size;
-    final isDark = colorScheme.brightness == Brightness.dark;
 
     return Drawer(
       width: size.width * 0.82,
       child: SafeArea(
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Header
-            Container(
+            Padding(
               padding: const EdgeInsets.fromLTRB(20, 20, 12, 16),
               child: Row(
                 children: [
                   Container(
-                    width: 44,
-                    height: 44,
+                    width: 40,
+                    height: 40,
                     decoration: BoxDecoration(
                       color: colorScheme.primary,
-                      borderRadius: BorderRadius.circular(12),
+                      borderRadius: BorderRadius.circular(10),
                     ),
                     child: Icon(Icons.smart_toy,
-                        color: colorScheme.onPrimary, size: 24),
+                        color: colorScheme.onPrimary, size: 22),
                   ),
-                  const SizedBox(width: 14),
+                  const SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -43,7 +42,7 @@ class FluxDrawer extends ConsumerWidget {
                         Text(
                           'Flux',
                           style:
-                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                              Theme.of(context).textTheme.titleMedium?.copyWith(
                                     fontWeight: FontWeight.bold,
                                   ),
                         ),
@@ -65,132 +64,95 @@ class FluxDrawer extends ConsumerWidget {
                 ],
               ),
             ),
-
-            // New Chat button
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12),
-              child: SizedBox(
-                width: double.infinity,
-                child: FilledButton.tonal(
-                  onPressed: () {
-                    // Clear chat and close drawer
-                    ref.read(chatMessagesProvider.notifier).clear();
-                    ref.read(isStreamingProvider.notifier).state = false;
-                    Navigator.pop(context);
-                  },
-                  style: FilledButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 14),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.add, size: 20),
-                      const SizedBox(width: 8),
-                      const Text('New Chat'),
-                    ],
-                  ),
+              child: FilledButton.tonal(
+                onPressed: () {
+                  ref.read(chatMessagesProvider.notifier).clear();
+                  Navigator.pop(context);
+                  context.go('/home');
+                },
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 44),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(10)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.add, size: 18),
+                    SizedBox(width: 6),
+                    Text('New Chat'),
+                  ],
                 ),
               ),
             ),
-
+            const SizedBox(height: 20),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20),
+              child: Text(
+                'Recent',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                      color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            _RecentChatItem(
+                title: 'Explain quantum computing',
+                time: '2m ago',
+                onTap: () => _go(context, '/home')),
+            _RecentChatItem(
+                title: 'Write a Python script',
+                time: '15m ago',
+                onTap: () => _go(context, '/home')),
+            _RecentChatItem(
+                title: 'Summarize an article',
+                time: '1h ago',
+                onTap: () => _go(context, '/home')),
             const SizedBox(height: 12),
-
-            // Recent chats section
+            Divider(
+                indent: 20, endIndent: 20, color: colorScheme.outlineVariant),
+            const SizedBox(height: 4),
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Text(
-                    'RECENT',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
+              padding: const EdgeInsets.fromLTRB(20, 12, 20, 4),
+              child: Text(
+                'Navigate',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: colorScheme.onSurfaceVariant,
+                      fontWeight: FontWeight.w600,
                     ),
-                  ),
-                ],
               ),
             ),
-            const SizedBox(height: 4),
-
-            _RecentChatTile(
-              title: 'Explain quantum computing',
-              icon: Icons.chat_bubble_outline,
-            ),
-            _RecentChatTile(
-              title: 'Write a Python script',
-              icon: Icons.chat_bubble_outline,
-            ),
-            _RecentChatTile(
-              title: 'Summarize this article',
-              icon: Icons.chat_bubble_outline,
-            ),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Divider(color: colorScheme.outlineVariant, height: 1),
-            ),
-
-            // Navigation
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20),
-              child: Row(
-                children: [
-                  Text(
-                    'FEATURES',
-                    style: TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      letterSpacing: 1.2,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 4),
-
-            _NavTile(
+            _DrawerItem(
               icon: Icons.mic_outlined,
               label: 'Assistant',
-              subtitle: 'Voice & actions',
               selected: currentItem == NavItem.assistant,
-              onTap: () => _navigate(context, '/assistant'),
+              onTap: () => _go(context, '/assistant'),
             ),
-            _NavTile(
+            _DrawerItem(
               icon: Icons.widgets_outlined,
               label: 'Model Library',
-              subtitle: 'Browse & install',
               selected: currentItem == NavItem.models,
-              onTap: () => _navigate(context, '/models'),
+              onTap: () => _go(context, '/models'),
             ),
-            _NavTile(
+            _DrawerItem(
               icon: Icons.download_outlined,
               label: 'Downloads',
-              subtitle: 'Manage models',
               selected: currentItem == NavItem.downloads,
-              onTap: () => _navigate(context, '/downloads'),
+              onTap: () => _go(context, '/downloads'),
             ),
-
             const Spacer(),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
-              child: Divider(color: colorScheme.outlineVariant, height: 1),
-            ),
-
-            _NavTile(
+            Divider(
+                indent: 20, endIndent: 20, color: colorScheme.outlineVariant),
+            const SizedBox(height: 4),
+            _DrawerItem(
               icon: Icons.settings_outlined,
               label: 'Settings',
-              subtitle: 'Storage & language',
               selected: currentItem == NavItem.settings,
-              onTap: () => _navigate(context, '/settings'),
+              onTap: () => _go(context, '/settings'),
             ),
-
             const SizedBox(height: 8),
           ],
         ),
@@ -198,24 +160,63 @@ class FluxDrawer extends ConsumerWidget {
     );
   }
 
-  void _navigate(BuildContext context, String route) {
+  void _go(BuildContext context, String route) {
     Navigator.pop(context);
     context.go(route);
   }
 }
 
-class _NavTile extends StatelessWidget {
+class _RecentChatItem extends StatelessWidget {
+  final String title;
+  final String time;
+  final VoidCallback onTap;
+
+  const _RecentChatItem({
+    required this.title,
+    required this.time,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 1),
+      child: ListTile(
+        dense: true,
+        leading: Icon(
+          Icons.chat_bubble_outline,
+          size: 18,
+          color: colorScheme.onSurfaceVariant,
+        ),
+        title: Text(
+          title,
+          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w400),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        subtitle: Text(time,
+            style: TextStyle(
+                fontSize: 11,
+                color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        onTap: onTap,
+      ),
+    );
+  }
+}
+
+class _DrawerItem extends StatelessWidget {
   final IconData icon;
   final String label;
-  final String subtitle;
   final bool selected;
   final VoidCallback onTap;
 
-  const _NavTile({
+  const _DrawerItem({
     required this.icon,
     required this.label,
-    required this.subtitle,
-    required this.selected,
+    this.selected = false,
     required this.onTap,
   });
 
@@ -225,122 +226,28 @@ class _NavTile extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: Material(
-        color: selected
-            ? colorScheme.primaryContainer.withValues(alpha: 0.5)
-            : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: selected
-                        ? colorScheme.primaryContainer
-                        : colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(
-                    icon,
-                    size: 18,
-                    color: selected
-                        ? colorScheme.onPrimaryContainer
-                        : colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        label,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight:
-                              selected ? FontWeight.w600 : FontWeight.w500,
-                          color: selected
-                              ? colorScheme.onSurface
-                              : colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                      Text(
-                        subtitle,
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: colorScheme.onSurfaceVariant
-                              .withValues(alpha: 0.7),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (selected)
-                  Container(
-                    width: 4,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: colorScheme.primary,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
-              ],
-            ),
-          ),
+      child: ListTile(
+        dense: true,
+        leading: Icon(
+          icon,
+          size: 20,
+          color: selected ? colorScheme.primary : colorScheme.onSurfaceVariant,
         ),
-      ),
-    );
-  }
-}
-
-class _RecentChatTile extends StatelessWidget {
-  final String title;
-  final IconData icon;
-
-  const _RecentChatTile({required this.title, required this.icon});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: () {
-            Navigator.pop(context);
-            context.go('/home');
-          },
-          borderRadius: BorderRadius.circular(12),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-            child: Row(
-              children: [
-                Icon(icon, size: 18, color: colorScheme.onSurfaceVariant),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: 13,
-                      color: colorScheme.onSurfaceVariant,
-                    ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
+        title: Text(
+          label,
+          style: TextStyle(
+            fontSize: 14,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            color: selected ? colorScheme.primary : colorScheme.onSurface,
           ),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
         ),
+        selected: selected,
+        selectedTileColor: colorScheme.primaryContainer.withValues(alpha: 0.3),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+        onTap: onTap,
       ),
     );
   }

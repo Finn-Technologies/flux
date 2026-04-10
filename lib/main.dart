@@ -13,8 +13,6 @@ import 'features/downloads/downloads_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'l10n/app_localizations.dart';
 
-final onboardingCompletedProvider = StateProvider<bool>((ref) => false);
-
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   final prefs = await SharedPreferences.getInstance();
@@ -22,9 +20,6 @@ void main() async {
 
   runApp(
     ProviderScope(
-      overrides: [
-        onboardingCompletedProvider.overrideWith((ref) => onboarded),
-      ],
       child: FluxApp(onboarded: onboarded),
     ),
   );
@@ -37,25 +32,20 @@ class FluxTheme {
         useMaterial3: true,
         brightness: Brightness.light,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: _seedColor,
-          brightness: Brightness.light,
-        ),
+            seedColor: _seedColor, brightness: Brightness.light),
         appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          systemOverlayStyle: SystemUiOverlayStyle.dark,
-        ),
+            centerTitle: false,
+            elevation: 0,
+            systemOverlayStyle: SystemUiOverlayStyle.dark),
         cardTheme: CardThemeData(
-          elevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16))),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide.none,
-          ),
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide.none),
         ),
         dividerTheme: const DividerThemeData(thickness: 0.5, space: 0.5),
       );
@@ -64,25 +54,20 @@ class FluxTheme {
         useMaterial3: true,
         brightness: Brightness.dark,
         colorScheme: ColorScheme.fromSeed(
-          seedColor: _seedColor,
-          brightness: Brightness.dark,
-        ),
+            seedColor: _seedColor, brightness: Brightness.dark),
         appBarTheme: const AppBarTheme(
-          centerTitle: false,
-          elevation: 0,
-          systemOverlayStyle: SystemUiOverlayStyle.light,
-        ),
+            centerTitle: false,
+            elevation: 0,
+            systemOverlayStyle: SystemUiOverlayStyle.light),
         cardTheme: CardThemeData(
-          elevation: 0,
-          shape:
-              RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        ),
+            elevation: 0,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16))),
         inputDecorationTheme: InputDecorationTheme(
           filled: true,
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(24),
-            borderSide: BorderSide.none,
-          ),
+              borderRadius: BorderRadius.circular(24),
+              borderSide: BorderSide.none),
         ),
         dividerTheme: const DividerThemeData(thickness: 0.5, space: 0.5),
       );
@@ -90,11 +75,11 @@ class FluxTheme {
 
 class FluxApp extends ConsumerWidget {
   final bool onboarded;
-  const FluxApp({Key? key, required this.onboarded}) : super(key: key);
+  const FluxApp({super.key, required this.onboarded});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final GoRouter router = GoRouter(
+    final router = GoRouter(
       initialLocation: onboarded ? '/home' : '/onboarding',
       routes: [
         GoRoute(
@@ -102,40 +87,28 @@ class FluxApp extends ConsumerWidget {
           builder: (context, state) => const OnboardingScreen(),
           routes: [
             GoRoute(
-              path: 'choose-model',
-              builder: (context, state) => const ChooseModelScreen(),
-            ),
+                path: 'choose-model',
+                builder: (context, state) => const ChooseModelScreen()),
           ],
         ),
+        GoRoute(path: '/home', builder: (context, state) => const ChatScreen()),
         GoRoute(
-          path: '/home',
-          builder: (context, state) => const ChatScreen(),
-        ),
+            path: '/assistant',
+            builder: (context, state) => const AssistantScreen()),
         GoRoute(
-          path: '/assistant',
-          builder: (context, state) => const AssistantScreen(),
-        ),
+            path: '/models',
+            builder: (context, state) => const ModelLibraryScreen()),
         GoRoute(
-          path: '/models',
-          builder: (context, state) => const ModelLibraryScreen(),
-        ),
+            path: '/downloads',
+            builder: (context, state) => const DownloadsScreen()),
         GoRoute(
-          path: '/downloads',
-          builder: (context, state) => const DownloadsScreen(),
-        ),
-        GoRoute(
-          path: '/settings',
-          builder: (context, state) => const SettingsScreen(),
-        ),
+            path: '/settings',
+            builder: (context, state) => const SettingsScreen()),
         GoRoute(
           path: '/model/:id',
-          builder: (context, state) {
-            final id = state.params['id'] ?? '';
-            return ChatScreen(modelId: id);
-          },
+          builder: (context, state) => ChatScreen(modelId: state.params['id']),
         ),
       ],
-      redirect: (context, state) => null,
     );
 
     return MaterialApp.router(

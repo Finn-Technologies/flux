@@ -1,6 +1,3 @@
-import 'package:flutter/material.dart';
-
-// Simple data model representing a HuggingFace-like model (mock)
 class HFModel {
   final String id;
   final String name;

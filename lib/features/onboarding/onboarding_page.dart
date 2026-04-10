@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 class OnboardingScreen extends StatefulWidget {
-  const OnboardingScreen({Key? key}) : super(key: key);
+  const OnboardingScreen({super.key});
 
   @override
   State<OnboardingScreen> createState() => _OnboardingScreenState();
@@ -22,16 +21,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.all(24),
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
               child: Row(
                 children: [
-                  Icon(Icons.smart_toy, color: colorScheme.primary, size: 32),
-                  const SizedBox(width: 12),
+                  Icon(Icons.smart_toy, color: colorScheme.primary, size: 28),
+                  const SizedBox(width: 10),
                   Text(
                     'Flux',
-                    style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.bold,
-                          color: colorScheme.onSurface,
                         ),
                   ),
                 ],
@@ -42,32 +40,28 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                 controller: _controller,
                 onPageChanged: (i) => setState(() => _page = i),
                 children: [
-                  _IntroCard(
+                  _IntroSlide(
                     icon: Icons.shield_outlined,
-                    title: 'Private & Secure',
+                    title: 'Private by design',
                     body:
-                        'Your conversations stay on your device. No account needed, no data sent anywhere.',
-                    color: colorScheme.primary,
+                        'Your conversations never leave your device. No account, no servers, no tracking.',
                   ),
-                  _IntroCard(
+                  _IntroSlide(
                     icon: Icons.wifi_off_outlined,
                     title: 'Works offline',
-                    body:
-                        'Once models are downloaded, everything runs locally. No internet required.',
-                    color: colorScheme.tertiary,
+                    body: 'Once downloaded, models run entirely on your phone.',
                   ),
-                  _IntroCard(
+                  _IntroSlide(
                     icon: Icons.speed_outlined,
-                    title: 'Fast & Lightweight',
+                    title: 'Your AI, your rules',
                     body:
-                        'Optimized for mobile. Pick a model that fits your device.',
-                    color: colorScheme.secondary,
+                        'Choose which models to install and tailor the experience to your device.',
                   ),
                 ],
               ),
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 32),
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 40),
               child: Column(
                 children: [
                   Row(
@@ -76,7 +70,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       return AnimatedContainer(
                         duration: const Duration(milliseconds: 200),
                         margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: _page == i ? 24 : 8,
+                        width: _page == i ? 20 : 8,
                         height: 8,
                         decoration: BoxDecoration(
                           color: _page == i
@@ -87,10 +81,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       );
                     }),
                   ),
-                  const SizedBox(height: 24),
+                  const SizedBox(height: 28),
                   SizedBox(
                     width: double.infinity,
-                    height: 52,
+                    height: 50,
                     child: FilledButton(
                       onPressed: () {
                         if (_page < 2) {
@@ -103,15 +97,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                         }
                       },
                       child: Text(
-                        _page < 2 ? 'Next' : 'Get Started',
+                        _page < 2 ? 'Continue' : 'Get Started',
                         style: const TextStyle(fontSize: 16),
                       ),
                     ),
                   ),
                   if (_page < 2)
-                    TextButton(
-                      onPressed: () => context.go('/onboarding/choose-model'),
-                      child: const Text('Skip'),
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: TextButton(
+                        onPressed: () => context.go('/onboarding/choose-model'),
+                        child: const Text('Skip'),
+                      ),
                     ),
                 ],
               ),
@@ -123,17 +120,15 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   }
 }
 
-class _IntroCard extends StatelessWidget {
+class _IntroSlide extends StatelessWidget {
   final IconData icon;
   final String title;
   final String body;
-  final Color color;
 
-  const _IntroCard({
+  const _IntroSlide({
     required this.icon,
     required this.title,
     required this.body,
-    required this.color,
   });
 
   @override
@@ -141,20 +136,12 @@ class _IntroCard extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 32),
+      padding: const EdgeInsets.symmetric(horizontal: 40),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, size: 56, color: color),
-          ),
-          const SizedBox(height: 40),
+          Icon(icon, size: 56, color: colorScheme.primary),
+          const SizedBox(height: 28),
           Text(
             title,
             style: Theme.of(context).textTheme.headlineSmall?.copyWith(
@@ -167,6 +154,7 @@ class _IntroCard extends StatelessWidget {
             body,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
                   color: colorScheme.onSurfaceVariant,
+                  height: 1.5,
                 ),
             textAlign: TextAlign.center,
           ),

@@ -23,7 +23,7 @@ class _AssistantScreenState extends State<AssistantScreen>
       vsync: this,
       duration: const Duration(milliseconds: 1200),
     )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.12).animate(
+    _pulseAnim = Tween<double>(begin: 1.0, end: 1.1).animate(
       CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
     );
   }
@@ -35,37 +35,60 @@ class _AssistantScreenState extends State<AssistantScreen>
   }
 
   void _toggleListening() async {
-    setState(() => _isListening = !_isListening);
-
     if (_isListening) {
-      await Future.delayed(const Duration(seconds: 2));
-      if (!mounted) return;
-      setState(() {
-        _isListening = false;
-        _transcript = 'Set a timer for 5 minutes';
-        _history.insert(
-          0,
-          _ActionItem(
-            request: 'Set a timer for 5 minutes',
-            response: 'Done! Timer set for 5 minutes.',
-            icon: Icons.timer_outlined,
-            time: DateTime.now(),
-          ),
-        );
-      });
+      setState(() => _isListening = false);
+      return;
     }
+
+    setState(() => _isListening = true);
+    await Future.delayed(const Duration(seconds: 2));
+    if (!mounted) return;
+    setState(() {
+      _isListening = false;
+      _transcript = 'Set a timer for 5 minutes';
+      _history.insert(
+        0,
+        _ActionItem(
+          request: _transcript,
+          response: 'Done. Timer set for 5 minutes.',
+          icon: Icons.timer_outlined,
+          time: DateTime.now(),
+        ),
+      );
+    });
   }
+
+  void _quickAction(String request, IconData icon) {
+    setState(() {
+      _transcript = request;
+      _history.insert(
+        0,
+        _ActionItem(
+          request: request,
+          response: 'Done.',
+          icon: icon,
+          time: DateTime.now(),
+        ),
+      );
+    });
+  }
+
+  void _clear() => setState(() {
+        _transcript = '';
+        _history.clear();
+      });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final size = MediaQuery.of(context).size;
 
     return Scaffold(
       appBar: AppBar(
+        scrolledUnderElevation: 0,
+        backgroundColor: colorScheme.surface,
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu),
+            icon: Icon(Icons.menu, color: colorScheme.onSurface),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
@@ -73,27 +96,25 @@ class _AssistantScreenState extends State<AssistantScreen>
           mainAxisSize: MainAxisSize.min,
           children: [
             Container(
-              padding: const EdgeInsets.all(6),
+              width: 28,
+              height: 28,
               decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: BorderRadius.circular(8),
+                color: colorScheme.primary,
+                borderRadius: BorderRadius.circular(7),
               ),
-              child: Icon(Icons.mic,
-                  size: 16, color: colorScheme.onPrimaryContainer),
+              child: Icon(Icons.mic, size: 15, color: colorScheme.onPrimary),
             ),
             const SizedBox(width: 10),
-            const Text('Assistant'),
+            Text('Assistant',
+                style:
+                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
           ],
         ),
         actions: [
-          if (_transcript.isNotEmpty || _history.isNotEmpty)
+          if (_history.isNotEmpty || _transcript.isNotEmpty)
             IconButton(
-              icon: const Icon(Icons.refresh),
-              tooltip: 'Clear',
-              onPressed: () => setState(() {
-                _transcript = '';
-                _history.clear();
-              }),
+              icon: Icon(Icons.refresh, color: colorScheme.onSurfaceVariant),
+              onPressed: _clear,
             ),
         ],
       ),
@@ -105,122 +126,35 @@ class _AssistantScreenState extends State<AssistantScreen>
                 ? _IdleView(
                     isListening: _isListening,
                     pulseAnim: _pulseAnim,
-                    onMicTap: _toggleListening,
+                    onTap: _toggleListening,
                   )
-                : _HistoryView(
+                : _ConversationView(
                     transcript: _transcript,
                     history: _history,
                   ),
           ),
-          Container(
-            padding: EdgeInsets.fromLTRB(
-              24,
-              16,
-              24,
-              MediaQuery.of(context).padding.bottom + 16,
-            ),
-            child: Column(
-              children: [
-                if (_history.isEmpty && _transcript.isEmpty)
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    alignment: WrapAlignment.center,
-                    children: [
-                      _SuggestionChip(
-                        label: 'Set a timer',
-                        icon: Icons.timer_outlined,
-                        onTap: () => _quickAction(
-                            'Set a 5-minute timer', Icons.timer_outlined),
-                      ),
-                      _SuggestionChip(
-                        label: 'Summarize this page',
-                        icon: Icons.summarize_outlined,
-                        onTap: () => _quickAction(
-                            'Summarize this page', Icons.summarize_outlined),
-                      ),
-                      _SuggestionChip(
-                        label: 'Turn on flashlight',
-                        icon: Icons.flashlight_on_outlined,
-                        onTap: () => _quickAction(
-                            'Turn on flashlight', Icons.flashlight_on_outlined),
-                      ),
-                      _SuggestionChip(
-                        label: 'Quick note',
-                        icon: Icons.note_add_outlined,
-                        onTap: () => _quickAction(
-                            'Create a quick note', Icons.note_add_outlined),
-                      ),
-                    ],
-                  )
-                else
-                  AnimatedBuilder(
-                    animation: _pulseAnim,
-                    builder: (_, child) => Transform.scale(
-                      scale: _isListening ? _pulseAnim.value : 1.0,
-                      child: GestureDetector(
-                        onTap: _toggleListening,
-                        child: Container(
-                          width: 72,
-                          height: 72,
-                          decoration: BoxDecoration(
-                            color: _isListening
-                                ? colorScheme.error
-                                : colorScheme.primary,
-                            shape: BoxShape.circle,
-                            boxShadow: [
-                              BoxShadow(
-                                color: (_isListening
-                                        ? colorScheme.error
-                                        : colorScheme.primary)
-                                    .withValues(alpha: 0.35),
-                                blurRadius: 20,
-                                spreadRadius: 4,
-                              ),
-                            ],
-                          ),
-                          child: Icon(
-                            _isListening ? Icons.stop : Icons.mic,
-                            color: Colors.white,
-                            size: 30,
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-              ],
-            ),
+          _AssistantFooter(
+            isListening: _isListening,
+            pulseAnim: _pulseAnim,
+            historyEmpty: _history.isEmpty && _transcript.isEmpty,
+            onTapMic: _toggleListening,
+            onQuickAction: _quickAction,
           ),
         ],
       ),
     );
-  }
-
-  void _quickAction(String request, IconData icon) {
-    setState(() {
-      _transcript = request;
-      _history.insert(
-        0,
-        _ActionItem(
-          request: request,
-          response: 'Action completed.',
-          icon: icon,
-          time: DateTime.now(),
-        ),
-      );
-    });
   }
 }
 
 class _IdleView extends StatelessWidget {
   final bool isListening;
   final Animation<double> pulseAnim;
-  final VoidCallback onMicTap;
+  final VoidCallback onTap;
 
   const _IdleView({
     required this.isListening,
     required this.pulseAnim,
-    required this.onMicTap,
+    required this.onTap,
   });
 
   @override
@@ -233,13 +167,13 @@ class _IdleView extends StatelessWidget {
         children: [
           AnimatedBuilder(
             animation: pulseAnim,
-            builder: (_, child) => Transform.scale(
+            builder: (_, __) => Transform.scale(
               scale: isListening ? pulseAnim.value : 1.0,
               child: GestureDetector(
-                onTap: onMicTap,
+                onTap: onTap,
                 child: Container(
-                  width: 104,
-                  height: 104,
+                  width: 100,
+                  height: 100,
                   decoration: BoxDecoration(
                     color: isListening
                         ? colorScheme.error
@@ -251,8 +185,8 @@ class _IdleView extends StatelessWidget {
                                 ? colorScheme.error
                                 : colorScheme.primary)
                             .withValues(alpha: 0.25),
-                        blurRadius: 28,
-                        spreadRadius: 8,
+                        blurRadius: isListening ? 30 : 20,
+                        spreadRadius: isListening ? 4 : 0,
                       ),
                     ],
                   ),
@@ -267,31 +201,33 @@ class _IdleView extends StatelessWidget {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 20),
           Text(
             isListening ? 'Listening…' : 'Tap to speak',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(
                   color: colorScheme.onSurfaceVariant,
                 ),
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Your private assistant, works offline',
-            style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                ),
-          ),
+          if (isListening) ...[
+            const SizedBox(height: 8),
+            Text(
+              'Tap again to stop',
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
+                  ),
+            ),
+          ],
         ],
       ),
     );
   }
 }
 
-class _HistoryView extends StatelessWidget {
+class _ConversationView extends StatelessWidget {
   final String transcript;
   final List<_ActionItem> history;
 
-  const _HistoryView({required this.transcript, required this.history});
+  const _ConversationView({required this.transcript, required this.history});
 
   @override
   Widget build(BuildContext context) {
@@ -300,123 +236,263 @@ class _HistoryView extends StatelessWidget {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        if (transcript.isNotEmpty)
+        if (transcript.isNotEmpty) ...[
           Align(
             alignment: Alignment.centerRight,
-            child: Container(
-              constraints: BoxConstraints(
-                maxWidth: MediaQuery.of(context).size.width * 0.78,
-              ),
-              margin: const EdgeInsets.only(bottom: 16),
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              decoration: BoxDecoration(
-                color: colorScheme.primaryContainer,
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(18),
-                  topRight: Radius.circular(18),
-                  bottomLeft: Radius.circular(18),
-                  bottomRight: Radius.zero,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Container(
+                  constraints: BoxConstraints(
+                      maxWidth: MediaQuery.of(context).size.width * 0.75),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: colorScheme.primary,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(18),
+                      topRight: Radius.circular(18),
+                      bottomLeft: Radius.circular(18),
+                      bottomRight: Radius.zero,
+                    ),
+                  ),
+                  child: Text(transcript,
+                      style: TextStyle(color: colorScheme.onPrimary)),
                 ),
-              ),
-              child: Text(
-                transcript,
-                style: TextStyle(color: colorScheme.onPrimaryContainer),
-              ),
+                const SizedBox(height: 4),
+                Text('You',
+                    style: TextStyle(
+                        fontSize: 11,
+                        color: colorScheme.onSurfaceVariant
+                            .withValues(alpha: 0.5))),
+              ],
             ),
           ),
-        ...history.map((item) => _ActionCard(item: item)),
+          const SizedBox(height: 16),
+        ],
+        ...history.map((item) => _ResultCard(item: item)),
       ],
     );
   }
 }
 
-class _ActionCard extends StatelessWidget {
+class _ResultCard extends StatelessWidget {
   final _ActionItem item;
-  const _ActionCard({required this.item});
+  const _ResultCard({required this.item});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final t = item.time;
+    final timeStr =
+        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
 
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
+      margin: const EdgeInsets.only(top: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: colorScheme.outlineVariant),
+        border: Border.all(
+          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+          width: 1,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 12, 14, 4),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(item.icon,
-                      size: 16, color: colorScheme.onPrimaryContainer),
+          Row(
+            children: [
+              Container(
+                width: 32,
+                height: 32,
+                decoration: BoxDecoration(
+                  color: colorScheme.primaryContainer,
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                const SizedBox(width: 10),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        item.request,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 14),
-                      ),
-                      Text(
-                        _formatTime(item.time),
-                        style: TextStyle(
-                            fontSize: 11, color: colorScheme.onSurfaceVariant),
-                      ),
-                    ],
-                  ),
-                ),
-                Icon(Icons.check_circle, color: colorScheme.primary, size: 20),
-              ],
-            ),
+                child: Icon(item.icon,
+                    size: 17, color: colorScheme.onPrimaryContainer),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(item.request,
+                    style: const TextStyle(
+                        fontWeight: FontWeight.w600, fontSize: 14)),
+              ),
+              Text(timeStr,
+                  style: TextStyle(
+                      fontSize: 11,
+                      color:
+                          colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
+            ],
           ),
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-            child: Text(
-              item.response,
-              style:
-                  TextStyle(color: colorScheme.onSurfaceVariant, fontSize: 13),
-            ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Icon(Icons.check_circle, size: 15, color: colorScheme.primary),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(item.response,
+                    style: TextStyle(
+                        fontSize: 13, color: colorScheme.onSurfaceVariant)),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
-
-  String _formatTime(DateTime t) {
-    return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-  }
 }
 
-class _SuggestionChip extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-  const _SuggestionChip(
-      {required this.label, required this.icon, required this.onTap});
+class _AssistantFooter extends StatelessWidget {
+  final bool isListening;
+  final Animation<double> pulseAnim;
+  final bool historyEmpty;
+  final VoidCallback onTapMic;
+  final void Function(String, IconData) onQuickAction;
+
+  const _AssistantFooter({
+    required this.isListening,
+    required this.pulseAnim,
+    required this.historyEmpty,
+    required this.onTapMic,
+    required this.onQuickAction,
+  });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    return ActionChip(
-      avatar: Icon(icon, size: 16, color: colorScheme.primary),
-      label: Text(label),
-      backgroundColor: colorScheme.surfaceContainerHighest,
-      side: BorderSide.none,
-      onPressed: onTap,
+    final bottomPad = MediaQuery.of(context).padding.bottom;
+
+    return Container(
+      padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad + 16),
+      decoration: BoxDecoration(
+        border: Border(
+            top: BorderSide(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
+      ),
+      child: historyEmpty
+          ? Column(
+              children: [
+                Text(
+                  'Quick actions',
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickActionCard(
+                        label: 'Set a timer',
+                        icon: Icons.timer_outlined,
+                        onTap: () => onQuickAction(
+                            'Set a 5-minute timer', Icons.timer_outlined),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickActionCard(
+                        label: 'Summarize',
+                        icon: Icons.summarize_outlined,
+                        onTap: () => onQuickAction(
+                            'Summarize this page', Icons.summarize_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: _QuickActionCard(
+                        label: 'Flashlight',
+                        icon: Icons.flashlight_on_outlined,
+                        onTap: () => onQuickAction(
+                            'Turn on flashlight', Icons.flashlight_on_outlined),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: _QuickActionCard(
+                        label: 'Quick note',
+                        icon: Icons.note_add_outlined,
+                        onTap: () => onQuickAction(
+                            'Create a quick note', Icons.note_add_outlined),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            )
+          : AnimatedBuilder(
+              animation: pulseAnim,
+              builder: (_, __) => Transform.scale(
+                scale: isListening ? pulseAnim.value : 1.0,
+                child: GestureDetector(
+                  onTap: onTapMic,
+                  child: Container(
+                    width: 64,
+                    height: 64,
+                    decoration: BoxDecoration(
+                      color:
+                          isListening ? colorScheme.error : colorScheme.primary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      isListening ? Icons.stop : Icons.mic,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+    );
+  }
+}
+
+class _QuickActionCard extends StatelessWidget {
+  final String label;
+  final IconData icon;
+  final VoidCallback onTap;
+
+  const _QuickActionCard({
+    required this.label,
+    required this.icon,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Icon(icon, size: 18, color: colorScheme.primary),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(
+                      fontSize: 13, fontWeight: FontWeight.w500),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

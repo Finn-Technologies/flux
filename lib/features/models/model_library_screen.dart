@@ -4,24 +4,24 @@ import '../../core/widgets/model_card.dart';
 import '../../constants/mock_models.dart';
 
 class ModelLibraryScreen extends StatefulWidget {
-  const ModelLibraryScreen({Key? key}) : super(key: key);
+  const ModelLibraryScreen({super.key});
 
   @override
   State<ModelLibraryScreen> createState() => _ModelLibraryScreenState();
 }
 
 class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
-  String? _selectedCapability;
-  final _searchController = TextEditingController();
+  String? _capability;
+  final _searchCtrl = TextEditingController();
   List<HFModel> _models = getMockModels();
 
   void _filter() {
     setState(() {
       _models = getMockModels().where((m) {
-        final matchCap = _selectedCapability == null ||
-            m.capabilities.contains(_selectedCapability);
-        final matchSearch = _searchController.text.isEmpty ||
-            m.name.toLowerCase().contains(_searchController.text.toLowerCase());
+        final matchCap =
+            _capability == null || m.capabilities.contains(_capability);
+        final matchSearch = _searchCtrl.text.isEmpty ||
+            m.name.toLowerCase().contains(_searchCtrl.text.toLowerCase());
         return matchCap && matchSearch;
       }).toList();
     });
@@ -29,7 +29,7 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
 
   @override
   void dispose() {
-    _searchController.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -39,10 +39,28 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Model Library'),
+        scrolledUnderElevation: 0,
+        backgroundColor: colorScheme.surface,
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 28,
+              height: 28,
+              decoration: BoxDecoration(
+                color: colorScheme.primary,
+                borderRadius: BorderRadius.circular(7),
+              ),
+              child: Icon(Icons.memory, size: 15, color: colorScheme.onPrimary),
+            ),
+            const SizedBox(width: 10),
+            const Text('Model Library',
+                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+          ],
+        ),
         leading: Builder(
           builder: (ctx) => IconButton(
-            icon: const Icon(Icons.menu),
+            icon: Icon(Icons.menu, color: colorScheme.onSurface),
             onPressed: () => Scaffold.of(ctx).openDrawer(),
           ),
         ),
@@ -53,19 +71,31 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: TextField(
-              controller: _searchController,
+              controller: _searchCtrl,
+              onChanged: (_) => _filter(),
               decoration: InputDecoration(
-                hintText: 'Search models...',
-                prefixIcon: const Icon(Icons.search),
+                hintText: 'Search models…',
+                prefixIcon: Icon(Icons.search,
+                    size: 20, color: colorScheme.onSurfaceVariant),
+                suffixIcon: _searchCtrl.text.isNotEmpty
+                    ? IconButton(
+                        icon: Icon(Icons.clear,
+                            size: 18, color: colorScheme.onSurfaceVariant),
+                        onPressed: () {
+                          _searchCtrl.clear();
+                          _filter();
+                        },
+                      )
+                    : null,
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(28),
+                  borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                contentPadding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
-              onChanged: (_) => _filter(),
             ),
           ),
           SingleChildScrollView(
@@ -74,49 +104,29 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
             child: Row(
               children: [
                 _FilterChip(
-                  label: 'All',
-                  selected: _selectedCapability == null,
-                  onSelected: () {
-                    setState(() => _selectedCapability = null);
-                    _filter();
-                  },
-                ),
-                const SizedBox(width: 8),
+                    label: 'All',
+                    selected: _capability == null,
+                    onTap: () => _setCap(null)),
+                const SizedBox(width: 6),
                 _FilterChip(
-                  label: 'Chat',
-                  selected: _selectedCapability == 'chat',
-                  onSelected: () {
-                    setState(() => _selectedCapability = 'chat');
-                    _filter();
-                  },
-                ),
-                const SizedBox(width: 8),
+                    label: 'Chat',
+                    selected: _capability == 'chat',
+                    onTap: () => _setCap('chat')),
+                const SizedBox(width: 6),
                 _FilterChip(
-                  label: 'Vision',
-                  selected: _selectedCapability == 'vision',
-                  onSelected: () {
-                    setState(() => _selectedCapability = 'vision');
-                    _filter();
-                  },
-                ),
-                const SizedBox(width: 8),
+                    label: 'Vision',
+                    selected: _capability == 'vision',
+                    onTap: () => _setCap('vision')),
+                const SizedBox(width: 6),
                 _FilterChip(
-                  label: 'Audio',
-                  selected: _selectedCapability == 'audio',
-                  onSelected: () {
-                    setState(() => _selectedCapability = 'audio');
-                    _filter();
-                  },
-                ),
-                const SizedBox(width: 8),
+                    label: 'Audio',
+                    selected: _capability == 'audio',
+                    onTap: () => _setCap('audio')),
+                const SizedBox(width: 6),
                 _FilterChip(
-                  label: 'Tools',
-                  selected: _selectedCapability == 'tools',
-                  onSelected: () {
-                    setState(() => _selectedCapability = 'tools');
-                    _filter();
-                  },
-                ),
+                    label: 'Tools',
+                    selected: _capability == 'tools',
+                    onTap: () => _setCap('tools')),
               ],
             ),
           ),
@@ -127,16 +137,12 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(
-                          Icons.search_off,
-                          size: 48,
-                          color: colorScheme.onSurfaceVariant,
-                        ),
+                        Icon(Icons.search_off,
+                            size: 40, color: colorScheme.onSurfaceVariant),
                         const SizedBox(height: 12),
-                        Text(
-                          'No models found',
-                          style: TextStyle(color: colorScheme.onSurfaceVariant),
-                        ),
+                        Text('No models found',
+                            style:
+                                TextStyle(color: colorScheme.onSurfaceVariant)),
                       ],
                     ),
                   )
@@ -150,32 +156,47 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
       ),
     );
   }
+
+  void _setCap(String? cap) {
+    setState(() => _capability = cap);
+    _filter();
+  }
 }
 
 class _FilterChip extends StatelessWidget {
   final String label;
   final bool selected;
-  final VoidCallback onSelected;
+  final VoidCallback onTap;
 
   const _FilterChip({
     required this.label,
     required this.selected,
-    required this.onSelected,
+    required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-
-    return FilterChip(
-      label: Text(label, style: TextStyle(fontSize: 13)),
-      selected: selected,
-      onSelected: (_) => onSelected(),
-      selectedColor: colorScheme.primaryContainer,
-      checkmarkColor: colorScheme.onPrimaryContainer,
-      backgroundColor: colorScheme.surfaceContainerHighest,
-      side: BorderSide.none,
-      padding: const EdgeInsets.symmetric(horizontal: 4),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+        decoration: BoxDecoration(
+          color: selected
+              ? colorScheme.primary
+              : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            color:
+                selected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+          ),
+        ),
+      ),
     );
   }
 }
