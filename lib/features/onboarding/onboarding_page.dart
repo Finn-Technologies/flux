@@ -24,13 +24,26 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               padding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
               child: Row(
                 children: [
-                  Icon(Icons.smart_toy, color: colorScheme.primary, size: 28),
-                  const SizedBox(width: 10),
+                  Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(
+                      Icons.smart_toy,
+                      color: colorScheme.onPrimary,
+                      size: 22,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
                   Text(
                     'Flux',
                     style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                          fontWeight: FontWeight.bold,
-                        ),
+                      fontWeight: FontWeight.bold,
+                      fontSize: 22,
+                    ),
                   ),
                 ],
               ),
@@ -68,29 +81,30 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: List.generate(3, (i) {
                       return AnimatedContainer(
-                        duration: const Duration(milliseconds: 200),
+                        duration: const Duration(milliseconds: 250),
+                        curve: Curves.easeOutCubic,
                         margin: const EdgeInsets.symmetric(horizontal: 4),
-                        width: _page == i ? 20 : 8,
+                        width: _page == i ? 24 : 8,
                         height: 8,
                         decoration: BoxDecoration(
                           color: _page == i
                               ? colorScheme.primary
-                              : colorScheme.primary.withValues(alpha: 0.2),
+                              : colorScheme.outlineVariant,
                           borderRadius: BorderRadius.circular(4),
                         ),
                       );
                     }),
                   ),
-                  const SizedBox(height: 28),
+                  const SizedBox(height: 32),
                   SizedBox(
                     width: double.infinity,
-                    height: 50,
+                    height: 54,
                     child: FilledButton(
                       onPressed: () {
                         if (_page < 2) {
                           _controller.nextPage(
                             duration: const Duration(milliseconds: 300),
-                            curve: Curves.easeIn,
+                            curve: Curves.easeInOut,
                           );
                         } else {
                           context.go('/onboarding/choose-model');
@@ -98,16 +112,25 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       },
                       child: Text(
                         _page < 2 ? 'Continue' : 'Get Started',
-                        style: const TextStyle(fontSize: 16),
+                        style: const TextStyle(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w500,
+                        ),
                       ),
                     ),
                   ),
                   if (_page < 2)
                     Padding(
-                      padding: const EdgeInsets.only(top: 8),
+                      padding: const EdgeInsets.only(top: 12),
                       child: TextButton(
                         onPressed: () => context.go('/onboarding/choose-model'),
-                        child: const Text('Skip'),
+                        child: Text(
+                          'Skip',
+                          style: TextStyle(
+                            fontSize: 15,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
                       ),
                     ),
                 ],
@@ -136,26 +159,36 @@ class _IntroSlide extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 40),
+      padding: const EdgeInsets.symmetric(horizontal: 48),
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, size: 56, color: colorScheme.primary),
-          const SizedBox(height: 28),
+          Container(
+            width: 80,
+            height: 80,
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(24),
+            ),
+            child: Icon(icon, size: 40, color: colorScheme.primary),
+          ),
+          const SizedBox(height: 40),
           Text(
             title,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
+            style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+              fontWeight: FontWeight.w600,
+              fontSize: 28,
+            ),
             textAlign: TextAlign.center,
           ),
-          const SizedBox(height: 12),
+          const SizedBox(height: 16),
           Text(
             body,
             style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                  height: 1.5,
-                ),
+              color: colorScheme.secondary,
+              fontSize: 17,
+              height: 1.5,
+            ),
             textAlign: TextAlign.center,
           ),
         ],

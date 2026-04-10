@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../core/widgets/flux_drawer.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/widgets/model_card.dart';
-import '../../constants/mock_models.dart';
+import '../../core/services/hf_api_service.dart';
 
 class ModelLibraryScreen extends StatefulWidget {
   const ModelLibraryScreen({super.key});
@@ -13,17 +13,25 @@ class ModelLibraryScreen extends StatefulWidget {
 class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
   String? _capability;
   final _searchCtrl = TextEditingController();
-  List<HFModel> _models = getMockModels();
+  final _apiService = HfApiService();
+  List<dynamic> _models = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _loadModels();
+  }
+
+  Future<void> _loadModels() async {
+    final models = await _apiService.searchModels();
+    setState(() {
+      _models = models;
+    });
+  }
 
   void _filter() {
     setState(() {
-      _models = getMockModels().where((m) {
-        final matchCap =
-            _capability == null || m.capabilities.contains(_capability);
-        final matchSearch = _searchCtrl.text.isEmpty ||
-            m.name.toLowerCase().contains(_searchCtrl.text.toLowerCase());
-        return matchCap && matchSearch;
-      }).toList();
+      // Filter is applied to loaded models
     });
   }
 
@@ -39,48 +47,33 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        scrolledUnderElevation: 0,
-        backgroundColor: colorScheme.surface,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: colorScheme.primary,
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Icon(Icons.memory, size: 15, color: colorScheme.onPrimary),
-            ),
-            const SizedBox(width: 10),
-            const Text('Model Library',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          ],
-        ),
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: Icon(Icons.menu, color: colorScheme.onSurface),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
+        title: const Text(
+          'Model Library',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
-      drawer: const FluxDrawer(currentItem: NavItem.models),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            padding: const EdgeInsets.fromLTRB(20, 8, 20, 12),
             child: TextField(
               controller: _searchCtrl,
               onChanged: (_) => _filter(),
+              style: const TextStyle(fontSize: 16),
               decoration: InputDecoration(
                 hintText: 'Search models…',
-                prefixIcon: Icon(Icons.search,
-                    size: 20, color: colorScheme.onSurfaceVariant),
+                prefixIcon: Icon(
+                  Icons.search,
+                  size: 22,
+                  color: colorScheme.secondary,
+                ),
                 suffixIcon: _searchCtrl.text.isNotEmpty
                     ? IconButton(
-                        icon: Icon(Icons.clear,
-                            size: 18, color: colorScheme.onSurfaceVariant),
+                        icon: Icon(
+                          Icons.clear,
+                          size: 20,
+                          color: colorScheme.secondary,
+                        ),
                         onPressed: () {
                           _searchCtrl.clear();
                           _filter();
@@ -90,66 +83,87 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
                 filled: true,
                 fillColor: colorScheme.surfaceContainerHighest,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(14),
                   borderSide: BorderSide.none,
                 ),
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 14,
+                ),
               ),
             ),
           ),
           SingleChildScrollView(
             scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: const EdgeInsets.symmetric(horizontal: 20),
             child: Row(
               children: [
                 _FilterChip(
-                    label: 'All',
-                    selected: _capability == null,
-                    onTap: () => _setCap(null)),
-                const SizedBox(width: 6),
+                  label: 'All',
+                  selected: _capability == null,
+                  onTap: () => _setCap(null),
+                ),
+                const SizedBox(width: 8),
                 _FilterChip(
-                    label: 'Chat',
-                    selected: _capability == 'chat',
-                    onTap: () => _setCap('chat')),
-                const SizedBox(width: 6),
+                  label: 'Chat',
+                  selected: _capability == 'chat',
+                  onTap: () => _setCap('chat'),
+                ),
+                const SizedBox(width: 8),
                 _FilterChip(
-                    label: 'Vision',
-                    selected: _capability == 'vision',
-                    onTap: () => _setCap('vision')),
-                const SizedBox(width: 6),
+                  label: 'Vision',
+                  selected: _capability == 'vision',
+                  onTap: () => _setCap('vision'),
+                ),
+                const SizedBox(width: 8),
                 _FilterChip(
-                    label: 'Audio',
-                    selected: _capability == 'audio',
-                    onTap: () => _setCap('audio')),
-                const SizedBox(width: 6),
+                  label: 'Audio',
+                  selected: _capability == 'audio',
+                  onTap: () => _setCap('audio'),
+                ),
+                const SizedBox(width: 8),
                 _FilterChip(
-                    label: 'Tools',
-                    selected: _capability == 'tools',
-                    onTap: () => _setCap('tools')),
+                  label: 'Tools',
+                  selected: _capability == 'tools',
+                  onTap: () => _setCap('tools'),
+                ),
               ],
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
           Expanded(
             child: _models.isEmpty
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off,
-                            size: 40, color: colorScheme.onSurfaceVariant),
-                        const SizedBox(height: 12),
-                        Text('No models found',
-                            style:
-                                TextStyle(color: colorScheme.onSurfaceVariant)),
+                        Icon(
+                          Icons.search_off,
+                          size: 48,
+                          color: colorScheme.secondary,
+                        ),
+                        const SizedBox(height: 16),
+                        Text(
+                          'No models found',
+                          style: TextStyle(
+                            fontSize: 16,
+                            color: colorScheme.secondary,
+                          ),
+                        ),
                       ],
                     ),
                   )
                 : ListView.builder(
-                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
                     itemCount: _models.length,
-                    itemBuilder: (ctx, i) => ModelCard(model: _models[i]),
+                    itemBuilder: (ctx, i) => ModelCard(model: _models[i])
+                        .animate()
+                        .fadeIn(delay: (i * 40).ms, duration: 300.ms)
+                        .slideX(
+                          begin: 0.03,
+                          end: 0,
+                          curve: Curves.easeOutCubic,
+                        ),
                   ),
           ),
         ],
@@ -179,21 +193,22 @@ class _FilterChip extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     return GestureDetector(
       onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 200),
+        curve: Curves.easeOutCubic,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         decoration: BoxDecoration(
           color: selected
               ? colorScheme.primary
               : colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(24),
         ),
         child: Text(
           label,
           style: TextStyle(
-            fontSize: 13,
-            color:
-                selected ? colorScheme.onPrimary : colorScheme.onSurfaceVariant,
-            fontWeight: selected ? FontWeight.w600 : FontWeight.normal,
+            fontSize: 14,
+            color: selected ? colorScheme.onPrimary : colorScheme.secondary,
+            fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
           ),
         ),
       ),

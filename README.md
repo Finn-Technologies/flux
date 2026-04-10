@@ -1,26 +1,27 @@
 # Flux
 
-**Flux** is an offline-first, private AI assistant that runs local Hugging Face models directly on your Android device. No accounts, no cloud, no data leaving your phone.
+**Flux** is a private, offline-first AI assistant that runs local language models directly on your Android device. No accounts, no cloud, no data leaving your phone.
 
-Unlike cloud-based AI apps, Flux downloads compact language models to your device and runs inference locally — meaning your conversations are never sent to any server. It targets Android 10+ (SDK 29+) with a modern Material 3 interface and supports English and Italian out of the box.
-
-> ⚠️ **Status:** This is a complete UI scaffold with mock data. Real on-device inference (via `llama.cpp` / `fllama` / `mlc-llm`) and Hugging Face API integration are stubbed with `TODO` comments, ready to be implemented.
+> **Status:** Core UI scaffold complete. On-device inference and Hugging Face API integration are scaffolded with `TODO` comments, ready for implementation.
 
 ---
 
-## What Flux Does
+## Features
 
-**Chat** — A full conversational interface where you can chat with a local model. Send text messages, attach photos or documents, pick which downloaded model to use, and get streaming responses. Conversations are persisted locally.
+### Chat
+A full conversational interface with streaming responses. Conversations are saved locally and accessible via a slide-up panel. Attach photos, documents, or use your camera. Pick which downloaded model to chat with.
 
-**Assistant** — A voice-first shortcut layer for common actions: set a timer, summarize a page, toggle the flashlight, or create a quick note. Works without any network connection.
+### Assistant
+A voice-first quick-action layer. Tap to speak and execute common tasks like setting timers, summarizing pages, toggling the flashlight, or creating notes. Works completely offline.
 
-**Model Library** — Browse and filter available Hugging Face models by capability (Chat, Vision, Audio, Tools). See size, speed, and quality ratings before downloading.
+### Model Library
+Browse available models with search and capability filters. View model details including size, speed, and quality metrics.
 
-**Downloads** — Manage your downloaded models. See storage usage, track download progress, and pause or resume downloads at any time.
+### Downloads
+Track storage usage and manage downloaded models. Monitor download progress with pause/resume controls.
 
-**Settings** — Control storage (clear cache, delete models), switch language, and view app info.
-
-**Onboarding** — A 3-slide intro followed by a model picker on first launch. Skips automatically on return visits.
+### Settings
+Clear cache and view app information.
 
 ---
 
@@ -28,38 +29,39 @@ Unlike cloud-based AI apps, Flux downloads compact language models to your devic
 
 ```
 lib/
-├── main.dart                          # App entry, Material 3 theme, GoRouter, onboarding gate
+├── main.dart                          # App entry, Material 3 theme, GoRouter, onboarding
 ├── core/
 │   ├── services/
-│   │   ├── hf_api_service.dart        # Stubbed HF API client (TODO: huggingface_hub)
-│   │   ├── inference_service.dart     # Stubbed streaming inference (TODO: llama.cpp)
-│   │   └── model_manager.dart         # Stubbed model lifecycle (TODO: background_downloader)
+│   │   ├── hf_api_service.dart        # HF API client (TODO: implement)
+│   │   ├── inference_service.dart       # Streaming inference (TODO: implement)
+│   │   └── model_manager.dart          # Model lifecycle (TODO: implement)
 │   └── widgets/
-│       ├── flux_drawer.dart           # Full-screen sidebar navigation
-│       ├── chat_bubble.dart            # Chat message bubble
-│       └── model_card.dart             # Model library card with metrics
+│       ├── flux_shell.dart             # Navigation shell with bottom nav
+│       ├── flux_drawer.dart            # Side drawer navigation
+│       └── model_card.dart             # Model library card
 ├── constants/
-│   └── mock_models.dart               # 8 mock HFModel instances
+│   └── mock_models.dart               # Mock model data
 ├── features/
-│   ├── onboarding/                    # 3-slide intro + model picker
-│   ├── chat/                          # Conversational UI + Riverpod state
-│   ├── assistant/                     # Voice-first quick actions
-│   ├── models/                        # Browse / search / filter models
-│   ├── downloads/                      # Download queue + storage overview
-│   └── settings/                       # Storage, language, about
-└── l10n/                             # English + Italian ARB localization
+│   ├── onboarding/                   # Onboarding + model selection
+│   ├── chat/                         # Chat UI with conversation history
+│   ├── assistant/                    # Voice quick actions
+│   ├── models/                       # Model library browser
+│   ├── downloads/                    # Download management
+│   └── settings/                     # App settings
+└── l10n/                            # English + Italian localization
 ```
 
 ### Stack
+
 | Concern | Choice |
 |---|---|
 | Framework | Flutter |
 | State | Riverpod (`StateNotifier`, `StateProvider`) |
-| Navigation | go_router (7 routes) |
+| Navigation | go_router |
 | Persistence | Hive / SharedPreferences scaffolded |
-| Theming | Material 3, `ThemeMode.system` (OS-adaptive) |
-| Downloads | background_downloader (scaffolded) |
-| Voice input | speech_to_text + record (scaffolded) |
+| Theming | Material 3, `ThemeMode.system` (adaptive light/dark) |
+| Downloads | background_downloader scaffolded |
+| Voice | speech_to_text + record scaffolded |
 
 ---
 
@@ -89,10 +91,10 @@ flutter build apk --release
 
 ## Privacy by Design
 
-- **No account** — Flux never asks for an email, phone number, or any identifying information
+- **No account** — Flux never asks for email, phone, or any identifying information
 - **100% on-device** — All inference, storage, and processing happens locally
-- **Zero telemetry** — No analytics, no crash reporting, no external services of any kind
-- **Open source** — The full source is here for anyone to audit
+- **Zero telemetry** — No analytics, no crash reporting, no external services
+- **Open source** — Full source available for audit
 
 ---
 
@@ -120,6 +122,7 @@ flutter build apk --release
 | `record` | ^6.2.0 | Audio recording |
 | `speech_to_text` | ^7.0.0 | Voice input |
 | `flutter_localizations` | SDK | i18n (EN/IT) |
+| `flutter_animate` | ^4.5.0 | UI animations |
 
 ---
 

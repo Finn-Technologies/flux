@@ -12,13 +12,8 @@ class ModelManager {
   Future<List<HFModel>> getCompatibleModels(
       {int? deviceRamGB, int? freeStorageMB}) async {
     // TODO: Wire to real device info via device_info_plus and path_provider
-    final ram = deviceRamGB ?? 6;
-    final free = freeStorageMB ?? 8000;
-    final all = getMockModels();
-    return all.where((m) {
-      final ramNeededMB = (ram * 1024 * 0.6).round();
-      return m.sizeMB <= free && m.sizeMB <= ramNeededMB;
-    }).toList();
+    // TODO: Replace with real HF API to fetch compatible models
+    return [];
   }
 
   Future<void> downloadModel(HFModel model) async {
@@ -32,6 +27,13 @@ class ModelManager {
     // TODO: Cancel download, delete files, remove Hive/Isar entry
   }
 
-  Future<int> getUsedStorageMB() async => 2300;
-  Future<int> getFreeStorageMB() async => 8000;
+  Future<int> getUsedStorageMB() async {
+    // TODO: Calculate actual storage used by models directory
+    return 0;
+  }
+
+  Future<int> getFreeStorageMB() async {
+    // TODO: Get actual free storage from path_provider
+    return 0;
+  }
 }

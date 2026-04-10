@@ -1,120 +1,98 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../../core/widgets/flux_drawer.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
-final localeProvider = StateProvider<Locale>((ref) => const Locale('en'));
-
-class SettingsScreen extends ConsumerWidget {
+class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
       appBar: AppBar(
-        scrolledUnderElevation: 0,
-        backgroundColor: colorScheme.surface,
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: colorScheme.primary,
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Icon(Icons.settings_outlined,
-                  size: 15, color: colorScheme.onPrimary),
-            ),
-            const SizedBox(width: 10),
-            const Text('Settings',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          ],
-        ),
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: Icon(Icons.menu, color: colorScheme.onSurface),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
-        ),
+        title: const Text('Settings',
+            style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600)),
       ),
-      drawer: const FluxDrawer(currentItem: NavItem.settings),
       body: ListView(
         children: [
-          _SectionHeader(title: 'Storage'),
-          _SettingsTile(
-            icon: Icons.storage_outlined,
-            title: 'Storage used',
-            subtitle: '2.3 GB by models',
-            onTap: () {},
+          const SizedBox(height: 8),
+          _SettingsSection(
+            title: 'Storage',
+            delay: 0,
+            children: [
+              _SettingsTile(
+                icon: Icons.delete_outline,
+                title: 'Clear cache',
+                subtitle: 'Remove temporary files',
+                colorScheme: colorScheme,
+                onTap: () => _confirm(context, 'Clear cache?',
+                    'This removes temporary files only.', 'Clear', false),
+              ),
+            ],
           ),
-          _SettingsTile(
-            icon: Icons.delete_outline,
-            title: 'Clear cache',
-            subtitle: 'Remove temporary files',
-            onTap: () => _confirm(context, 'Clear cache?',
-                'This removes temporary files only.', 'Clear', false),
+          _SettingsSection(
+            title: 'About',
+            delay: 100,
+            children: [
+              _SettingsTile(
+                icon: Icons.info_outline,
+                title: 'About Flux',
+                subtitle: 'Version 0.1.0',
+                colorScheme: colorScheme,
+                onTap: () => _showAboutSheet(context),
+              ),
+            ],
           ),
-          _SettingsTile(
-            icon: Icons.folder_delete_outlined,
-            title: 'Delete all models',
-            subtitle: 'Remove all downloaded models',
-            isDestructive: true,
-            onTap: () => _confirm(
-              context,
-              'Delete all models?',
-              'This cannot be undone. You will need to re-download models to use them.',
-              'Delete',
-              true,
-            ),
-          ),
-          _SectionHeader(title: 'Language'),
-          _SettingsTile(
-            icon: Icons.language_outlined,
-            title: 'Language',
-            subtitle: 'English',
-            onTap: () => _showLanguageDialog(context, ref),
-          ),
-          _SectionHeader(title: 'About'),
-          _SettingsTile(
-            icon: Icons.info_outline,
-            title: 'About Flux',
-            subtitle: 'Version 0.1.0',
-            onTap: () => _showAboutSheet(context),
-          ),
+          const SizedBox(height: 48),
         ],
       ),
     );
   }
 
-  void _confirm(
-    BuildContext context,
-    String title,
-    String message,
-    String action,
-    bool destructive,
-  ) {
+  void _confirm(BuildContext context, String title, String message,
+      String action, bool destructive) {
     final colorScheme = Theme.of(context).colorScheme;
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(title),
-        content: Text(message,
-            style: TextStyle(color: colorScheme.onSurfaceVariant)),
-        actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(action,
-                style: TextStyle(
-                    color:
-                        destructive ? colorScheme.error : colorScheme.primary)),
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(32)),
+        child: Padding(
+          padding: const EdgeInsets.all(28),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title,
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 12),
+              Text(message,
+                  style: TextStyle(
+                      fontSize: 16, color: colorScheme.secondary, height: 1.5)),
+              const SizedBox(height: 28),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: const Text('Cancel', style: TextStyle(fontSize: 16)),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    child: Text(action,
+                        style: TextStyle(
+                            fontSize: 16,
+                            color: destructive
+                                ? colorScheme.error
+                                : colorScheme.primary)),
+                  ),
+                ],
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }
@@ -125,135 +103,40 @@ class SettingsScreen extends ConsumerWidget {
       context: context,
       backgroundColor: colorScheme.surface,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(32))),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.all(40),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 36,
-                height: 4,
+                width: 80,
+                height: 80,
                 decoration: BoxDecoration(
-                  color: colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(28),
                 ),
+                child:
+                    Icon(Icons.smart_toy, size: 40, color: colorScheme.primary),
               ),
               const SizedBox(height: 24),
-              Container(
-                width: 64,
-                height: 64,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(18),
-                ),
-                child: Icon(Icons.smart_toy,
-                    size: 32, color: colorScheme.onPrimaryContainer),
-              ),
-              const SizedBox(height: 16),
+              Text('Flux',
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(fontWeight: FontWeight.bold)),
+              const SizedBox(height: 6),
+              Text('Version 0.1.0',
+                  style: TextStyle(fontSize: 15, color: colorScheme.secondary)),
+              const SizedBox(height: 24),
               Text(
-                'Flux',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.bold,
-                    ),
-              ),
-              const SizedBox(height: 4),
-              Text(
-                'Version 0.1.0',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'Your private AI assistant that runs locally on your device. '
-                'Your data stays on your phone — no account needed.',
+                'Your private AI assistant that runs locally on your device. Your data stays on your phone — no account needed.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  fontSize: 14,
-                  color: colorScheme.onSurfaceVariant,
-                ),
+                    fontSize: 16, color: colorScheme.secondary, height: 1.5),
               ),
-              const SizedBox(height: 24),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showLanguageDialog(BuildContext context, WidgetRef ref) {
-    final colorScheme = Theme.of(context).colorScheme;
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: colorScheme.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                decoration: BoxDecoration(
-                  color: colorScheme.outlineVariant,
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const SizedBox(height: 16),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('Language',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          )),
-                ),
-              ),
-              const SizedBox(height: 8),
-              ListTile(
-                leading: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Icon(Icons.language,
-                      color: colorScheme.onPrimaryContainer),
-                ),
-                title: const Text('English'),
-                trailing: Icon(Icons.check, color: colorScheme.primary),
-                onTap: () {
-                  ref.read(localeProvider.notifier).state = const Locale('en');
-                  Navigator.pop(ctx);
-                },
-              ),
-              ListTile(
-                leading: Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: colorScheme.surfaceContainerHighest,
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child:
-                      Icon(Icons.language, color: colorScheme.onSurfaceVariant),
-                ),
-                title: const Text('Italiano'),
-                onTap: () {
-                  ref.read(localeProvider.notifier).state = const Locale('it');
-                  Navigator.pop(ctx);
-                },
-              ),
+              const SizedBox(height: 40),
             ],
           ),
         ),
@@ -262,24 +145,34 @@ class SettingsScreen extends ConsumerWidget {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
+class _SettingsSection extends StatelessWidget {
   final String title;
-  const _SectionHeader({required this.title});
+  final int delay;
+  final List<Widget> children;
+
+  const _SettingsSection(
+      {required this.title, required this.delay, required this.children});
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 20, 20, 4),
-      child: Text(
-        title.toUpperCase(),
-        style: TextStyle(
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          letterSpacing: 1.2,
-          color: Theme.of(context).colorScheme.primary,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(28, 28, 28, 10),
+          child: Text(
+            title.toUpperCase(),
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+          ),
         ),
-      ),
-    );
+        ...children,
+      ],
+    ).animate().fadeIn(delay: Duration(milliseconds: delay), duration: 350.ms);
   }
 }
 
@@ -287,6 +180,7 @@ class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
   final String subtitle;
+  final ColorScheme colorScheme;
   final VoidCallback onTap;
   final bool isDestructive;
 
@@ -294,43 +188,43 @@ class _SettingsTile extends StatelessWidget {
     required this.icon,
     required this.title,
     required this.subtitle,
+    required this.colorScheme,
     required this.onTap,
     this.isDestructive = false,
   });
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
     return ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: 28, vertical: 4),
       leading: Container(
-        width: 36,
-        height: 36,
+        width: 48,
+        height: 48,
         decoration: BoxDecoration(
           color: isDestructive
               ? colorScheme.error.withValues(alpha: 0.1)
-              : colorScheme.primaryContainer,
-          borderRadius: BorderRadius.circular(8),
+              : colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Icon(
-          icon,
-          size: 18,
-          color: isDestructive
-              ? colorScheme.error
-              : colorScheme.onPrimaryContainer,
-        ),
+        child: Icon(icon,
+            size: 22,
+            color: isDestructive ? colorScheme.error : colorScheme.primary),
       ),
       title: Text(
         title,
         style: TextStyle(
-          fontWeight: FontWeight.w500,
-          color: isDestructive ? colorScheme.error : null,
-        ),
+            fontSize: 17,
+            fontWeight: FontWeight.w500,
+            color: isDestructive ? colorScheme.error : null),
       ),
-      subtitle: Text(subtitle, style: const TextStyle(fontSize: 12)),
-      trailing: Icon(Icons.chevron_right,
-          size: 20, color: colorScheme.onSurfaceVariant),
-      onTap: onTap,
+      subtitle: Text(subtitle,
+          style: TextStyle(fontSize: 14, color: colorScheme.secondary)),
+      trailing:
+          Icon(Icons.chevron_right, size: 24, color: colorScheme.secondary),
+      onTap: () {
+        HapticFeedback.selectionClick();
+        onTap();
+      },
     );
   }
 }

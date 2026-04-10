@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import '../../core/widgets/flux_drawer.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 
 class AssistantScreen extends StatefulWidget {
   const AssistantScreen({super.key});
@@ -9,503 +10,400 @@ class AssistantScreen extends StatefulWidget {
 }
 
 class _AssistantScreenState extends State<AssistantScreen>
-    with SingleTickerProviderStateMixin {
+    with TickerProviderStateMixin {
   bool _isListening = false;
-  String _transcript = '';
-  final List<_ActionItem> _history = [];
-  late AnimationController _pulseCtrl;
-  late Animation<double> _pulseAnim;
+  final List<_TranscriptBubble> _transcripts = [];
+  late AnimationController _waveController;
 
   @override
   void initState() {
     super.initState();
-    _pulseCtrl = AnimationController(
+    _waveController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1200),
-    )..repeat(reverse: true);
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.1).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut),
-    );
+      duration: const Duration(milliseconds: 2000),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _pulseCtrl.dispose();
+    _waveController.dispose();
     super.dispose();
   }
 
   void _toggleListening() async {
+    HapticFeedback.mediumImpact();
+
     if (_isListening) {
       setState(() => _isListening = false);
       return;
     }
 
-    setState(() => _isListening = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
     setState(() {
-      _isListening = false;
-      _transcript = 'Set a timer for 5 minutes';
-      _history.insert(
-        0,
-        _ActionItem(
-          request: _transcript,
-          response: 'Done. Timer set for 5 minutes.',
-          icon: Icons.timer_outlined,
-          time: DateTime.now(),
-        ),
-      );
+      _isListening = true;
     });
   }
-
-  void _quickAction(String request, IconData icon) {
-    setState(() {
-      _transcript = request;
-      _history.insert(
-        0,
-        _ActionItem(
-          request: request,
-          response: 'Done.',
-          icon: icon,
-          time: DateTime.now(),
-        ),
-      );
-    });
-  }
-
-  void _clear() => setState(() {
-        _transcript = '';
-        _history.clear();
-      });
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
 
     return Scaffold(
-      appBar: AppBar(
-        scrolledUnderElevation: 0,
-        backgroundColor: colorScheme.surface,
-        leading: Builder(
-          builder: (ctx) => IconButton(
-            icon: Icon(Icons.menu, color: colorScheme.onSurface),
-            onPressed: () => Scaffold.of(ctx).openDrawer(),
-          ),
-        ),
-        title: Row(
-          mainAxisSize: MainAxisSize.min,
+      body: SafeArea(
+        child: Column(
           children: [
-            Container(
-              width: 28,
-              height: 28,
-              decoration: BoxDecoration(
-                color: colorScheme.primary,
-                borderRadius: BorderRadius.circular(7),
-              ),
-              child: Icon(Icons.mic, size: 15, color: colorScheme.onPrimary),
-            ),
-            const SizedBox(width: 10),
-            Text('Assistant',
-                style:
-                    const TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-          ],
-        ),
-        actions: [
-          if (_history.isNotEmpty || _transcript.isNotEmpty)
-            IconButton(
-              icon: Icon(Icons.refresh, color: colorScheme.onSurfaceVariant),
-              onPressed: _clear,
-            ),
-        ],
-      ),
-      drawer: const FluxDrawer(currentItem: NavItem.assistant),
-      body: Column(
-        children: [
-          Expanded(
-            child: _history.isEmpty && _transcript.isEmpty
-                ? _IdleView(
-                    isListening: _isListening,
-                    pulseAnim: _pulseAnim,
-                    onTap: _toggleListening,
-                  )
-                : _ConversationView(
-                    transcript: _transcript,
-                    history: _history,
+            // Header
+            Padding(
+              padding: const EdgeInsets.all(24),
+              child: Row(
+                children: [
+                  Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: colorScheme.primary,
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Icon(Icons.smart_toy,
+                        color: colorScheme.onPrimary, size: 24),
                   ),
-          ),
-          _AssistantFooter(
-            isListening: _isListening,
-            pulseAnim: _pulseAnim,
-            historyEmpty: _history.isEmpty && _transcript.isEmpty,
-            onTapMic: _toggleListening,
-            onQuickAction: _quickAction,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _IdleView extends StatelessWidget {
-  final bool isListening;
-  final Animation<double> pulseAnim;
-  final VoidCallback onTap;
-
-  const _IdleView({
-    required this.isListening,
-    required this.pulseAnim,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          AnimatedBuilder(
-            animation: pulseAnim,
-            builder: (_, __) => Transform.scale(
-              scale: isListening ? pulseAnim.value : 1.0,
-              child: GestureDetector(
-                onTap: onTap,
-                child: Container(
-                  width: 100,
-                  height: 100,
-                  decoration: BoxDecoration(
-                    color: isListening
-                        ? colorScheme.error
-                        : colorScheme.primaryContainer,
-                    shape: BoxShape.circle,
-                    boxShadow: [
-                      BoxShadow(
-                        color: (isListening
-                                ? colorScheme.error
-                                : colorScheme.primary)
-                            .withValues(alpha: 0.25),
-                        blurRadius: isListening ? 30 : 20,
-                        spreadRadius: isListening ? 4 : 0,
-                      ),
-                    ],
-                  ),
-                  child: Icon(
-                    isListening ? Icons.stop : Icons.mic,
-                    size: 44,
-                    color: isListening
-                        ? Colors.white
-                        : colorScheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            isListening ? 'Listening…' : 'Tap to speak',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  color: colorScheme.onSurfaceVariant,
-                ),
-          ),
-          if (isListening) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Tap again to stop',
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: colorScheme.onSurfaceVariant.withValues(alpha: 0.6),
-                  ),
-            ),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _ConversationView extends StatelessWidget {
-  final String transcript;
-  final List<_ActionItem> history;
-
-  const _ConversationView({required this.transcript, required this.history});
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        if (transcript.isNotEmpty) ...[
-          Align(
-            alignment: Alignment.centerRight,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Container(
-                  constraints: BoxConstraints(
-                      maxWidth: MediaQuery.of(context).size.width * 0.75),
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                  decoration: BoxDecoration(
-                    color: colorScheme.primary,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(18),
-                      topRight: Radius.circular(18),
-                      bottomLeft: Radius.circular(18),
-                      bottomRight: Radius.zero,
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Flux Assistant',
+                          style: TextStyle(
+                              fontSize: 18, fontWeight: FontWeight.w600),
+                        ),
+                        Row(
+                          children: [
+                            Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: _isListening
+                                    ? colorScheme.error
+                                    : Colors.green,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              _isListening ? 'Listening...' : 'Ready',
+                              style: TextStyle(
+                                  fontSize: 13, color: colorScheme.secondary),
+                            ),
+                          ],
+                        ),
+                      ],
                     ),
                   ),
-                  child: Text(transcript,
-                      style: TextStyle(color: colorScheme.onPrimary)),
-                ),
-                const SizedBox(height: 4),
-                Text('You',
-                    style: TextStyle(
-                        fontSize: 11,
-                        color: colorScheme.onSurfaceVariant
-                            .withValues(alpha: 0.5))),
-              ],
+                  if (_transcripts.isNotEmpty)
+                    IconButton(
+                      icon: Icon(Icons.refresh, color: colorScheme.secondary),
+                      onPressed: () => setState(() => _transcripts.clear()),
+                    ),
+                ],
+              ),
             ),
+
+            // Main content
+            Expanded(
+              child: _transcripts.isEmpty && !_isListening
+                  ? _buildIdleState(colorScheme)
+                  : _buildConversationState(colorScheme),
+            ),
+
+            // Bottom action area
+            _buildBottomArea(colorScheme),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildIdleState(ColorScheme colorScheme) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        Text(
+          _isListening ? 'Listening...' : 'Tap to start',
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.w500,
+            color: colorScheme.onSurface,
           ),
-          const SizedBox(height: 16),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _isListening
+              ? 'Speak now or tap to stop'
+              : 'Ask anything or try a suggestion below',
+          style: TextStyle(fontSize: 14, color: colorScheme.secondary),
+        ),
+        if (!_isListening) ...[
+          const SizedBox(height: 48),
+          _SuggestionChips(onTap: _toggleListening),
         ],
-        ...history.map((item) => _ResultCard(item: item)),
       ],
     );
   }
+
+  Widget _buildConversationState(ColorScheme colorScheme) {
+    return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: 24),
+      children: [
+        if (_isListening) ...[
+          _ListeningIndicator(colorScheme: colorScheme),
+          const SizedBox(height: 24),
+        ],
+        ..._transcripts.map((t) => _TranscriptBubbleWidget(
+              bubble: t,
+              colorScheme: colorScheme,
+            )),
+      ],
+    );
+  }
+
+  Widget _buildBottomArea(ColorScheme colorScheme) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      child: GestureDetector(
+        onTap: _toggleListening,
+        child: Container(
+          width: double.infinity,
+          height: 56,
+          decoration: BoxDecoration(
+            color: _isListening ? colorScheme.error : colorScheme.primary,
+            borderRadius: BorderRadius.circular(28),
+            boxShadow: [
+              BoxShadow(
+                color: (_isListening ? colorScheme.error : colorScheme.primary)
+                    .withValues(alpha: 0.3),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+            ],
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                _isListening ? Icons.stop_rounded : Icons.mic_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+              const SizedBox(width: 12),
+              Text(
+                _isListening ? 'Stop' : 'Tap to speak',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 17,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
-class _ResultCard extends StatelessWidget {
-  final _ActionItem item;
-  const _ResultCard({required this.item});
+class _ListeningIndicator extends StatelessWidget {
+  final ColorScheme colorScheme;
+
+  const _ListeningIndicator({required this.colorScheme});
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final t = item.time;
-    final timeStr =
-        '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-
     return Container(
-      margin: const EdgeInsets.only(top: 12),
-      padding: const EdgeInsets.all(16),
+      height: 60,
+      padding: const EdgeInsets.symmetric(horizontal: 20),
       decoration: BoxDecoration(
         color: colorScheme.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: colorScheme.outlineVariant.withValues(alpha: 0.5),
-          width: 1,
-        ),
+        borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: colorScheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(item.icon,
-                    size: 17, color: colorScheme.onPrimaryContainer),
-              ),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(item.request,
-                    style: const TextStyle(
-                        fontWeight: FontWeight.w600, fontSize: 14)),
-              ),
-              Text(timeStr,
-                  style: TextStyle(
-                      fontSize: 11,
-                      color:
-                          colorScheme.onSurfaceVariant.withValues(alpha: 0.6))),
-            ],
+          SizedBox(
+            width: 40,
+            child: _SoundWave(colorScheme: colorScheme),
           ),
-          const SizedBox(height: 10),
-          Row(
-            children: [
-              Icon(Icons.check_circle, size: 15, color: colorScheme.primary),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(item.response,
-                    style: TextStyle(
-                        fontSize: 13, color: colorScheme.onSurfaceVariant)),
-              ),
-            ],
+          const SizedBox(width: 16),
+          Text(
+            'Listening...',
+            style: TextStyle(fontSize: 16, color: colorScheme.onSurface),
           ),
         ],
       ),
+    ).animate(onPlay: (c) => c.repeat()).shimmer(
+          duration: 1500.ms,
+          color: colorScheme.primary.withValues(alpha: 0.1),
+        );
+  }
+}
+
+class _SoundWave extends StatefulWidget {
+  final ColorScheme colorScheme;
+
+  const _SoundWave({required this.colorScheme});
+
+  @override
+  State<_SoundWave> createState() => _SoundWaveState();
+}
+
+class _SoundWaveState extends State<_SoundWave>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 600),
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: List.generate(5, (i) {
+            final offset = (i - 2).abs() / 4;
+            final value = (((_controller.value + offset) % 1.0) * 2 - 1).abs();
+            return Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              width: 4,
+              height: 12 + (value * 12),
+              decoration: BoxDecoration(
+                color: widget.colorScheme.primary
+                    .withValues(alpha: 0.5 + value * 0.5),
+                borderRadius: BorderRadius.circular(2),
+              ),
+            );
+          }),
+        );
+      },
     );
   }
 }
 
-class _AssistantFooter extends StatelessWidget {
-  final bool isListening;
-  final Animation<double> pulseAnim;
-  final bool historyEmpty;
-  final VoidCallback onTapMic;
-  final void Function(String, IconData) onQuickAction;
+class _SuggestionChips extends StatelessWidget {
+  final VoidCallback onTap;
 
-  const _AssistantFooter({
-    required this.isListening,
-    required this.pulseAnim,
-    required this.historyEmpty,
-    required this.onTapMic,
-    required this.onQuickAction,
-  });
+  const _SuggestionChips({required this.onTap});
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
-    final bottomPad = MediaQuery.of(context).padding.bottom;
+    final suggestions = [
+      'Help me plan a trip',
+      'Explain this code',
+      'Summarize this article',
+      'Write a poem',
+    ];
 
-    return Container(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, bottomPad + 16),
-      decoration: BoxDecoration(
-        border: Border(
-            top: BorderSide(
-                color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
-      ),
-      child: historyEmpty
-          ? Column(
-              children: [
-                Text(
-                  'Quick actions',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: colorScheme.onSurfaceVariant,
-                  ),
+    return Wrap(
+      spacing: 10,
+      runSpacing: 10,
+      alignment: WrapAlignment.center,
+      children: suggestions.asMap().entries.map((e) {
+        return GestureDetector(
+          onTap: () {
+            HapticFeedback.selectionClick();
+            onTap();
+          },
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+            decoration: BoxDecoration(
+              color: colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(
+                color: colorScheme.outlineVariant.withValues(alpha: 0.5),
+              ),
+            ),
+            child: Text(
+              e.value,
+              style: TextStyle(fontSize: 14, color: colorScheme.onSurface),
+            ),
+          ),
+        ).animate().fadeIn(delay: (e.key * 100).ms).slideY(begin: 0.1, end: 0);
+      }).toList(),
+    );
+  }
+}
+
+class _TranscriptBubble {
+  final String text;
+  final bool isUser;
+  final DateTime time;
+
+  _TranscriptBubble({required this.text, required this.isUser, DateTime? time})
+      : time = time ?? DateTime.now();
+}
+
+class _TranscriptBubbleWidget extends StatelessWidget {
+  final _TranscriptBubble bubble;
+  final ColorScheme colorScheme;
+
+  const _TranscriptBubbleWidget(
+      {required this.bubble, required this.colorScheme});
+
+  @override
+  Widget build(BuildContext context) {
+    final isUser = bubble.isUser;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: Row(
+        mainAxisAlignment:
+            isUser ? MainAxisAlignment.end : MainAxisAlignment.start,
+        children: [
+          Flexible(
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+              decoration: BoxDecoration(
+                color: isUser
+                    ? colorScheme.primary
+                    : colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.only(
+                  topLeft: const Radius.circular(20),
+                  topRight: const Radius.circular(20),
+                  bottomLeft: isUser
+                      ? const Radius.circular(20)
+                      : const Radius.circular(6),
+                  bottomRight: isUser
+                      ? const Radius.circular(6)
+                      : const Radius.circular(20),
                 ),
-                const SizedBox(height: 10),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickActionCard(
-                        label: 'Set a timer',
-                        icon: Icons.timer_outlined,
-                        onTap: () => onQuickAction(
-                            'Set a 5-minute timer', Icons.timer_outlined),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _QuickActionCard(
-                        label: 'Summarize',
-                        icon: Icons.summarize_outlined,
-                        onTap: () => onQuickAction(
-                            'Summarize this page', Icons.summarize_outlined),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    Expanded(
-                      child: _QuickActionCard(
-                        label: 'Flashlight',
-                        icon: Icons.flashlight_on_outlined,
-                        onTap: () => onQuickAction(
-                            'Turn on flashlight', Icons.flashlight_on_outlined),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: _QuickActionCard(
-                        label: 'Quick note',
-                        icon: Icons.note_add_outlined,
-                        onTap: () => onQuickAction(
-                            'Create a quick note', Icons.note_add_outlined),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            )
-          : AnimatedBuilder(
-              animation: pulseAnim,
-              builder: (_, __) => Transform.scale(
-                scale: isListening ? pulseAnim.value : 1.0,
-                child: GestureDetector(
-                  onTap: onTapMic,
-                  child: Container(
-                    width: 64,
-                    height: 64,
-                    decoration: BoxDecoration(
-                      color:
-                          isListening ? colorScheme.error : colorScheme.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    child: Icon(
-                      isListening ? Icons.stop : Icons.mic,
-                      color: Colors.white,
-                      size: 28,
-                    ),
-                  ),
+              ),
+              child: Text(
+                bubble.text,
+                style: TextStyle(
+                  fontSize: 16,
+                  color: isUser ? colorScheme.onPrimary : colorScheme.onSurface,
                 ),
               ),
             ),
-    );
-  }
-}
-
-class _QuickActionCard extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final VoidCallback onTap;
-
-  const _QuickActionCard({
-    required this.label,
-    required this.icon,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    return Material(
-      color: colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          child: Row(
-            children: [
-              Icon(icon, size: 18, color: colorScheme.primary),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  label,
-                  style: const TextStyle(
-                      fontSize: 13, fontWeight: FontWeight.w500),
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ),
-            ],
           ),
-        ),
+        ],
       ),
-    );
+    )
+        .animate()
+        .fadeIn(duration: 300.ms)
+        .slideY(begin: 0.1, end: 0, curve: Curves.easeOutCubic);
   }
-}
-
-class _ActionItem {
-  final String request;
-  final String response;
-  final IconData icon;
-  final DateTime time;
-  _ActionItem({
-    required this.request,
-    required this.response,
-    required this.icon,
-    required this.time,
-  });
 }
