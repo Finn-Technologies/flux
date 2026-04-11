@@ -31,6 +31,8 @@ Clear cache and view app information.
 lib/
 ├── main.dart                          # App entry, Material 3 theme, GoRouter, onboarding
 ├── core/
+│   ├── models/
+│   │   └── hf_model.dart              # Model data class
 │   ├── services/
 │   │   ├── hf_api_service.dart        # HF API client (TODO: implement)
 │   │   ├── inference_service.dart       # Streaming inference (TODO: implement)
@@ -39,8 +41,6 @@ lib/
 │       ├── flux_shell.dart             # Navigation shell with bottom nav
 │       ├── flux_drawer.dart            # Side drawer navigation
 │       └── model_card.dart             # Model library card
-├── constants/
-│   └── mock_models.dart               # Mock model data
 ├── features/
 │   ├── onboarding/                   # Onboarding + model selection
 │   ├── chat/                         # Chat UI with conversation history

@@ -1,4 +1,4 @@
-import '../../constants/mock_models.dart';
+import '../models/hf_model.dart';
 
 class ModelManager {
   // TODO: Replace with real model management using llama.cpp / fllama.

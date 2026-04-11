@@ -1,4 +1,4 @@
-import '../../constants/mock_models.dart';
+import '../models/hf_model.dart';
 
 class HfApiService {
   Future<List<HFModel>> searchModels(

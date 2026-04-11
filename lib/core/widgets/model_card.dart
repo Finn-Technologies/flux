@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../constants/mock_models.dart';
+import '../models/hf_model.dart';
 
 class ModelCard extends StatelessWidget {
   final HFModel model;
