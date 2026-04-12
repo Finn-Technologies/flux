@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:background_downloader/background_downloader.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -146,9 +147,32 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
   }
 
   Future<void> deleteModel(String id) async {
+    final modelIndex = state.indexWhere((m) => m.id == id);
+    if (modelIndex == -1) return;
+    
+    final model = state[modelIndex];
+    if (model.localPath != null) {
+      final file = File(model.localPath!);
+      if (await file.exists()) {
+        await file.delete();
+        print('Deleted model file: ${model.localPath}');
+      }
+    }
+
     final box = Hive.box('models');
     await box.delete(id);
-    state = state.where((m) => m.id != id).toList();
-    // TODO: also delete file from disk
+    
+    // Update state by resetting download info instead of just removing (so it stays in library)
+    state = state.map((m) => m.id == id ? HFModel(
+      id: m.id,
+      name: m.name,
+      description: m.description,
+      sizeMB: m.sizeMB,
+      speed: m.speed,
+      quality: m.quality,
+      capabilities: m.capabilities,
+      downloadStatus: 'none',
+      downloaded: false,
+    ) : m).toList();
   }
 }

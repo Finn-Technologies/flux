@@ -1,15 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../core/services/inference_service.dart';
+import '../../core/providers/model_provider.dart';
 
-class AssistantScreen extends StatefulWidget {
+class AssistantScreen extends ConsumerStatefulWidget {
   const AssistantScreen({super.key});
 
   @override
-  State<AssistantScreen> createState() => _AssistantScreenState();
+  ConsumerState<AssistantScreen> createState() => _AssistantScreenState();
 }
 
-class _AssistantScreenState extends State<AssistantScreen>
+class _AssistantScreenState extends ConsumerState<AssistantScreen>
     with TickerProviderStateMixin {
   bool _isListening = false;
   final List<_TranscriptBubble> _transcripts = [];
@@ -35,12 +38,45 @@ class _AssistantScreenState extends State<AssistantScreen>
 
     if (_isListening) {
       setState(() => _isListening = false);
+      _processCommand("Tell me a fun fact about the moon."); // Mock transcription
       return;
     }
 
     setState(() {
       _isListening = true;
     });
+  }
+
+  Future<void> _processCommand(String text) async {
+    setState(() {
+      _transcripts.add(_TranscriptBubble(text: text, isUser: true));
+    });
+
+    final selectedModel = ref.read(selectedModelProvider);
+    final inference = InferenceService();
+    
+    String accumulated = "";
+    int bubbleIndex = _transcripts.length;
+    setState(() {
+      _transcripts.add(_TranscriptBubble(text: "...", isUser: false));
+    });
+
+    final stream = inference.streamChat(
+      modelId: selectedModel?.id ?? 'default',
+      prompt: "The user said: $text. Provide a helpful, intelligent assistant response.",
+      localPath: selectedModel?.localPath,
+    );
+
+    await for (final token in stream) {
+      if (!mounted) break;
+      accumulated += token;
+      setState(() {
+        _transcripts[bubbleIndex] = _TranscriptBubble(
+          text: accumulated,
+          isUser: false,
+        );
+      });
+    }
   }
 
   @override

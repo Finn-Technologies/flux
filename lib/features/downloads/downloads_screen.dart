@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/providers/download_provider.dart';
@@ -22,9 +23,23 @@ class _DownloadsScreenState extends ConsumerState<DownloadsScreen> {
   }
 
   Future<void> _loadStorageInfo() async {
-    setState(() {
-      _usedStorageGB = 12.4;
-    });
+    const platform = MethodChannel('com.example.flux/storage');
+    try {
+      final Map<dynamic, dynamic> result = await platform.invokeMethod('getStorageSpace');
+      final total = (result['total'] as int) / (1024 * 1024 * 1024);
+      final free = (result['free'] as int) / (1024 * 1024 * 1024);
+      
+      
+      if (mounted) {
+        setState(() {
+          _totalStorageGB = total;
+          _usedStorageGB = total - free; // Total used on device
+          // Note: usedByApp can be used to show "Flux Storage" specifically
+        });
+      }
+    } catch (e) {
+      debugPrint('Error getting storage info: $e');
+    }
   }
 
   @override

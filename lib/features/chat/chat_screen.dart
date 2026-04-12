@@ -8,24 +8,27 @@ import '../../core/providers/download_provider.dart';
 import '../../core/providers/model_provider.dart';
 import '../../core/models/hf_model.dart';
 
+import 'package:hive_flutter/hive_flutter.dart';
+import '../../core/models/chat_session.dart';
+
 final chatMessagesProvider =
-    StateNotifierProvider<ChatMessagesNotifier, List<_Message>>((ref) {
+    StateNotifierProvider<ChatMessagesNotifier, List<ChatMessage>>((ref) {
   return ChatMessagesNotifier();
 });
 
 final isStreamingProvider = StateProvider<bool>((ref) => false);
 
 final conversationsProvider =
-    StateNotifierProvider<ConversationsNotifier, List<_Conversation>>((ref) {
+    StateNotifierProvider<ConversationsNotifier, List<ChatSession>>((ref) {
   return ConversationsNotifier();
 });
 
-class ChatMessagesNotifier extends StateNotifier<List<_Message>> {
+class ChatMessagesNotifier extends StateNotifier<List<ChatMessage>> {
   ChatMessagesNotifier() : super([]);
 
-  void addMessage(_Message msg) => state = [...state, msg];
+  void addMessage(ChatMessage msg) => state = [...state, msg];
 
-  void updateLastMessage(_Message msg) {
+  void updateLastMessage(ChatMessage msg) {
     if (state.isNotEmpty && !state.last.fromUser) {
       state = [...state.sublist(0, state.length - 1), msg];
     } else {
@@ -35,62 +38,47 @@ class ChatMessagesNotifier extends StateNotifier<List<_Message>> {
 
   void clear() => state = [];
 
-  void setMessages(List<_Message> messages) => state = messages;
+  void setMessages(List<ChatMessage> messages) => state = messages;
 }
 
-class ConversationsNotifier extends StateNotifier<List<_Conversation>> {
-  ConversationsNotifier() : super([]);
-
-  void addConversation(_Conversation conv) {
-    state = [conv, ...state];
+class ConversationsNotifier extends StateNotifier<List<ChatSession>> {
+  ConversationsNotifier() : super([]) {
+    _loadFromHive();
   }
 
-  void updateConversation(_Conversation conv) {
+  void _loadFromHive() {
+    final box = Hive.box('chats');
+    final chats = box.values
+        .map((v) => ChatSession.fromJson(Map<String, dynamic>.from(v)))
+        .toList();
+    // Sort by updatedAt descending
+    chats.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    state = chats;
+  }
+
+  Future<void> addConversation(ChatSession conv) async {
+    state = [conv, ...state];
+    final box = Hive.box('chats');
+    await box.put(conv.id, conv.toJson());
+  }
+
+  Future<void> updateConversation(ChatSession conv) async {
     state = [
       conv,
       ...state.where((c) => c.id != conv.id),
     ];
+    final box = Hive.box('chats');
+    await box.put(conv.id, conv.toJson());
   }
 
-  void deleteConversation(String id) {
+  Future<void> deleteConversation(String id) async {
     state = state.where((c) => c.id != id).toList();
+    final box = Hive.box('chats');
+    await box.delete(id);
   }
 }
 
-class _Message {
-  final String text;
-  final bool fromUser;
-  final DateTime time;
-  _Message({required this.text, required this.fromUser, required this.time});
-}
-
-class _Conversation {
-  final String id;
-  final String title;
-  final List<_Message> messages;
-  final DateTime updatedAt;
-
-  _Conversation({
-    required this.id,
-    required this.title,
-    required this.messages,
-    required this.updatedAt,
-  });
-
-  _Conversation copyWith({
-    String? id,
-    String? title,
-    List<_Message>? messages,
-    DateTime? updatedAt,
-  }) {
-    return _Conversation(
-      id: id ?? this.id,
-      title: title ?? this.title,
-      messages: messages ?? this.messages,
-      updatedAt: updatedAt ?? this.updatedAt,
-    );
-  }
-}
+// ChatSession and ChatMessage are now imported from core/models/chat_session.dart
 
 class ChatScreen extends ConsumerStatefulWidget {
   final String? modelId;
@@ -113,13 +101,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     if (_currentConversationId != null) {
       final messages = ref.read(chatMessagesProvider);
       if (messages.isNotEmpty) {
-        final conv = _Conversation(
+        final conv = ChatSession(
           id: _currentConversationId!,
           title: messages.first.text.length > 30
               ? '${messages.first.text.substring(0, 30)}...'
               : messages.first.text,
           messages: messages,
           updatedAt: DateTime.now(),
+          modelId: ref.read(selectedModelProvider)?.id,
         );
         ref.read(conversationsProvider.notifier).updateConversation(conv);
       }
@@ -171,7 +160,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     ref
         .read(chatMessagesProvider.notifier)
-        .addMessage(_Message(text: text, fromUser: true, time: DateTime.now()));
+        .addMessage(ChatMessage(text: text, fromUser: true, time: DateTime.now()));
     _controller.clear();
     _focusNode.unfocus();
     setState(() => _hasText = false);
@@ -188,17 +177,34 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       modelId: modelName,
       prompt: text,
       localPath: selectedModel?.localPath,
+      systemPrompt: "You are Flux, a helpful and friendly AI assistant. Provide detailed and accurate responses.",
     );
 
     await for (final token in stream) {
       if (!mounted) break;
       accumulated += token;
       ref.read(chatMessagesProvider.notifier).updateLastMessage(
-            _Message(text: accumulated, fromUser: false, time: DateTime.now()),
+            ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
           );
       _scrollToBottom();
     }
-    if (mounted) setState(() => _isStreaming = false);
+    if (mounted) {
+      setState(() => _isStreaming = false);
+      // Auto-save conversation state when streaming finishes
+      if (_currentConversationId != null) {
+        final messages = ref.read(chatMessagesProvider);
+        final conv = ChatSession(
+          id: _currentConversationId!,
+          title: messages.first.text.length > 30
+              ? '${messages.first.text.substring(0, 30)}...'
+              : messages.first.text,
+          messages: messages,
+          updatedAt: DateTime.now(),
+          modelId: selectedModel?.id,
+        );
+        ref.read(conversationsProvider.notifier).updateConversation(conv);
+      }
+    }
   }
 
   void _scrollToBottom() {
@@ -285,7 +291,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
 class _ConversationsSheet extends ConsumerWidget {
   final ScrollController scrollController;
-  final void Function(_Conversation) onSelect;
+  final void Function(ChatSession) onSelect;
   final VoidCallback onNewChat;
 
   const _ConversationsSheet({
@@ -381,7 +387,7 @@ class _ConversationsSheet extends ConsumerWidget {
 }
 
 class _ConversationTile extends StatelessWidget {
-  final _Conversation conversation;
+  final ChatSession conversation;
   final VoidCallback onTap;
   final VoidCallback onDelete;
 
@@ -752,7 +758,7 @@ class _PresetCardState extends State<_PresetCard> {
 }
 
 class _MessagesList extends StatelessWidget {
-  final List<_Message> messages;
+  final List<ChatMessage> messages;
   final ScrollController scrollController;
   final ColorScheme colorScheme;
 
@@ -784,7 +790,7 @@ class _MessagesList extends StatelessWidget {
 }
 
 class _Bubble extends StatelessWidget {
-  final _Message msg;
+  final ChatMessage msg;
   final ColorScheme colorScheme;
 
   const _Bubble({required this.msg, required this.colorScheme});
@@ -973,7 +979,7 @@ class _ChatInputBar extends StatelessWidget {
                 color: colorScheme.outlineVariant.withValues(alpha: 0.5))),
       ),
       child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
+        crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           SizedBox(
             width: 52,
@@ -991,10 +997,11 @@ class _ChatInputBar extends StatelessWidget {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: SizedBox(
-              height: 52,
-              child: Container(
-                constraints: const BoxConstraints(maxHeight: 140),
+            child: Container(
+              constraints: const BoxConstraints(
+                minHeight: 52,
+                maxHeight: 180,
+              ),
                 decoration: BoxDecoration(
                   color: colorScheme.surfaceContainerHighest,
                   borderRadius: BorderRadius.circular(28),
@@ -1017,7 +1024,6 @@ class _ChatInputBar extends StatelessWidget {
                 ),
               ),
             ),
-          ),
           const SizedBox(width: 10),
           _SendButton(
               hasText: hasText, colorScheme: colorScheme, onSend: onSend),

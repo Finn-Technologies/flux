@@ -10,6 +10,7 @@ class InferenceService {
     required String modelId,
     required String prompt,
     String? localPath,
+    String? systemPrompt,
   }) async* {
     if (localPath == null || !File(localPath).existsSync()) {
       yield "Error: Local model file not found at $localPath.";
@@ -30,14 +31,14 @@ class InferenceService {
         return;
       }
 
-      final systemMessage = "Extremely concise mode. Respond in 1-5 words. Zero filler.";
+      final systemMessage = systemPrompt ?? "Extremely concise mode. Respond in 1-5 words. Zero filler.";
       final fullPrompt = "### System:\n$systemMessage\n\n### User:\n$prompt\n\n### Assistant:\n";
 
       final stream = _engine!.generate(
         fullPrompt,
         params: GenerationParams(
-          temp: 0.0,
-          maxTokens: 100,
+          temp: 0.7,
+          maxTokens: 512,
         ),
       );
 
