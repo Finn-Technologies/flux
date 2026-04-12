@@ -15,8 +15,15 @@ import 'features/settings/settings_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'core/widgets/flux_shell.dart';
 
+import 'package:hive_flutter/hive_flutter.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  await Hive.initFlutter();
+  await Hive.openBox('models');
+  await Hive.openBox('settings');
+
   final prefs = await SharedPreferences.getInstance();
   final onboarded = prefs.getBool('onboarded') ?? false;
 

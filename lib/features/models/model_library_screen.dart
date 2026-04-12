@@ -22,16 +22,24 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
     _loadModels();
   }
 
+  int _searchId = 0;
+
   Future<void> _loadModels() async {
-    final models = await _apiService.searchModels();
+    final models = await _apiService.searchModels(
+      query: _searchCtrl.text,
+      capability: _capability,
+    );
     setState(() {
       _models = models;
     });
   }
 
   void _filter() {
-    setState(() {
-      // Filter is applied to loaded models
+    final id = ++_searchId;
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (id == _searchId && mounted) {
+        _loadModels();
+      }
     });
   }
 
@@ -108,24 +116,6 @@ class _ModelLibraryScreenState extends State<ModelLibraryScreen> {
                   label: 'Chat',
                   selected: _capability == 'chat',
                   onTap: () => _setCap('chat'),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Vision',
-                  selected: _capability == 'vision',
-                  onTap: () => _setCap('vision'),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Audio',
-                  selected: _capability == 'audio',
-                  onTap: () => _setCap('audio'),
-                ),
-                const SizedBox(width: 8),
-                _FilterChip(
-                  label: 'Tools',
-                  selected: _capability == 'tools',
-                  onTap: () => _setCap('tools'),
                 ),
               ],
             ),

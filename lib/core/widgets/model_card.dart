@@ -1,18 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/hf_model.dart';
+import '../providers/download_provider.dart';
 
-class ModelCard extends StatelessWidget {
+class ModelCard extends ConsumerWidget {
   final HFModel model;
-  final VoidCallback? onInstall;
 
-  const ModelCard({super.key, required this.model, this.onInstall});
+  const ModelCard({super.key, required this.model});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
+    final downloadList = ref.watch(downloadProvider);
+    final activeModel = downloadList.firstWhere((m) => m.id == model.id, orElse: () => model);
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       child: Padding(
         padding: const EdgeInsets.all(20),
         child: Column(
@@ -39,7 +42,7 @@ class ModelCard extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        model.name,
+                        activeModel.name,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
                           fontSize: 17,
@@ -47,7 +50,7 @@ class ModelCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        '${(model.sizeMB / 1024).toStringAsFixed(1)} GB',
+                        '${(activeModel.sizeMB / 1024).toStringAsFixed(1)} GB',
                         style: TextStyle(
                           fontSize: 13,
                           color: colorScheme.secondary,
@@ -56,42 +59,51 @@ class ModelCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _ActionButton(model: model, onInstall: onInstall),
+                _ActionButton(model: activeModel),
               ],
             ),
-            const SizedBox(height: 16),
-            Text(
-              model.description,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 14,
-                color: colorScheme.secondary,
-                height: 1.4,
+            if (activeModel.downloadStatus == 'downloading') ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: activeModel.progress / 100,
+                  minHeight: 4,
+                  backgroundColor: colorScheme.outlineVariant.withValues(alpha: 0.2),
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-            _CapabilityTag(capabilities: model.capabilities),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _MetricBar(
-                    label: 'Speed',
-                    value: model.speed,
-                    color: colorScheme.primary,
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${activeModel.progress}% • ${activeModel.downloadSpeed?.toStringAsFixed(1) ?? '0.0'} MB/s',
+                    style: TextStyle(fontSize: 11, color: colorScheme.secondary),
                   ),
-                ),
-                const SizedBox(width: 24),
-                Expanded(
-                  child: _MetricBar(
-                    label: 'Quality',
-                    value: model.quality,
-                    color: colorScheme.primary,
+                  Text(
+                    '${((activeModel.sizeMB * activeModel.progress) / 102400).toStringAsFixed(1)} GB / ${(activeModel.sizeMB / 1024).toStringAsFixed(1)} GB',
+                    style: TextStyle(fontSize: 11, color: colorScheme.secondary),
                   ),
+                ],
+              ),
+            ],
+            if (activeModel.description.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                activeModel.description,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  color: colorScheme.secondary,
+                  height: 1.4,
                 ),
-              ],
-            ),
+              ),
+            ],
+            if (activeModel.capabilities.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _CapabilityTag(capabilities: activeModel.capabilities.take(5).toList()),
+            ],
           ],
         ),
       ),
@@ -131,92 +143,43 @@ class _CapabilityTag extends StatelessWidget {
   }
 }
 
-class _MetricBar extends StatelessWidget {
-  final String label;
-  final double value;
-  final Color color;
-
-  const _MetricBar({
-    required this.label,
-    required this.value,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(label, style: const TextStyle(fontSize: 12)),
-            Text(
-              '${(value * 100).toInt()}%',
-              style: TextStyle(
-                fontSize: 12,
-                color: color,
-                fontWeight: FontWeight.w500,
-              ),
-            ),
-          ],
-        ),
-        const SizedBox(height: 6),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: value,
-            backgroundColor: color.withValues(alpha: 0.1),
-            valueColor: AlwaysStoppedAnimation(color),
-            minHeight: 6,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _ActionButton extends StatelessWidget {
+class _ActionButton extends ConsumerWidget {
   final HFModel model;
-  final VoidCallback? onInstall;
 
-  const _ActionButton({required this.model, this.onInstall});
+  const _ActionButton({required this.model});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colorScheme = Theme.of(context).colorScheme;
 
     if (model.downloaded) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextButton(
-            onPressed: () {},
-            child: const Text('Use', style: TextStyle(fontSize: 14)),
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        decoration: BoxDecoration(
+          color: colorScheme.primary.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          'Installed',
+          style: TextStyle(
+            color: colorScheme.primary,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
           ),
-          TextButton(
-            onPressed: () {},
-            child: Text(
-              'Delete',
-              style: TextStyle(fontSize: 14, color: colorScheme.error),
-            ),
-          ),
-        ],
+        ),
       );
     }
 
-    if (model.progress > 0 && model.progress < 100) {
-      return Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('${model.progress}%', style: const TextStyle(fontSize: 13)),
-          IconButton(icon: const Icon(Icons.pause, size: 20), onPressed: () {}),
-        ],
+    if (model.downloadStatus == 'downloading') {
+      return IconButton(
+        icon: const Icon(Icons.pause_circle_outline),
+        color: colorScheme.secondary,
+        onPressed: () {},
       );
     }
 
     return FilledButton(
-      onPressed: onInstall,
+      onPressed: () => ref.read(downloadProvider.notifier).startDownload(model),
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 40),
         padding: const EdgeInsets.symmetric(horizontal: 20),

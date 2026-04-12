@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/services/inference_service.dart';
+import '../../core/providers/download_provider.dart';
+import '../../core/providers/model_provider.dart';
+import '../../core/models/hf_model.dart';
 
 final chatMessagesProvider =
     StateNotifierProvider<ChatMessagesNotifier, List<_Message>>((ref) {
@@ -174,11 +177,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     setState(() => _hasText = false);
     _scrollToBottom();
 
-    final model = widget.modelId;
+    final modelId = widget.modelId;
     setState(() => _isStreaming = true);
     String accumulated = '';
-    final stream =
-        InferenceService().streamChat(modelId: model ?? '', prompt: text);
+    
+    final selectedModel = ref.read(selectedModelProvider);
+    final modelName = selectedModel?.id ?? modelId ?? 'default';
+
+    final stream = InferenceService().streamChat(
+      modelId: modelName,
+      prompt: text,
+      localPath: selectedModel?.localPath,
+    );
 
     await for (final token in stream) {
       if (!mounted) break;
@@ -215,7 +225,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final messages = ref.watch(chatMessagesProvider);
-    final currentModel = widget.modelId;
+    final selectedModel = ref.watch(selectedModelProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -225,8 +235,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             onPressed: () => _showConversationsSheet(context),
           ),
         ),
-        title:
-            _ModelSelector(modelName: currentModel, colorScheme: colorScheme),
+        title: _ModelSelector(
+          selectedModel: selectedModel,
+          colorScheme: colorScheme,
+        ),
         actions: [
           IconButton(
             icon: Icon(Icons.edit_outlined, color: colorScheme.onSurface),
@@ -435,73 +447,109 @@ class _ConversationTile extends StatelessWidget {
   }
 }
 
-class _ModelSelector extends StatelessWidget {
-  final String? modelName;
+class _ModelSelector extends ConsumerWidget {
+  final HFModel? selectedModel;
   final ColorScheme colorScheme;
 
-  const _ModelSelector({required this.modelName, required this.colorScheme});
+  const _ModelSelector({required this.selectedModel, required this.colorScheme});
 
-  void _showModelSheet(BuildContext context) {
+  void _showModelSheet(BuildContext context, WidgetRef ref) {
+    final downloadedModels = ref.read(downloadProvider).where((m) => m.downloaded).toList();
+
     showModalBottomSheet(
       context: context,
       backgroundColor: colorScheme.surface,
+      isScrollControlled: true,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(32),
+      builder: (ctx) => DraggableScrollableSheet(
+        initialChildSize: 0.5,
+        minChildSize: 0.3,
+        maxChildSize: 0.8,
+        expand: false,
+        builder: (context, scrollController) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 20),
           child: Column(
-            mainAxisSize: MainAxisSize.min,
             children: [
               Container(
-                width: 64,
-                height: 64,
+                margin: const EdgeInsets.symmetric(vertical: 12),
+                width: 36,
+                height: 4,
                 decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Icon(
-                  Icons.smart_toy_outlined,
-                  size: 32,
-                  color: colorScheme.secondary,
+                  color: colorScheme.outlineVariant,
+                  borderRadius: BorderRadius.circular(2),
                 ),
               ),
-              const SizedBox(height: 24),
               Text(
-                modelName == null ? 'No model selected' : 'Select Model',
+                'Select AI Model',
                 style: Theme.of(context).textTheme.titleLarge?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
               ),
-              const SizedBox(height: 12),
-              Text(
-                modelName == null
-                    ? 'Download a model to start chatting.'
-                    : 'Tap on a model to use it.',
-                textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 15, color: colorScheme.secondary),
+              const SizedBox(height: 16),
+              Expanded(
+                child: downloadedModels.isEmpty
+                    ? Column(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(Icons.download_for_offline_outlined,
+                              size: 48, color: colorScheme.secondary),
+                          const SizedBox(height: 16),
+                          const Text('No local models found',
+                              style: TextStyle(fontWeight: FontWeight.w500)),
+                          const SizedBox(height: 8),
+                          Text('Download a model from the Library first.',
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                  fontSize: 14, color: colorScheme.secondary)),
+                        ],
+                      )
+                    : ListView.builder(
+                        controller: scrollController,
+                        itemCount: downloadedModels.length,
+                        itemBuilder: (ctx, i) {
+                          final m = downloadedModels[i];
+                          final isCurrent = m.id == selectedModel?.id;
+                          return ListTile(
+                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                            leading: Container(
+                              width: 48,
+                              height: 48,
+                              decoration: BoxDecoration(
+                                color: isCurrent ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Icon(
+                                Icons.smart_toy_outlined,
+                                color: isCurrent ? colorScheme.onPrimary : colorScheme.primary,
+                              ),
+                            ),
+                            title: Text(m.name,
+                                style: const TextStyle(fontWeight: FontWeight.w600)),
+                            subtitle: Text('${(m.sizeMB / 1024).toStringAsFixed(1)} GB · Local Inference',
+                                style: TextStyle(color: colorScheme.secondary, fontSize: 13)),
+                            trailing: isCurrent ? Icon(Icons.check_circle, color: colorScheme.primary) : null,
+                            onTap: () {
+                              ref.read(selectedModelProvider.notifier).state = m;
+                              Navigator.pop(ctx);
+                            },
+                          );
+                        },
+                      ),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
-                height: 56,
-                child: FilledButton(
+                child: TextButton(
                   onPressed: () {
                     Navigator.pop(ctx);
                     context.go('/models');
                   },
-                  child: const Text('Go to Models'),
+                  child: const Text('Visit Model Library'),
                 ),
               ),
-              const SizedBox(height: 12),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx),
-                child: Text(
-                  'Cancel',
-                  style: TextStyle(fontSize: 16, color: colorScheme.secondary),
-                ),
-              ),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -510,11 +558,11 @@ class _ModelSelector extends StatelessWidget {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final isSelected = modelName != null;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isSelected = selectedModel != null;
 
     return GestureDetector(
-      onTap: () => _showModelSheet(context),
+      onTap: () => _showModelSheet(context, ref),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
@@ -546,9 +594,9 @@ class _ModelSelector extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  isSelected ? modelName! : 'No model',
+                  isSelected ? selectedModel!.name : 'No model',
                   style: TextStyle(
-                    fontSize: 15,
+                    fontSize: 14,
                     fontWeight: FontWeight.w600,
                     color: isSelected
                         ? colorScheme.onSurface
@@ -556,7 +604,7 @@ class _ModelSelector extends StatelessWidget {
                   ),
                 ),
                 Text(
-                  'Tap to select',
+                  isSelected ? 'Local Model' : 'Tap to select',
                   style: TextStyle(fontSize: 10, color: colorScheme.secondary),
                 ),
               ],
