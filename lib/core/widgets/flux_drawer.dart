@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import '../../features/chat/chat_screen.dart';
 
-enum NavItem { chat, assistant, models, downloads, settings }
+enum NavItem { chat, models, downloads, settings }
 
 class FluxDrawer extends ConsumerWidget {
   final NavItem currentItem;
@@ -124,12 +124,6 @@ class FluxDrawer extends ConsumerWidget {
                       fontWeight: FontWeight.w600,
                     ),
               ),
-            ),
-            _DrawerItem(
-              icon: Icons.mic_outlined,
-              label: 'Assistant',
-              selected: currentItem == NavItem.assistant,
-              onTap: () => _go(context, '/assistant'),
             ),
             _DrawerItem(
               icon: Icons.widgets_outlined,

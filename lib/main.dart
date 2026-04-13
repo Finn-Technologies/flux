@@ -7,7 +7,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'features/onboarding/onboarding_page.dart';
 import 'features/onboarding/choose_model_screen.dart';
 import 'features/chat/chat_screen.dart';
-import 'features/assistant/assistant_screen.dart';
 import 'features/models/model_library_screen.dart';
 import 'features/downloads/downloads_screen.dart';
 import 'features/settings/settings_screen.dart';
@@ -18,7 +17,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
+
   await Hive.initFlutter();
   await Hive.openBox('models');
   await Hive.openBox('settings');
@@ -403,9 +402,6 @@ class FluxApp extends ConsumerWidget {
           routes: [
             GoRoute(
                 path: '/chat', builder: (context, state) => const ChatScreen()),
-            GoRoute(
-                path: '/assistant',
-                builder: (context, state) => const AssistantScreen()),
             GoRoute(
                 path: '/models',
                 builder: (context, state) => const ModelLibraryScreen()),

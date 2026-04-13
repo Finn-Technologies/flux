@@ -158,9 +158,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
     HapticFeedback.lightImpact();
 
-    ref
-        .read(chatMessagesProvider.notifier)
-        .addMessage(ChatMessage(text: text, fromUser: true, time: DateTime.now()));
+    ref.read(chatMessagesProvider.notifier).addMessage(
+        ChatMessage(text: text, fromUser: true, time: DateTime.now()));
     _controller.clear();
     _focusNode.unfocus();
     setState(() => _hasText = false);
@@ -169,14 +168,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     final modelId = widget.modelId;
     setState(() => _isStreaming = true);
     String accumulated = '';
-    
+
     final selectedModel = ref.read(selectedModelProvider);
     final modelName = selectedModel?.id ?? modelId ?? 'default';
-    
+
     if (selectedModel == null || selectedModel.localPath == null) {
       ref.read(chatMessagesProvider.notifier).updateLastMessage(
             ChatMessage(
-              text: "No model is currently selected or downloaded. Please visit the Library to download a model first.",
+              text:
+                  "No model is currently selected or downloaded. Please visit the Library to download a model first.",
               fromUser: false,
               time: DateTime.now(),
             ),
@@ -189,28 +189,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       modelId: modelName,
       prompt: text,
       localPath: selectedModel.localPath,
-      systemPrompt: "You are Flux, a helpful and friendly AI assistant. Provide detailed and accurate responses.",
+      systemPrompt:
+          "You are Flux, a helpful and friendly AI assistant. Provide detailed and accurate responses.",
     );
 
     final stopwatch = Stopwatch()..start();
     await for (final token in stream) {
       if (!mounted) break;
       accumulated += token;
-      
+
       // Update UI only if 50ms have passed OR generation is finished
       if (stopwatch.elapsedMilliseconds > 50) {
         ref.read(chatMessagesProvider.notifier).updateLastMessage(
-              ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
+              ChatMessage(
+                  text: accumulated, fromUser: false, time: DateTime.now()),
             );
         _scrollToBottom();
         stopwatch.reset();
       }
     }
-    
+
     // Final update to ensure everything is yielded
     if (mounted) {
       ref.read(chatMessagesProvider.notifier).updateLastMessage(
-            ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
+            ChatMessage(
+                text: accumulated, fromUser: false, time: DateTime.now()),
           );
       _scrollToBottom();
     }
@@ -312,6 +315,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
             onHasTextChanged: (v) => setState(() => _hasText = v),
             onSend: _sendMessage,
             colorScheme: colorScheme,
+            canAttach: selectedModel?.id != 'google/gemma-3-1b-it',
           ),
         ],
       ),
@@ -487,10 +491,12 @@ class _ModelSelector extends ConsumerWidget {
   final HFModel? selectedModel;
   final ColorScheme colorScheme;
 
-  const _ModelSelector({required this.selectedModel, required this.colorScheme});
+  const _ModelSelector(
+      {required this.selectedModel, required this.colorScheme});
 
   void _showModelSheet(BuildContext context, WidgetRef ref) {
-    final downloadedModels = ref.read(downloadProvider).where((m) => m.downloaded).toList();
+    final downloadedModels =
+        ref.read(downloadProvider).where((m) => m.downloaded).toList();
 
     showModalBottomSheet(
       context: context,
@@ -548,26 +554,39 @@ class _ModelSelector extends ConsumerWidget {
                           final m = downloadedModels[i];
                           final isCurrent = m.id == selectedModel?.id;
                           return ListTile(
-                            contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                            contentPadding:
+                                const EdgeInsets.symmetric(vertical: 8),
                             leading: Container(
                               width: 48,
                               height: 48,
                               decoration: BoxDecoration(
-                                color: isCurrent ? colorScheme.primary : colorScheme.surfaceContainerHighest,
+                                color: isCurrent
+                                    ? colorScheme.primary
+                                    : colorScheme.surfaceContainerHighest,
                                 borderRadius: BorderRadius.circular(12),
                               ),
                               child: Icon(
                                 Icons.smart_toy_outlined,
-                                color: isCurrent ? colorScheme.onPrimary : colorScheme.primary,
+                                color: isCurrent
+                                    ? colorScheme.onPrimary
+                                    : colorScheme.primary,
                               ),
                             ),
                             title: Text(m.name,
-                                style: const TextStyle(fontWeight: FontWeight.w600)),
-                            subtitle: Text('${(m.sizeMB / 1024).toStringAsFixed(1)} GB · Local Inference',
-                                style: TextStyle(color: colorScheme.secondary, fontSize: 13)),
-                            trailing: isCurrent ? Icon(Icons.check_circle, color: colorScheme.primary) : null,
+                                style: const TextStyle(
+                                    fontWeight: FontWeight.w600)),
+                            subtitle: Text(
+                                '${(m.sizeMB / 1024).toStringAsFixed(1)} GB · Local Inference',
+                                style: TextStyle(
+                                    color: colorScheme.secondary,
+                                    fontSize: 13)),
+                            trailing: isCurrent
+                                ? Icon(Icons.check_circle,
+                                    color: colorScheme.primary)
+                                : null,
                             onTap: () {
-                              ref.read(selectedModelIdProvider.notifier).state = m.id;
+                              ref.read(selectedModelIdProvider.notifier).state =
+                                  m.id;
                               Navigator.pop(ctx);
                             },
                           );
@@ -985,6 +1004,7 @@ class _ChatInputBar extends StatelessWidget {
   final ValueChanged<bool> onHasTextChanged;
   final VoidCallback onSend;
   final ColorScheme colorScheme;
+  final bool canAttach;
 
   const _ChatInputBar({
     required this.controller,
@@ -993,6 +1013,7 @@ class _ChatInputBar extends StatelessWidget {
     required this.onHasTextChanged,
     required this.onSend,
     required this.colorScheme,
+    required this.canAttach,
   });
 
   @override
@@ -1011,49 +1032,50 @@ class _ChatInputBar extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          SizedBox(
-            width: 52,
-            height: 52,
-            child: Container(
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(28),
-              ),
-              child: IconButton(
-                icon: Icon(Icons.add, color: colorScheme.secondary, size: 24),
-                onPressed: () => _showAttachmentSheet(context),
+          if (canAttach)
+            SizedBox(
+              width: 52,
+              height: 52,
+              child: Container(
+                decoration: BoxDecoration(
+                  color: colorScheme.surfaceContainerHighest,
+                  borderRadius: BorderRadius.circular(28),
+                ),
+                child: IconButton(
+                  icon: Icon(Icons.add, color: colorScheme.secondary, size: 24),
+                  onPressed: () => _showAttachmentSheet(context),
+                ),
               ),
             ),
-          ),
-          const SizedBox(width: 10),
+          if (canAttach) const SizedBox(width: 10),
           Expanded(
             child: Container(
               constraints: const BoxConstraints(
                 minHeight: 52,
                 maxHeight: 180,
               ),
-                decoration: BoxDecoration(
-                  color: colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(28),
-                ),
-                child: TextField(
-                  controller: controller,
-                  focusNode: focusNode,
-                  maxLines: null,
-                  minLines: 1,
-                  textInputAction: TextInputAction.newline,
-                  style: const TextStyle(fontSize: 17),
-                  onChanged: (v) => onHasTextChanged(v.trim().isNotEmpty),
-                  decoration: InputDecoration(
-                    hintText: 'Message Flux…',
-                    hintStyle: TextStyle(
-                        color: colorScheme.secondary.withValues(alpha: 0.6)),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
-                  ),
+              decoration: BoxDecoration(
+                color: colorScheme.surfaceContainerHighest,
+                borderRadius: BorderRadius.circular(28),
+              ),
+              child: TextField(
+                controller: controller,
+                focusNode: focusNode,
+                maxLines: null,
+                minLines: 1,
+                textInputAction: TextInputAction.newline,
+                style: const TextStyle(fontSize: 17),
+                onChanged: (v) => onHasTextChanged(v.trim().isNotEmpty),
+                decoration: InputDecoration(
+                  hintText: 'Message Flux…',
+                  hintStyle: TextStyle(
+                      color: colorScheme.secondary.withValues(alpha: 0.6)),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.fromLTRB(20, 14, 20, 14),
                 ),
               ),
             ),
+          ),
           const SizedBox(width: 10),
           _SendButton(
               hasText: hasText, colorScheme: colorScheme, onSend: onSend),

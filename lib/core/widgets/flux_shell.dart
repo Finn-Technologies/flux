@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../main.dart';
 import '../../features/chat/chat_screen.dart';
-import '../../features/assistant/assistant_screen.dart';
 import '../../features/models/model_library_screen.dart';
 import '../../features/downloads/downloads_screen.dart';
 import '../../features/settings/settings_screen.dart';
@@ -47,10 +46,9 @@ class _FluxShellState extends State<FluxShell> {
 
   int _getIndexFromLocation(String location) {
     if (location.startsWith('/chat')) return 0;
-    if (location.startsWith('/assistant')) return 1;
-    if (location.startsWith('/models')) return 2;
-    if (location.startsWith('/downloads')) return 3;
-    if (location.startsWith('/settings')) return 4;
+    if (location.startsWith('/models')) return 1;
+    if (location.startsWith('/downloads')) return 2;
+    if (location.startsWith('/settings')) return 3;
     return 0;
   }
 
@@ -75,15 +73,12 @@ class _FluxShellState extends State<FluxShell> {
         context.go('/chat');
         break;
       case 1:
-        context.go('/assistant');
-        break;
-      case 2:
         context.go('/models');
         break;
-      case 3:
+      case 2:
         context.go('/downloads');
         break;
-      case 4:
+      case 3:
         context.go('/settings');
         break;
     }
@@ -94,12 +89,10 @@ class _FluxShellState extends State<FluxShell> {
       case 0:
         return const ChatScreen();
       case 1:
-        return const AssistantScreen();
-      case 2:
         return const ModelLibraryScreen();
-      case 3:
+      case 2:
         return const DownloadsScreen();
-      case 4:
+      case 3:
         return const SettingsScreen();
       default:
         return const ChatScreen();
@@ -122,7 +115,7 @@ class _FluxShellState extends State<FluxShell> {
           PageView.builder(
             controller: _pageController,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: 5,
+            itemCount: 4,
             onPageChanged: (index) {
               setState(() {
                 _previousIndex = _currentIndex;
@@ -193,11 +186,6 @@ class _FluxShellState extends State<FluxShell> {
                         icon: Icon(Icons.chat_bubble_outline),
                         selectedIcon: Icon(Icons.chat_bubble),
                         label: 'Chat',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.mic_outlined),
-                        selectedIcon: Icon(Icons.mic),
-                        label: 'Assistant',
                       ),
                       NavigationDestination(
                         icon: Icon(Icons.widgets_outlined),

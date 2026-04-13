@@ -21,6 +21,9 @@ import UIKit
           } catch {
               result(FlutterError(code: "STORAGE_ERROR", message: "Failed to get storage info", details: nil))
           }
+      } else if call.method == "getDeviceRAM" {
+          let physicalMemory = ProcessInfo.processInfo.physicalMemory
+          result(Int64(physicalMemory))
       } else {
           result(FlutterMethodNotImplemented)
       }
