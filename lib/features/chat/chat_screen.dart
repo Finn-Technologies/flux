@@ -150,7 +150,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
 
   void _sendMessage() async {
     final text = _controller.text.trim();
-    if (text.isEmpty) return;
+    if (text.isEmpty || _isStreaming) return;
 
     if (_currentConversationId == null) {
       _currentConversationId = DateTime.now().millisecondsSinceEpoch.toString();
@@ -172,17 +172,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     
     final selectedModel = ref.read(selectedModelProvider);
     final modelName = selectedModel?.id ?? modelId ?? 'default';
+    
+    if (selectedModel == null || selectedModel.localPath == null) {
+      ref.read(chatMessagesProvider.notifier).updateLastMessage(
+            ChatMessage(
+              text: "No model is currently selected or downloaded. Please visit the Library to download a model first.",
+              fromUser: false,
+              time: DateTime.now(),
+            ),
+          );
+      setState(() => _isStreaming = false);
+      return;
+    }
 
     final stream = InferenceService().streamChat(
       modelId: modelName,
       prompt: text,
-      localPath: selectedModel?.localPath,
+      localPath: selectedModel.localPath,
       systemPrompt: "You are Flux, a helpful and friendly AI assistant. Provide detailed and accurate responses.",
     );
 
+    final stopwatch = Stopwatch()..start();
     await for (final token in stream) {
       if (!mounted) break;
       accumulated += token;
+      
+      // Update UI only if 50ms have passed OR generation is finished
+      if (stopwatch.elapsedMilliseconds > 50) {
+        ref.read(chatMessagesProvider.notifier).updateLastMessage(
+              ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
+            );
+        _scrollToBottom();
+        stopwatch.reset();
+      }
+    }
+    
+    // Final update to ensure everything is yielded
+    if (mounted) {
       ref.read(chatMessagesProvider.notifier).updateLastMessage(
             ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
           );
@@ -200,7 +226,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               : messages.first.text,
           messages: messages,
           updatedAt: DateTime.now(),
-          modelId: selectedModel?.id,
+          modelId: selectedModel.id,
         );
         ref.read(conversationsProvider.notifier).updateConversation(conv);
       }
@@ -210,11 +236,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   void _scrollToBottom() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.animateTo(
-          _scrollController.position.maxScrollExtent,
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-        );
+        if (_isStreaming) {
+          _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        } else {
+          _scrollController.animateTo(
+            _scrollController.position.maxScrollExtent,
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeOutCubic,
+          );
+        }
       }
     });
   }
@@ -537,7 +567,7 @@ class _ModelSelector extends ConsumerWidget {
                                 style: TextStyle(color: colorScheme.secondary, fontSize: 13)),
                             trailing: isCurrent ? Icon(Icons.check_circle, color: colorScheme.primary) : null,
                             onTap: () {
-                              ref.read(selectedModelProvider.notifier).state = m;
+                              ref.read(selectedModelIdProvider.notifier).state = m.id;
                               Navigator.pop(ctx);
                             },
                           );

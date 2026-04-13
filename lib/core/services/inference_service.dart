@@ -3,6 +3,10 @@ import 'dart:io';
 import 'package:llamadart/llamadart.dart';
 
 class InferenceService {
+  static final InferenceService _instance = InferenceService._internal();
+  factory InferenceService() => _instance;
+  InferenceService._internal();
+
   LlamaEngine? _engine;
   String? _loadedModelPath;
 
@@ -19,10 +23,27 @@ class InferenceService {
 
     try {
       if (_loadedModelPath != localPath) {
-        if (_engine != null) await _engine!.dispose();
+        if (_engine != null) {
+          await _engine!.dispose();
+          _engine = null;
+        }
         
+        final threads = Platform.numberOfProcessors > 4 ? 4 : 2;
         _engine = LlamaEngine(LlamaBackend());
-        await _engine!.loadModel(localPath);
+        // Disable noisy logs for production stability
+        LlamaEngine.configureLogging(level: LlamaLogLevel.none);
+        
+        await _engine!.loadModel(
+          localPath,
+          modelParams: ModelParams(
+            numberOfThreads: threads,
+            numberOfThreadsBatch: threads,
+            contextSize: 1024,
+            gpuLayers: 0,
+            batchSize: 512,
+            microBatchSize: 512,
+          ),
+        );
         _loadedModelPath = localPath;
       }
 
@@ -31,39 +52,45 @@ class InferenceService {
         return;
       }
 
-      final systemMessage = systemPrompt ?? "Extremely concise mode. Respond in 1-5 words. Zero filler.";
-      final fullPrompt = "### System:\n$systemMessage\n\n### User:\n$prompt\n\n### Assistant:\n";
+      final systemMessage = systemPrompt ?? "You are Flux, an on-device AI. Answer concisely and accurately. Never hallucinate other conversations or users. Stop immediately after answering.";
+      final fullPrompt = "<|im_start|>system\n$systemMessage<|im_end|>\n<|im_start|>user\n$prompt<|im_end|>\n<|im_start|>assistant\n";
+
+      // Aggressive stop sequences to prevent continuation
+      final stopSequences = [
+        "<|im_end|>",
+        "<|end_of_text|>",
+        "<|eot_id|>",
+        "\nuser",
+        "\nUser",
+        "\n###",
+        "### User:",
+        "User:",
+      ];
 
       final stream = _engine!.generate(
         fullPrompt,
         params: GenerationParams(
-          temp: 0.7,
+          temp: 0.0, // Maximum determinism
           maxTokens: 512,
+          penalty: 1.1,
+          stopSequences: stopSequences,
         ),
       );
 
-      // Manual stop sequence handling
-      final stopMarkers = ["### User:", "###", "User:", "\n\n"];
       String accumulated = "";
-
       await for (final token in stream) {
         accumulated += token;
         
-        // Check if any stop marker is now in our accumulated text
+        // Manual backup stop check (some backends might not handle stopSequences perfectly)
         bool shouldStop = false;
-        for (final marker in stopMarkers) {
+        for (final marker in stopSequences) {
           if (accumulated.contains(marker)) {
             shouldStop = true;
             break;
           }
         }
 
-        if (shouldStop) {
-          // If we hit a stop marker, we yield only the part before the marker
-          // but for extreme conciseness, we can just stop here as the marker likely started after the answer.
-          break;
-        }
-
+        if (shouldStop) break;
         yield token;
       }
 

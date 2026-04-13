@@ -4,7 +4,6 @@ import 'package:background_downloader/background_downloader.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/hf_model.dart';
-import '../services/hf_api_service.dart';
 
 final downloadProvider = StateNotifierProvider<DownloadNotifier, List<HFModel>>((ref) {
   return DownloadNotifier();
@@ -41,10 +40,13 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
   }
 
   Future<void> startDownload(HFModel model) async {
-    final apiService = HfApiService();
-    final url = await apiService.getGgufFileUrl(model.id);
-    
-    if (url == null) {
+    // Legacy support or fallback
+    print('Direct startDownload called, but cloud integration is disabled.');
+    return;
+  }
+
+  Future<void> startDownloadWithUrl(HFModel model, String url) async {
+    if (url.isEmpty) {
       print('Could not find download URL for ${model.id}');
       return;
     }
@@ -79,7 +81,6 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
 
     await FileDownloader().enqueue(task);
   }
-
   void _updateProgress(String id, double progress, double speed) {
     state = state.map((m) {
       if (m.id == id) {

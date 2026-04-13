@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/hf_model.dart';
 import '../providers/download_provider.dart';
+import '../services/model_service.dart';
 
 class ModelCard extends ConsumerWidget {
   final HFModel model;
@@ -227,7 +228,8 @@ class _ActionButton extends ConsumerWidget {
     return FilledButton(
       onPressed: () {
         HapticFeedback.mediumImpact();
-        ref.read(downloadProvider.notifier).startDownload(model);
+        final url = ModelService.getDownloadUrl(model.id);
+        ref.read(downloadProvider.notifier).startDownloadWithUrl(model, url);
       },
       style: FilledButton.styleFrom(
         minimumSize: const Size(0, 36),

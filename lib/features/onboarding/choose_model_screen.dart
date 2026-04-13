@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../../core/services/hf_api_service.dart';
+import '../../core/services/model_service.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/providers/model_provider.dart';
@@ -16,10 +16,10 @@ class ChooseModelScreen extends ConsumerStatefulWidget {
 }
 
 class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
-  final _apiService = HfApiService();
   List<HFModel> _models = [];
   bool _isLoading = true;
   HFModel? _selectedModel;
+  int _deviceRAM = 0;
 
   @override
   void initState() {
@@ -29,9 +29,11 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
 
   Future<void> _loadModels() async {
     setState(() => _isLoading = true);
-    final models = await _apiService.searchModels(query: 'Llama 3');
+    final ram = await ModelService.getDeviceRAM();
+    final models = await ModelService.getRecommendedModels();
     if (mounted) {
       setState(() {
+        _deviceRAM = ram;
         _models = models;
         _isLoading = false;
         if (models.isNotEmpty) _selectedModel = models.first;
@@ -50,26 +52,44 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
           onPressed: () => context.go('/onboarding'),
         ),
         title: const Text(
-          'Recommended Models',
+          'Model Picker',
           style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(24),
-            child: Text(
-              'Select a model to get started. These are optimized for your device.',
-              style: TextStyle(fontSize: 15, color: colorScheme.secondary),
-              textAlign: TextAlign.center,
+            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+            child: Column(
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.memory, size: 16, color: colorScheme.secondary),
+                    const SizedBox(width: 8),
+                    Text(
+                      'Detected $_deviceRAM GB RAM',
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: colorScheme.secondary,
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Select the most optimized model for your device.',
+                  style: TextStyle(fontSize: 15, color: colorScheme.secondary),
+                  textAlign: TextAlign.center,
+                ),
+              ],
             ),
           ),
           Expanded(
             child: _isLoading
                 ? const Center(child: CircularProgressIndicator())
-                : _models.isEmpty
-                    ? _buildErrorView(colorScheme)
-                    : _buildModelList(colorScheme),
+                : _buildModelList(colorScheme),
           ),
           _buildFooter(colorScheme),
         ],
@@ -88,14 +108,15 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
         return GestureDetector(
           onTap: () => setState(() => _selectedModel = model),
           child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.only(bottom: 12),
-            padding: const EdgeInsets.all(16),
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+            margin: const EdgeInsets.only(bottom: 16),
+            padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(
               color: isSelected
                   ? colorScheme.primary.withValues(alpha: 0.05)
                   : colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(20),
+              borderRadius: BorderRadius.circular(24),
               border: Border.all(
                 color: isSelected ? colorScheme.primary : Colors.transparent,
                 width: 2,
@@ -104,15 +125,15 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
             child: Row(
               children: [
                 Container(
-                  width: 44,
-                  height: 44,
+                  width: 48,
+                  height: 48,
                   decoration: BoxDecoration(
-                    color: isSelected ? colorScheme.primary : colorScheme.outlineVariant,
-                    borderRadius: BorderRadius.circular(12),
+                    color: isSelected ? colorScheme.primary : colorScheme.outlineVariant.withValues(alpha: 0.3),
+                    borderRadius: BorderRadius.circular(16),
                   ),
                   child: Icon(
-                    Icons.smart_toy_outlined,
-                    color: isSelected ? colorScheme.onPrimary : colorScheme.onSurface,
+                    Icons.smart_toy_rounded,
+                    color: isSelected ? colorScheme.onPrimary : colorScheme.secondary,
                   ),
                 ),
                 const SizedBox(width: 16),
@@ -122,42 +143,33 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
                     children: [
                       Text(
                         model.name,
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 16),
+                        style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 17),
                       ),
+                      const SizedBox(height: 4),
                       Text(
-                        '${(model.sizeMB / 1024).toStringAsFixed(1)} GB · GGUF',
-                        style: TextStyle(fontSize: 13, color: colorScheme.secondary),
+                        '${(model.sizeMB / 1024).toStringAsFixed(1)} GB • Optimized',
+                        style: TextStyle(fontSize: 13, color: colorScheme.secondary, fontWeight: FontWeight.w500),
                       ),
                     ],
                   ),
                 ),
                 if (isSelected)
-                  Icon(Icons.check_circle, color: colorScheme.primary),
+                  Icon(Icons.check_circle_rounded, color: colorScheme.primary, size: 28),
               ],
             ),
-          ).animate().fadeIn(delay: (index * 50).ms).slideX(begin: 0.05, end: 0),
+          ).animate().fadeIn(delay: (index * 100).ms).slideY(begin: 0.1, end: 0),
         );
       },
     );
   }
 
-  Widget _buildErrorView(ColorScheme colorScheme) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(Icons.wifi_off, size: 48, color: colorScheme.secondary),
-          const SizedBox(height: 16),
-          const Text('No models found'),
-          TextButton(onPressed: _loadModels, child: const Text('Retry')),
-        ],
-      ),
-    );
-  }
-
   Widget _buildFooter(ColorScheme colorScheme) {
-    return Padding(
+    return Container(
       padding: const EdgeInsets.all(24),
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border(top: BorderSide(color: colorScheme.outlineVariant.withValues(alpha: 0.3))),
+      ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
@@ -166,15 +178,18 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
             height: 56,
             child: FilledButton(
               onPressed: _selectedModel == null ? null : _onContinue,
+              style: FilledButton.styleFrom(
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              ),
               child: const Text(
                 'Download & Continue',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
               ),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Large models may take a few minutes to download.',
+            'High-speed connection recommended.',
             style: TextStyle(fontSize: 12, color: colorScheme.secondary),
           ),
         ],
@@ -185,9 +200,10 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
   Future<void> _onContinue() async {
     if (_selectedModel == null) return;
     
-    // Start download
-    ref.read(downloadProvider.notifier).startDownload(_selectedModel!);
-    ref.read(selectedModelProvider.notifier).state = _selectedModel;
+    // Start download using the static service for URL
+    final url = ModelService.getDownloadUrl(_selectedModel!.id);
+    ref.read(downloadProvider.notifier).startDownloadWithUrl(_selectedModel!, url);
+    ref.read(selectedModelIdProvider.notifier).state = _selectedModel!.id;
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarded', true);

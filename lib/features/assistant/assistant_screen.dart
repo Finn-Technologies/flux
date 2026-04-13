@@ -61,10 +61,20 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen>
       _transcripts.add(_TranscriptBubble(text: "...", isUser: false));
     });
 
+    if (selectedModel == null || selectedModel.localPath == null) {
+      setState(() {
+        _transcripts[bubbleIndex] = _TranscriptBubble(
+          text: "No model selected or downloaded. Please visit the Library to get started.",
+          isUser: false,
+        );
+      });
+      return;
+    }
+
     final stream = inference.streamChat(
-      modelId: selectedModel?.id ?? 'default',
+      modelId: selectedModel.id,
       prompt: "The user said: $text. Provide a helpful, intelligent assistant response.",
-      localPath: selectedModel?.localPath,
+      localPath: selectedModel.localPath,
     );
 
     await for (final token in stream) {
@@ -120,7 +130,7 @@ class _AssistantScreenState extends ConsumerState<AssistantScreen>
                               decoration: BoxDecoration(
                                 color: _isListening
                                     ? colorScheme.error
-                                    : Colors.green,
+                                    : colorScheme.primary,
                                 shape: BoxShape.circle,
                               ),
                             ),
