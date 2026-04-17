@@ -1,12 +1,7 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
-import '../../main.dart';
-import '../../features/chat/chat_screen.dart';
-import '../../features/models/model_library_screen.dart';
-import '../../features/downloads/downloads_screen.dart';
-import '../../features/settings/settings_screen.dart';
+import 'package:flutter_svg/flutter_svg.dart';
 
 class FluxShell extends StatefulWidget {
   final Widget child;
@@ -17,38 +12,17 @@ class FluxShell extends StatefulWidget {
 }
 
 class _FluxShellState extends State<FluxShell> {
-  late PageController _pageController;
   int _currentIndex = 0;
-  int _previousIndex = 0;
-  bool _isInitialized = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _pageController = PageController();
-  }
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (!_isInitialized) {
-      _currentIndex = _getIndexFromLocation(GoRouterState.of(context).location);
-      _previousIndex = _currentIndex;
-      _isInitialized = true;
-    }
-  }
-
-  @override
-  void dispose() {
-    _pageController.dispose();
-    super.dispose();
+    _currentIndex = _getIndexFromLocation(GoRouterState.of(context).location);
   }
 
   int _getIndexFromLocation(String location) {
-    if (location.startsWith('/chat')) return 0;
-    if (location.startsWith('/models')) return 1;
-    if (location.startsWith('/downloads')) return 2;
-    if (location.startsWith('/settings')) return 3;
+    if (location.startsWith('/home')) return 0;
+    if (location.startsWith('/settings')) return 1;
     return 0;
   }
 
@@ -57,158 +31,93 @@ class _FluxShellState extends State<FluxShell> {
 
     HapticFeedback.selectionClick();
 
-    setState(() {
-      _previousIndex = _currentIndex;
-      _currentIndex = index;
-    });
-
-    _pageController.animateToPage(
-      index,
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeOutCubic,
-    );
-
     switch (index) {
       case 0:
-        context.go('/chat');
+        context.go('/home');
         break;
       case 1:
-        context.go('/models');
-        break;
-      case 2:
-        context.go('/downloads');
-        break;
-      case 3:
         context.go('/settings');
         break;
     }
   }
 
-  Widget _getPage(int index) {
-    switch (index) {
-      case 0:
-        return const ChatScreen();
-      case 1:
-        return const ModelLibraryScreen();
-      case 2:
-        return const DownloadsScreen();
-      case 3:
-        return const SettingsScreen();
-      default:
-        return const ChatScreen();
-    }
-  }
+  // Figma colors
+  static const Color _background = Color(0xFFF9F9F9);
+  static const Color _black = Color(0xFF000000);
+  static const Color _textSecondary = Color.fromRGBO(0, 0, 0, 0.5);
 
   @override
   Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final overlayColor =
-        isDark ? FluxColors.darkOverlay : FluxColors.lightOverlay;
-    final borderColor = isDark
-        ? Colors.white.withValues(alpha: 0.15)
-        : Colors.black.withValues(alpha: 0.1);
-
     return Scaffold(
-      extendBody: true,
+      backgroundColor: _background,
       body: Stack(
         children: [
-          PageView.builder(
-            controller: _pageController,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: 4,
-            onPageChanged: (index) {
-              setState(() {
-                _previousIndex = _currentIndex;
-                _currentIndex = index;
-              });
-            },
-            itemBuilder: (context, index) {
-              return AnimatedSwitcher(
-                duration: const Duration(milliseconds: 350),
-                transitionBuilder: (child, animation) {
-                  final direction = index > _previousIndex ? 1.0 : -1.0;
-                  return SlideTransition(
-                    position: Tween<Offset>(
-                      begin: Offset(direction * 0.08, 0),
-                      end: Offset.zero,
-                    ).animate(CurvedAnimation(
-                      parent: animation,
-                      curve: Curves.easeOutCubic,
-                    )),
-                    child: FadeTransition(
-                      opacity: animation,
-                      child: child,
-                    ),
-                  );
-                },
-                child:
-                    KeyedSubtree(key: ValueKey(index), child: _getPage(index)),
-              );
-            },
+          // Main content - use the ShellRoute's child (current page)
+          Positioned.fill(
+            child: widget.child,
+          ),
+
+          // Bottom Navigation - Clean dock style
+          // No background, no borders, icons only
+          // 50% opacity when not active, 100% when active
+          // Only 2 screens: Home and Settings
+          Positioned(
+            left: 20,
+            right: 20,
+            bottom: 50,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+              children: [
+                // Home (index 0)
+                _buildNavItem(
+                  index: 0,
+                  child: (isSelected) {
+                    return SvgPicture.asset(
+                      'assets/images/home-01.svg',
+                      width: 28,
+                      height: 28,
+                      colorFilter: ColorFilter.mode(
+                        isSelected ? _black : _textSecondary,
+                        BlendMode.srcIn,
+                      ),
+                    );
+                  },
+                ),
+                // Settings (index 1)
+                _buildNavItem(
+                  index: 1,
+                  child: (isSelected) {
+                    return SvgPicture.asset(
+                      'assets/images/settings-03.svg',
+                      width: 28,
+                      height: 28,
+                      colorFilter: ColorFilter.mode(
+                        isSelected ? _black : _textSecondary,
+                        BlendMode.srcIn,
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ),
           ),
         ],
       ),
-      bottomNavigationBar: SafeArea(
-        top: false,
-        bottom: true,
-        child: Container(
-          margin: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-          child: Stack(
-            children: [
-              // Blur behind nav bar
-              Positioned.fill(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(24),
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 15, sigmaY: 15),
-                    child: Container(color: Colors.transparent),
-                  ),
-                ),
-              ),
-              // Nav bar container
-              ClipRRect(
-                borderRadius: BorderRadius.circular(24),
-                child: Container(
-                  decoration: BoxDecoration(
-                    color: overlayColor,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(color: borderColor, width: 0.5),
-                  ),
-                  child: NavigationBar(
-                    elevation: 0,
-                    shadowColor: Colors.transparent,
-                    surfaceTintColor: Colors.transparent,
-                    height: 72,
-                    selectedIndex: _currentIndex,
-                    onDestinationSelected: _onDestinationSelected,
-                    destinations: const [
-                      NavigationDestination(
-                        icon: Icon(Icons.chat_bubble_outline),
-                        selectedIcon: Icon(Icons.chat_bubble),
-                        label: 'Chat',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.widgets_outlined),
-                        selectedIcon: Icon(Icons.widgets),
-                        label: 'Models',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.download_outlined),
-                        selectedIcon: Icon(Icons.download),
-                        label: 'Downloads',
-                      ),
-                      NavigationDestination(
-                        icon: Icon(Icons.settings_outlined),
-                        selectedIcon: Icon(Icons.settings),
-                        label: 'Settings',
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
+    );
+  }
+
+  Widget _buildNavItem({
+    required int index,
+    required Widget Function(bool isSelected) child,
+  }) {
+    final isSelected = _currentIndex == index;
+
+    return GestureDetector(
+      onTap: () => _onDestinationSelected(index),
+      child: SizedBox(
+        width: 28,
+        height: 28,
+        child: child(isSelected),
       ),
     );
   }

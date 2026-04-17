@@ -107,6 +107,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   final PageController _controller = PageController();
   int _page = 0;
   bool _isNavigating = false;
+  bool _isDownloading = false;
 
   // Model selection state
   List<HFModel> _models = [];
@@ -157,6 +158,10 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   Future<void> _onFinish() async {
+    if (_isDownloading) return;
+    
+    setState(() => _isDownloading = true);
+    
     if (_selectedModel != null) {
       final url = ModelService.getDownloadUrl(_selectedModel!.id);
       ref.read(downloadProvider.notifier).startDownloadWithUrl(_selectedModel!, url);
@@ -166,7 +171,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarded', true);
 
-    if (mounted) context.go('/chat');
+    if (mounted) context.go('/home');
   }
 
   @override
@@ -490,12 +495,12 @@ class _DownloadModelSlide extends StatelessWidget {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(
-                                      'Flux Lite',
+                                      model.name,
                                       style: _AppTypography.modelTitle,
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Powered by ${model.name} (${(model.sizeMB / 1024).toStringAsFixed(1)} GB)',
+                                      'Powered by ${model.baseModel ?? model.name} (${model.sizeMB >= 1024 ? (model.sizeMB / 1024).toStringAsFixed(1) + ' GB' : model.sizeMB.toString() + ' MB'})',
                                       style: _AppTypography.modelSubtitle,
                                     ),
                                   ],

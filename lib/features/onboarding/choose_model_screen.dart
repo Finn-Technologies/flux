@@ -18,6 +18,7 @@ class ChooseModelScreen extends ConsumerStatefulWidget {
 class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
   List<HFModel> _models = [];
   bool _isLoading = true;
+  bool _isSubmitting = false;
   HFModel? _selectedModel;
   int _deviceRAM = 0;
 
@@ -177,14 +178,23 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
             width: double.infinity,
             height: 56,
             child: FilledButton(
-              onPressed: _selectedModel == null ? null : _onContinue,
+              onPressed: (_selectedModel == null || _isSubmitting) ? null : _onContinue,
               style: FilledButton.styleFrom(
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              child: const Text(
-                'Download & Continue',
-                style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
-              ),
+              child: _isSubmitting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: Colors.white,
+                      ),
+                    )
+                  : const Text(
+                      'Download & Continue',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
             ),
           ),
           const SizedBox(height: 12),
@@ -198,7 +208,9 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
   }
 
   Future<void> _onContinue() async {
-    if (_selectedModel == null) return;
+    if (_selectedModel == null || _isSubmitting) return;
+    
+    setState(() => _isSubmitting = true);
     
     // Start download using the static service for URL
     final url = ModelService.getDownloadUrl(_selectedModel!.id);
@@ -208,6 +220,6 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarded', true);
     
-    if (mounted) context.go('/chat');
+    if (mounted) context.go('/home');
   }
 }

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/services/inference_service.dart';
@@ -108,6 +107,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scrollController = ScrollController();
   bool _isStreaming = false;
   String? _currentConversationId;
+  bool _hasText = false;
 
   void _startNewChat() {
     // Clear current messages
@@ -213,9 +213,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _showModelSelector(BuildContext context) {
+    // Use rootNavigator to show above the ShellRoute's navigation
     showModalBottomSheet(
       context: context,
       backgroundColor: _Colors.background,
+      isScrollControlled: true,
+      useRootNavigator: true,
+      enableDrag: false,
+      isDismissible: true,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
@@ -224,103 +229,99 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           final downloadedModels = ref.watch(downloadProvider).where((m) => m.downloaded).toList();
           final selectedModel = ref.watch(selectedModelProvider);
 
-          return SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
+          return Container(
+            padding: const EdgeInsets.fromLTRB(20, 24, 20, 80),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Select Model',
+                  style: _TextStyles.title,
+                ),
+                const SizedBox(height: 20),
+                if (downloadedModels.isEmpty)
                   Text(
-                    'Select Model',
-                    style: _TextStyles.title,
-                  ),
-                  const SizedBox(height: 20),
-                  if (downloadedModels.isEmpty)
-                    Text(
-                      'No models downloaded. Go to Library to download.',
-                      style: _TextStyles.hint,
-                    )
-                  else
-                    ...downloadedModels.map((model) => GestureDetector(
-                      onTap: () {
-                        ref.read(selectedModelIdProvider.notifier).state = model.id;
-                        Navigator.pop(ctx);
-                      },
-                      child: Container(
-                        margin: const EdgeInsets.only(bottom: 12),
-                        padding: const EdgeInsets.all(15),
-                        decoration: BoxDecoration(
-                          color: _Colors.white,
-                          borderRadius: BorderRadius.circular(15),
-                          border: Border.all(
-                            color: selectedModel?.id == model.id ? _Colors.black : _Colors.border,
-                            width: selectedModel?.id == model.id ? 2 : 1,
-                          ),
+                    'No models downloaded. Go to Library to download.',
+                    style: _TextStyles.hint,
+                  )
+                else
+                  ...downloadedModels.map((model) => GestureDetector(
+                    onTap: () {
+                      ref.read(selectedModelIdProvider.notifier).state = model.id;
+                      Navigator.pop(ctx);
+                    },
+                    child: Container(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      padding: const EdgeInsets.all(15),
+                      decoration: BoxDecoration(
+                        color: _Colors.white,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(
+                          color: _Colors.border,
+                          width: 1,
                         ),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                                Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  // Show "Flux Lite" as the model name
-                                  Text(
-                                    'Flux Lite',
-                                    style: GoogleFonts.instrumentSans(
-                                      fontSize: 17,
-                                      fontWeight: FontWeight.w400,
-                                      color: _Colors.black,
-                                    ),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  model.name,
+                                  style: GoogleFonts.instrumentSans(
+                                    fontSize: 17,
+                                    fontWeight: FontWeight.w400,
+                                    color: _Colors.black,
                                   ),
-                                  const SizedBox(height: 4),
-                                  // Show the underlying model (Gemma 3 1B) and size
-                                  Text(
-                                    'Powered by ${model.name.replaceAll('google/', '').replaceAll('-it', '').replaceAll('-', ' ')} • ${(model.sizeMB / 1024).toStringAsFixed(1)} GB',
-                                    style: GoogleFonts.instrumentSans(
-                                      fontSize: 13,
-                                      fontWeight: FontWeight.w400,
-                                      color: _Colors.textSecondary,
-                                    ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  'Powered by ${model.baseModel ?? model.name} • ${model.sizeMB >= 1024 ? (model.sizeMB / 1024).toStringAsFixed(1) + ' GB' : model.sizeMB.toString() + ' MB'}',
+                                  style: GoogleFonts.instrumentSans(
+                                    fontSize: 13,
+                                    fontWeight: FontWeight.w400,
+                                    color: _Colors.textSecondary,
                                   ),
-                                ],
+                                ),
+                              ],
+                            ),
+                          ),
+                          if (selectedModel?.id == model.id)
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: const BoxDecoration(
+                                color: _Colors.black,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(
+                                Icons.check,
+                                color: _Colors.white,
+                                size: 16,
+                              ),
+                            )
+                          else
+                            Container(
+                              width: 32,
+                              height: 32,
+                              decoration: BoxDecoration(
+                                shape: BoxShape.circle,
+                                border: Border.all(color: _Colors.border),
+                              ),
+                              child: const Icon(
+                                Icons.add,
+                                color: _Colors.black,
+                                size: 16,
                               ),
                             ),
-                            if (selectedModel?.id == model.id)
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: const BoxDecoration(
-                                  color: _Colors.black,
-                                  shape: BoxShape.circle,
-                                ),
-                                child: const Icon(
-                                  Icons.check,
-                                  color: _Colors.white,
-                                  size: 16,
-                                ),
-                              )
-                            else
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(color: _Colors.border),
-                                ),
-                                child: const Icon(
-                                  Icons.add,
-                                  color: _Colors.black,
-                                  size: 16,
-                                ),
-                              ),
-                          ],
-                     ),
+                        ],
+                      ),
                     ),
                   )),
-                ],
-              ),
+              ],
             ),
           );
         },
@@ -621,6 +622,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    _controller.addListener(() {
+      final hasText = _controller.text.isNotEmpty;
+      if (hasText != _hasText) {
+        setState(() => _hasText = hasText);
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
@@ -664,30 +676,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
             ),
 
-            // Flux Lite text - Position moved higher: x: 63, y: 58 - Tappable to select model
-            // This is the model name (Flux Lite), powered by the actual LLM (Gemma 3 1B)
+            // Header title - shows "Flux" + model suffix at 50% opacity
             Positioned(
               left: 63,
               top: 58,
               child: GestureDetector(
                 onTap: () => _showModelSelector(context),
-                child: Row(
-                  children: [
-                    // "Flux" - full opacity
-                    Text(
-                      'Flux',
-                      style: _TextStyles.title.copyWith(
-                        color: _Colors.black,
-                      ),
-                    ),
-                    // "Lite" - 50% opacity
-                    Text(
-                      ' Lite',
-                      style: _TextStyles.title.copyWith(
-                        color: _Colors.black.withValues(alpha: 0.5),
-                      ),
-                    ),
-                  ],
+                child: Consumer(
+                  builder: (context, ref, child) {
+                    final selectedModel = ref.watch(selectedModelProvider);
+                    final modelName = selectedModel?.name ?? '';
+                    
+                    // Extract suffix from model name (Lite, Steady, Smart)
+                    // Format: "Flux Lite", "Flux Steady", "Flux Smart"
+                    String suffix = '';
+                    if (modelName.toLowerCase().contains('lite')) {
+                      suffix = ' Lite';
+                    } else if (modelName.toLowerCase().contains('steady')) {
+                      suffix = ' Steady';
+                    } else if (modelName.toLowerCase().contains('smart')) {
+                      suffix = ' Smart';
+                    }
+                    
+                    // Always show "Flux" in full black, suffix at 50% opacity
+                    return Row(
+                      children: [
+                        Text(
+                          'Flux',
+                          style: _TextStyles.title.copyWith(
+                            color: _Colors.black,
+                          ),
+                        ),
+                        if (suffix.isNotEmpty)
+                          Text(
+                            suffix,
+                            style: _TextStyles.title.copyWith(
+                              color: _Colors.black.withValues(alpha: 0.5),
+                            ),
+                          ),
+                      ],
+                    );
+                  },
                 ),
               ),
             ),
@@ -710,12 +739,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
 
             // Chat messages area - scrollable
-            // Extends INTO the input field area to eliminate any gap
+            // Stops 30px above the input field (input is at top: 720)
             Positioned(
               left: 20,
               right: 20,
               top: 100,
-              bottom: 90, // 844 - 90 = 754 (extends 48px into input field area)
+              bottom: 154,
               child: messages.isEmpty
                   ? const SizedBox.shrink()
                   : ListView.builder(
@@ -737,7 +766,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Positioned(
               left: 20,
               right: 20,
-              top: 706,
+              top: 720,
               child: Container(
                 constraints: const BoxConstraints(
                   minHeight: 52,
@@ -792,20 +821,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     ),
 
-                    // Send button - Solid black circle
+                    // Send button - Solid black circle with opacity based on text
                     GestureDetector(
                       onTap: _sendMessage,
-                      child: Container(
-                        width: 40,
-                        height: 40,
-                        decoration: const BoxDecoration(
-                          color: _Colors.black,
-                          shape: BoxShape.circle,
-                        ),
-                        child: const Icon(
-                          Icons.arrow_upward,
-                          color: _Colors.white,
-                          size: 22,
+                      child: Opacity(
+                        opacity: _hasText ? 1.0 : 0.3,
+                        child: Container(
+                          width: 40,
+                          height: 40,
+                          decoration: const BoxDecoration(
+                            color: _Colors.black,
+                            shape: BoxShape.circle,
+                          ),
+                          child: const Icon(
+                            Icons.arrow_upward,
+                            color: _Colors.white,
+                            size: 22,
+                          ),
                         ),
                       ),
                     ),
@@ -813,92 +845,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 ),
               ),
             ),
-
-            // ==========================================================================
-            // Dock Frame - Bottom navigation with 4 items: Chat, Models, Downloads, Settings
-            // Position: Centered at bottom with labels
-            // ==========================================================================
-            Positioned(
-              left: 20,
-              right: 20,
-              top: 786,
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                decoration: BoxDecoration(
-                  color: _Colors.white,
-                  borderRadius: BorderRadius.circular(100),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [
-                    // Chat - active
-                    _DockItem(
-                      icon: Icons.chat_bubble,
-                      label: 'Chat',
-                      isActive: true,
-                      onTap: () {},
-                    ),
-
-                    // Models
-                    _DockItem(
-                      icon: Icons.grid_view,
-                      label: 'Models',
-                      isActive: false,
-                      onTap: () => context.go('/models'),
-                    ),
-
-                    // Downloads
-                    _DockItem(
-                      icon: Icons.download,
-                      label: 'Downloads',
-                      isActive: false,
-                      onTap: () => context.go('/downloads'),
-                    ),
-
-                    // Settings
-                    _DockItem(
-                      icon: Icons.settings_outlined,
-                      label: 'Settings',
-                      isActive: false,
-                      onTap: () => context.go('/settings'),
-                    ),
-                  ],
-                ),
-              ),
-            ),
           ],
         ),
-      ),
-    );
-  }
-
-  // Dock item widget
-  Widget _DockItem({
-    required IconData icon,
-    required String label,
-    required bool isActive,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            size: 28,
-            color: isActive ? _Colors.black : _Colors.textSecondary,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: GoogleFonts.instrumentSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
-              color: isActive ? _Colors.black : _Colors.textSecondary,
-            ),
-          ),
-        ],
       ),
     );
   }

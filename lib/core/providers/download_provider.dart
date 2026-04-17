@@ -24,6 +24,8 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
     state = [...state, ...installed];
   }
 
+
+
   void _setupDownloader() {
     FileDownloader().configure(
       globalConfig: [('requestTimeout', '2h')],
@@ -75,16 +77,11 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
       priority: 10, // High priority for faster downloading
     );
 
-    final updatedModel = HFModel(
-      id: model.id,
-      name: model.name,
-      description: model.description,
-      sizeMB: model.sizeMB,
-      speed: model.speed,
-      quality: model.quality,
-      capabilities: model.capabilities,
+    // Preserve existing progress if resuming, otherwise start at 0
+    final currentProgress = model.progress;
+    final updatedModel = model.copyWith(
       downloadStatus: 'downloading',
-      progress: 0,
+      progress: currentProgress,
     );
 
     if (state.any((m) => m.id == model.id)) {
@@ -97,21 +94,16 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
   }
 
   void _updateProgress(String id, double progress, double speed) {
+    // Clamp progress between 0 and 1 to avoid negative or >100% values
+    final clampedProgress = progress.clamp(0.0, 1.0);
     state = state.map((m) {
       if (m.id == id) {
-        return HFModel(
-          id: m.id,
-          name: m.name,
-          description: m.description,
-          sizeMB: m.sizeMB,
-          speed: m.speed,
-          quality: m.quality,
-          capabilities: m.capabilities,
+        return m.copyWith(
           downloadStatus: 'downloading',
-          progress: (progress * 100).toInt(),
+          progress: (clampedProgress * 100).toInt(),
           downloadSpeed: speed >= 0 ? speed : (m.downloadSpeed ?? 0),
           downloadedBytes:
-              ((m.totalBytes ?? (m.sizeMB * 1024 * 1024)) * progress).toInt(),
+              ((m.totalBytes ?? (m.sizeMB * 1024 * 1024)) * clampedProgress).toInt(),
           totalBytes: m.totalBytes ?? (m.sizeMB * 1024 * 1024),
         );
       }
@@ -137,14 +129,7 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
     print(
         'Download completed: $modelPath (${(fileSize / 1024 / 1024).toStringAsFixed(1)} MB)');
 
-    final completedModel = HFModel(
-      id: model.id,
-      name: model.name,
-      description: model.description,
-      sizeMB: model.sizeMB,
-      speed: model.speed,
-      quality: model.quality,
-      capabilities: model.capabilities,
+    final completedModel = model.copyWith(
       downloaded: true,
       progress: 100,
       downloadStatus: 'completed',
@@ -160,14 +145,7 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
   void _markAsFailed(String id) {
     state = state.map((m) {
       if (m.id == id) {
-        return HFModel(
-          id: m.id,
-          name: m.name,
-          description: m.description,
-          sizeMB: m.sizeMB,
-          speed: m.speed,
-          quality: m.quality,
-          capabilities: m.capabilities,
+        return m.copyWith(
           downloadStatus: 'none',
           progress: 0,
         );
@@ -195,18 +173,38 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
     // Update state by resetting download info instead of just removing (so it stays in library)
     state = state
         .map((m) => m.id == id
-            ? HFModel(
-                id: m.id,
-                name: m.name,
-                description: m.description,
-                sizeMB: m.sizeMB,
-                speed: m.speed,
-                quality: m.quality,
-                capabilities: m.capabilities,
+            ? m.copyWith(
                 downloadStatus: 'none',
                 downloaded: false,
+                localPath: null,
+                progress: 0,
               )
             : m)
         .toList();
+  }
+
+  /// Cancel a downloading model
+  Future<void> cancelDownload(String id) async {
+    // Cancel the download task
+    await FileDownloader().cancelTaskWithId(id);
+    
+    // Reset state
+    state = state.map((m) {
+      if (m.id == id) {
+        return m.copyWith(
+          downloadStatus: 'none',
+          progress: 0,
+          downloadSpeed: 0,
+        );
+      }
+      return m;
+    }).toList();
+    
+    // Clean up any partial file
+    final directory = await getApplicationDocumentsDirectory();
+    final partialFile = File('${directory.path}/models/${id.replaceAll('/', '_')}.gguf');
+    if (await partialFile.exists()) {
+      await partialFile.delete();
+    }
   }
 }

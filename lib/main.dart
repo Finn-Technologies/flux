@@ -7,8 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'features/onboarding/onboarding_page.dart';
 import 'features/onboarding/choose_model_screen.dart';
 import 'features/chat/chat_screen.dart';
-import 'features/models/model_library_screen.dart';
-import 'features/downloads/downloads_screen.dart';
+import 'features/models/models_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'l10n/app_localizations.dart';
 import 'core/widgets/flux_shell.dart';
@@ -385,7 +384,7 @@ class FluxApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final router = GoRouter(
-      initialLocation: onboarded ? '/chat' : '/onboarding',
+      initialLocation: onboarded ? '/home' : '/onboarding',
       routes: [
         GoRoute(
           path: '/onboarding',
@@ -401,17 +400,16 @@ class FluxApp extends ConsumerWidget {
           builder: (context, state, child) => FluxShell(child: child),
           routes: [
             GoRoute(
-                path: '/chat', builder: (context, state) => const ChatScreen()),
-            GoRoute(
-                path: '/models',
-                builder: (context, state) => const ModelLibraryScreen()),
-            GoRoute(
-                path: '/downloads',
-                builder: (context, state) => const DownloadsScreen()),
+                path: '/home', builder: (context, state) => const ChatScreen()),
             GoRoute(
                 path: '/settings',
                 builder: (context, state) => const SettingsScreen()),
           ],
+        ),
+        // Models is accessed from Settings, not in main dock
+        GoRoute(
+          path: '/settings/models',
+          builder: (context, state) => const ModelsScreen(),
         ),
         GoRoute(
           path: '/model/:id',

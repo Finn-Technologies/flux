@@ -1,39 +1,45 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
+import 'package:path_provider/path_provider.dart';
 import '../models/hf_model.dart';
 
 class ModelService {
   static const _channel = MethodChannel('com.example.flux/storage');
 
+  // New Flux lineup with Qwen 3.5 models
   static final List<HFModel> _allModels = [
     HFModel(
-      id: 'google/gemma-3-1b-it',
-      name: 'Gemma 3 1B',
-      description:
-          'Ultra-lightweight model optimized for responsiveness and low memory usage. Perfect for basic assistance and fast chat.',
-      sizeMB: 850,
+      id: 'flux-lite-qwen-3.5-0.8b',
+      name: 'Flux Lite',
+      baseModel: 'Qwen 3.5 0.8B',
+      description: 'Ultra-lightweight model for basic assistance and fast chat. Perfect for devices with limited RAM.',
+      sizeMB: 500,
+      requiredRAM: 4,
       speed: 5.0,
-      quality: 4.2,
+      quality: 4.0,
       capabilities: ['chat', 'speed', 'low-ram'],
     ),
     HFModel(
-      id: 'google/gemma-4-e2b-it',
-      name: 'Gemma 4 E2B',
-      description:
-          'Balanced performance with enhanced reasoning capabilities. Ideal for complex instructions and structured tasks.',
-      sizeMB: 1600,
+      id: 'flux-steady-qwen-3.5-2b',
+      name: 'Flux Steady',
+      baseModel: 'Qwen 3.5 2B',
+      description: 'Balanced performance with enhanced reasoning. Ideal for complex instructions and structured tasks.',
+      sizeMB: 1300,
+      requiredRAM: 6,
       speed: 4.2,
-      quality: 4.8,
+      quality: 4.6,
       capabilities: ['chat', 'reasoning', 'balanced'],
     ),
     HFModel(
-      id: 'google/gemma-4-e4b-it',
-      name: 'Gemma 4 E4B',
-      description:
-          'High-performance flagship model. Excels at complex problem solving, creative writing, and deep analysis.',
-      sizeMB: 3200,
+      id: 'flux-smart-qwen-3.5-4b',
+      name: 'Flux Smart',
+      baseModel: 'Qwen 3.5 4B',
+      description: 'High-performance flagship model. Excels at complex problem solving, creative writing, and deep analysis.',
+      sizeMB: 2600,
+      requiredRAM: 8,
       speed: 3.5,
       quality: 5.0,
-      capabilities: ['chat', 'expert', 'reasoning'],
+      capabilities: ['chat', 'expert', 'reasoning', 'creative'],
     ),
   ];
 
@@ -49,30 +55,68 @@ class ModelService {
     }
   }
 
-  static Future<List<HFModel>> getRecommendedModels() async {
+  /// Get models available for the device's RAM
+  /// 4GB: Only Flux Lite
+  /// 6GB: Flux Lite + Steady
+  /// 8GB+: All three
+  static Future<List<HFModel>> getAvailableModels() async {
     final ram = await getDeviceRAM();
-
-    if (ram <= 4) {
-      return _allModels.where((m) => m.name == 'Gemma 3 1B').toList();
-    } else if (ram <= 6) {
-      return _allModels
-          .where((m) => m.name == 'Gemma 3 1B' || m.name == 'Gemma 4 E2B')
-          .toList();
-    } else {
-      return List.from(_allModels);
-    }
+    return _allModels.where((m) => m.requiredRAM <= ram).toList();
   }
+
+  /// Alias for getAvailableModels - used by UI components
+  static Future<List<HFModel>> getRecommendedModels() async {
+    return getAvailableModels();
+  }
+
+  /// Get all models (for settings/models page)
+  static List<HFModel> getAllModels() => List.from(_allModels);
 
   static String getDownloadUrl(String modelId) {
     switch (modelId) {
-      case 'google/gemma-3-1b-it':
-        return 'https://huggingface.co/MaziyarPanahi/Llama-3.2-1B-Instruct-GGUF/resolve/main/Llama-3.2-1B-Instruct.Q4_K_M.gguf';
-      case 'google/gemma-4-e2b-it':
-        return 'https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q4_K_M.gguf';
-      case 'google/gemma-4-e4b-it':
-        return 'https://huggingface.co/bartowski/gemma-2-2b-it-GGUF/resolve/main/gemma-2-2b-it-Q8_0.gguf';
+      case 'flux-lite-qwen-3.5-0.8b':
+        return 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf';
+      case 'flux-steady-qwen-3.5-2b':
+        return 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf';
+      case 'flux-smart-qwen-3.5-4b':
+        return 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf';
       default:
         return '';
     }
+  }
+
+  /// Delete a downloaded model from the device
+  static Future<bool> deleteModel(String modelId) async {
+    try {
+      final appDir = await getApplicationDocumentsDirectory();
+      final modelsDir = Directory('${appDir.path}/models');
+      
+      if (!await modelsDir.exists()) {
+        return false;
+      }
+
+      // Find and delete the model file
+      final modelFile = File('${modelsDir.path}/${modelId.replaceAll('/', '_')}.gguf');
+      if (await modelFile.exists()) {
+        await modelFile.delete();
+        return true;
+      }
+
+      return false;
+    } catch (e) {
+      print('Error deleting model: $e');
+      return false;
+    }
+  }
+
+  /// Get the local path for a model if downloaded
+  static Future<String?> getModelLocalPath(String modelId) async {
+    final appDir = await getApplicationDocumentsDirectory();
+    final modelFile = File('${appDir.path}/models/${modelId.replaceAll('/', '_')}.gguf');
+    
+    if (await modelFile.exists()) {
+      return modelFile.path;
+    }
+    return null;
   }
 }
