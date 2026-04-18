@@ -97,7 +97,7 @@ class SettingsScreen extends StatelessWidget {
                   // About option
                   _buildSettingsItem(
                     title: 'About Flux',
-                    subtitle: 'Version 0.1.3',
+                    subtitle: 'Version 0.1.4',
                     onTap: () => _showAboutSheet(context),
                     index: 2,
                   ),
@@ -227,7 +227,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Version 0.1.3',
+                'Version 0.1.4',
                 style: _TextStyles.subtitle,
               ),
               const SizedBox(height: 24),

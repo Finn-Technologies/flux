@@ -101,6 +101,9 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
     return ListView.builder(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       itemCount: _models.length,
+      cacheExtent: 150,
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
       itemBuilder: (context, index) {
         final model = _models[index];
         final isSelected = _selectedModel?.id == model.id;

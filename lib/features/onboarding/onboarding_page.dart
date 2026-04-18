@@ -479,6 +479,9 @@ class _DownloadModelSlide extends StatelessWidget {
               : ListView.builder(
                   padding: EdgeInsets.zero,
                   itemCount: models.length,
+                  cacheExtent: 150,
+                  addAutomaticKeepAlives: false,
+                  addRepaintBoundaries: true,
                   itemBuilder: (context, index) {
                     final model = models[index];
                     final isSelected = selectedModel?.id == model.id;

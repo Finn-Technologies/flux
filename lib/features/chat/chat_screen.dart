@@ -108,13 +108,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isStreaming = false;
   String? _currentConversationId;
   bool _hasText = false;
+  bool _isClearingChat = false;
 
   void _startNewChat() {
-    // Clear current messages
-    ref.read(chatMessagesProvider.notifier).clear();
-    // Reset conversation ID
-    setState(() {
-      _currentConversationId = null;
+    // Animate chat clearing
+    setState(() => _isClearingChat = true);
+    
+    // Wait for fade-out animation then clear
+    Future.delayed(const Duration(milliseconds: 200), () {
+      ref.read(chatMessagesProvider.notifier).clear();
+      setState(() {
+        _currentConversationId = null;
+        _isClearingChat = false;
+      });
     });
   }
 
@@ -331,7 +337,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   // ============================================================================
   // CHAT HISTORY / MENU VIEW - Home - Menu View from Figma
-  // Simple slide in from left, dark overlay on right, clean animation
+  // Smooth spring-like animation with parallax and staggered list items
   // ============================================================================
   void _showChatHistory(BuildContext context) {
     showGeneralDialog(
@@ -339,97 +345,141 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       barrierDismissible: true,
       barrierLabel: 'Close menu',
       barrierColor: Colors.transparent,
-      transitionDuration: const Duration(milliseconds: 250),
+      transitionDuration: const Duration(milliseconds: 350),
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        // Smooth spring-like curve
+        final curve = Curves.easeOutCubic;
+        
+        // Overlay animation with slight parallax
+        final overlayAnimation = Tween<double>(
+          begin: 0.0,
+          end: 1.0,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: curve,
+        ));
+        
+        // Menu slide animation with elastic feel
+        final menuAnimation = Tween<Offset>(
+          begin: const Offset(-0.85, 0),
+          end: Offset.zero,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: curve,
+        ));
+        
+        // Scale animation for subtle depth
+        final scaleAnimation = Tween<double>(
+          begin: 0.98,
+          end: 1.0,
+        ).animate(CurvedAnimation(
+          parent: animation,
+          curve: curve,
+        ));
+        
+        return AnimatedBuilder(
+          animation: animation,
+          builder: (context, _) {
+            return Stack(
+              children: [
+                // Dark overlay with parallax fade
+                Opacity(
+                  opacity: overlayAnimation.value * 0.3,
+                  child: GestureDetector(
+                    onTap: () => Navigator.of(context).pop(),
+                    child: Container(
+                      color: _Colors.black,
+                    ),
+                  ),
+                ),
+                
+                // Menu with smooth slide and scale
+                Transform.translate(
+                  offset: Offset(
+                    menuAnimation.value.dx * MediaQuery.of(context).size.width,
+                    0,
+                  ),
+                  child: Transform.scale(
+                    scale: scaleAnimation.value,
+                    alignment: Alignment.centerLeft,
+                    child: child,
+                  ),
+                ),
+              ],
+            );
+          },
+        );
+      },
       pageBuilder: (context, animation, secondaryAnimation) {
         return Consumer(
           builder: (context, ref, child) {
             final conversations = ref.watch(conversationsProvider);
             
-            return Stack(
-              children: [
-                // Dark overlay - fades in
-                FadeTransition(
-                  opacity: animation,
-                  child: GestureDetector(
-                    onTap: () => Navigator.of(context).pop(),
-                    child: Container(
-                      color: _Colors.black.withValues(alpha: 0.3),
-                    ),
-                  ),
-                ),
-                
-                // Menu slides in from left
-                SlideTransition(
-                  position: Tween<Offset>(
-                    begin: const Offset(-1, 0),
-                    end: Offset.zero,
-                  ).animate(CurvedAnimation(
-                    parent: animation,
-                    curve: Curves.easeOutCubic,
-                  )),
-                  child: Container(
-                    width: 340,
-                    color: _Colors.white, // White background FFFFFF
-                    child: SafeArea(
-                      child: GestureDetector(
-                        // Prevent taps on menu from closing it
-                        onTap: () {},
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // Chats title only (no back button)
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
-                              child: Text(
-                                'Chats',
-                                style: GoogleFonts.instrumentSans(
-                                  fontSize: 25,
-                                  fontWeight: FontWeight.w400,
-                                  color: _Colors.black,
-                                  height: 1.22,
-                                  decoration: TextDecoration.none,
-                                ),
-                              ),
-                            ),
-                            
-                            // Chat list
-                            Expanded(
-                              child: conversations.isEmpty
-                                  ? Center(
-                                      child: Text(
-                                        'No chats yet',
-                                        style: GoogleFonts.instrumentSans(
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.w400,
-                                          color: _Colors.textSecondary,
-                                          height: 1.22,
-                                          decoration: TextDecoration.none,
-                                        ),
-                                      ),
-                                    )
-                                  : ListView.builder(
-                                      padding: const EdgeInsets.symmetric(horizontal: 20),
-                                      itemCount: conversations.length,
-                                      itemBuilder: (context, index) {
-                                        final conv = conversations[index];
-                                        // Check if this is the currently active conversation
-                                        final isSelected = _currentConversationId == conv.id;
-                                        return _buildChatHistoryItem(
-                                          context, 
-                                          conv, 
-                                          () => Navigator.of(context).pop(),
-                                          isSelected,
-                                        );
-                                      },
-                                    ),
-                            ),
-                          ],
+            return Container(
+              width: 340,
+              color: _Colors.white, // White background FFFFFF
+              child: SafeArea(
+                child: GestureDetector(
+                  // Prevent taps on menu from closing it
+                  onTap: () {},
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Chats title only (no back button)
+                      Padding(
+                        padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
+                        child: Text(
+                          'Chats',
+                          style: GoogleFonts.instrumentSans(
+                            fontSize: 25,
+                            fontWeight: FontWeight.w400,
+                            color: _Colors.black,
+                            height: 1.22,
+                            decoration: TextDecoration.none,
+                          ),
                         ),
                       ),
-                    ),
+                      
+                      // Chat list with staggered entrance animation
+                      Expanded(
+                        child: conversations.isEmpty
+                            ? Center(
+                                child: Text(
+                                  'No chats yet',
+                                  style: GoogleFonts.instrumentSans(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w400,
+                                    color: _Colors.textSecondary,
+                                    height: 1.22,
+                                    decoration: TextDecoration.none,
+                                  ),
+                                ),
+                              )
+                            : ListView.builder(
+                                padding: const EdgeInsets.symmetric(horizontal: 20),
+                                itemCount: conversations.length,
+                                cacheExtent: 150,
+                                addAutomaticKeepAlives: false,
+                                addRepaintBoundaries: true,
+                                itemBuilder: (context, index) {
+                                  final conv = conversations[index];
+                                  final isSelected = _currentConversationId == conv.id;
+                                  return _AnimatedChatHistoryItem(
+                                    index: index,
+                                    child: _buildChatHistoryItem(
+                                      context, 
+                                      conv, 
+                                      () => Navigator.of(context).pop(),
+                                      isSelected,
+                                    ),
+                                  );
+                                },
+                              ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             );
           },
         );
@@ -728,38 +778,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 top: 60,
                 width: 28,
                 height: 28,
-                child: GestureDetector(
+                child: _AnimatedPencilButton(
                   onTap: _startNewChat,
-                  child: SvgPicture.asset(
-                    'assets/images/pencil-edit-02.svg',
-                    width: 28,
-                    height: 28,
-                  ),
                 ),
               ),
 
-            // Chat messages area - scrollable
-            // Stops above the input field (input at top: 710)
+            // Chat messages area - scrollable with clear animation
+            // Stops above the input field (input at top: 720)
+            // Added 5px padding from header (105 vs 100)
+            // Added 40px space above input field (164 vs 124)
             Positioned(
               left: 20,
               right: 20,
-              top: 100,
-              bottom: 124,
-              child: messages.isEmpty
-                  ? const SizedBox.shrink()
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: EdgeInsets.zero,
-                      itemCount: messages.length,
-                      itemBuilder: (context, index) {
-                        final msg = messages[index];
-                        return _buildBubble(msg, isLast: index == messages.length - 1);
-                      },
-                    ),
+              top: 105,
+              bottom: 164,
+              child: AnimatedOpacity(
+                opacity: _isClearingChat ? 0.0 : 1.0,
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                child: messages.isEmpty
+                    ? const SizedBox.shrink()
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: EdgeInsets.zero,
+                        itemCount: messages.length,
+                        cacheExtent: 200,
+                        addAutomaticKeepAlives: false,
+                        addRepaintBoundaries: true,
+                        itemBuilder: (context, index) {
+                          final msg = messages[index];
+                          return _buildBubble(msg, isLast: index == messages.length - 1);
+                        },
+                      ),
+              ),
             ),
 
             // ==========================================================================
-            // Text Input Frame (8:309) - Position: x: 20, y: 710
+            // Text Input Frame (8:309) - Position: x: 20, y: 720
             // Unified design: Clean text input with NO inner borders
             // Dynamic height: 52px when empty, up to 140px (4 lines) when typing
             // Positioned above the bottom navigation bar
@@ -767,7 +822,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Positioned(
               left: 20,
               right: 20,
-              top: 710,
+              top: 720,
               child: Container(
                 constraints: const BoxConstraints(
                   minHeight: 52,
@@ -845,65 +900,71 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final bottomPadding = isLast ? 0.0 : 12.0;
 
     final bubble = !isUser
-        ? Padding(
-            padding: EdgeInsets.only(bottom: bottomPadding),
-            child: Text(
-              msg.text,
-              style: GoogleFonts.instrumentSans(
-                fontSize: 16,
-                fontWeight: FontWeight.w400,
-                color: _Colors.black,
-                height: 1.5,
+        ? RepaintBoundary(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: bottomPadding),
+              child: Text(
+                msg.text,
+                style: GoogleFonts.instrumentSans(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w400,
+                  color: _Colors.black,
+                  height: 1.5,
+                ),
               ),
             ),
           )
-        : Padding(
-            padding: EdgeInsets.only(bottom: bottomPadding),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                Flexible(
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-                    decoration: BoxDecoration(
-                      color: _Colors.black,
-                      borderRadius: BorderRadius.only(
-                        topLeft: const Radius.circular(24),
-                        topRight: const Radius.circular(24),
-                        bottomLeft: const Radius.circular(24),
-                        bottomRight: const Radius.circular(4),
+        : RepaintBoundary(
+            child: Padding(
+              padding: EdgeInsets.only(bottom: bottomPadding),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  Flexible(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      decoration: BoxDecoration(
+                        color: _Colors.black,
+                        borderRadius: BorderRadius.only(
+                          topLeft: const Radius.circular(24),
+                          topRight: const Radius.circular(24),
+                          bottomLeft: const Radius.circular(24),
+                          bottomRight: const Radius.circular(4),
+                        ),
                       ),
-                    ),
-                    child: Text(
-                      msg.text,
-                      style: GoogleFonts.instrumentSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w400,
-                        color: _Colors.white,
-                        height: 1.4,
+                      child: Text(
+                        msg.text,
+                        style: GoogleFonts.instrumentSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
+                          color: _Colors.white,
+                          height: 1.4,
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           );
 
-    // Entrance animation for new messages
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(isUser ? 20 * (1.0 - value) : -20 * (1.0 - value), 0),
-            child: child,
-          ),
-        );
-      },
-      child: bubble,
+    // Entrance animation for new messages - slide up from bottom
+    return RepaintBoundary(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(begin: 0.0, end: 1.0),
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) {
+          return Opacity(
+            opacity: value.clamp(0.0, 1.0),
+            child: Transform.translate(
+              offset: Offset(0, 15 * (1.0 - value)),
+              child: child,
+            ),
+          );
+        },
+        child: bubble,
+      ),
     );
   }
 }
@@ -964,6 +1025,127 @@ class _AnimatedSendButtonState extends State<_AnimatedSendButton>
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Animated pencil button with press feedback
+class _AnimatedPencilButton extends StatefulWidget {
+  final VoidCallback onTap;
+
+  const _AnimatedPencilButton({required this.onTap});
+
+  @override
+  State<_AnimatedPencilButton> createState() => _AnimatedPencilButtonState();
+}
+
+class _AnimatedPencilButtonState extends State<_AnimatedPencilButton>
+    with SingleTickerProviderStateMixin {
+  bool _isPressed = false;
+
+  void _onTapDown(TapDownDetails details) {
+    setState(() => _isPressed = true);
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    setState(() => _isPressed = false);
+    widget.onTap();
+  }
+
+  void _onTapCancel() {
+    setState(() => _isPressed = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.75 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: SvgPicture.asset(
+          'assets/images/pencil-edit-02.svg',
+          width: 28,
+          height: 28,
+        ),
+      ),
+    );
+  }
+}
+
+// Staggered entrance animation for sidebar chat history items
+class _AnimatedChatHistoryItem extends StatefulWidget {
+  final int index;
+  final Widget child;
+
+  const _AnimatedChatHistoryItem({required this.index, required this.child});
+
+  @override
+  State<_AnimatedChatHistoryItem> createState() => _AnimatedChatHistoryItemState();
+}
+
+class _AnimatedChatHistoryItemState extends State<_AnimatedChatHistoryItem>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacity;
+  late Animation<double> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    // Staggered delay based on index
+    final delay = widget.index * 40;
+
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _slide = Tween<double>(begin: 15.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Start animation after staggered delay
+    Future.delayed(Duration(milliseconds: delay), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return RepaintBoundary(
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, child) {
+          return Opacity(
+            opacity: _opacity.value.clamp(0.0, 1.0),
+            child: Transform.translate(
+              offset: Offset(0, _slide.value),
+              child: child,
+            ),
+          );
+        },
+        child: RepaintBoundary(child: widget.child),
       ),
     );
   }
