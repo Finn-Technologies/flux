@@ -1,131 +1,159 @@
 # Flux
 
-**Flux** is a private, offline-first AI assistant that runs local language models directly on your Android device. No accounts, no cloud, no data leaving your phone.
+Your private AI assistant that runs entirely offline on your device. No accounts, no cloud, no data leaving your phone—ever.
 
-> **Status:** Core UI scaffold complete. On-device inference and Hugging Face API integration are scaffolded with `TODO` comments, ready for implementation.
+<p align="center">
+  <img src="assets/icon/app_icon.png" width="120" alt="Flux Logo">
+</p>
 
----
+<p align="center">
+  <a href="https://github.com/Finn-Technologies/flux/releases"><img src="https://img.shields.io/badge/version-0.1.4-blue.svg" alt="Version"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
+</p>
 
-## Features
+## What is Flux?
 
-### Chat
-A full conversational interface with streaming responses. Conversations are saved locally and accessible via a slide-up panel. Attach photos, documents, or use your camera. Pick which downloaded model to chat with.
+Flux is a fully offline AI chat assistant for Android. Unlike other AI apps that send your conversations to the cloud, Flux keeps everything on your device using local AI models powered by Qwen 3.5.
 
-### Assistant
-A voice-first quick-action layer. Tap to speak and execute common tasks like setting timers, summarizing pages, toggling the flashlight, or creating notes. Works completely offline.
+### Key Features
 
-### Model Library
-Browse available models with search and capability filters. View model details including size, speed, and quality metrics.
+- **🤖 Three AI Models** — Choose the right balance for your device:
+  - **Flux Lite** (500MB) — Ultra-fast, works on 4GB RAM devices
+  - **Flux Steady** (1.3GB) — Balanced performance, requires 6GB RAM
+  - **Flux Smart** (2.6GB) — Maximum capability, requires 8GB+ RAM
 
-### Downloads
-Track storage usage and manage downloaded models. Monitor download progress with pause/resume controls.
+- **💬 Beautiful Chat Interface** — Clean, minimalist design with smooth animations and an iOS-style feel
 
-### Settings
-Clear cache and view app information.
+- **📚 Conversation History** — Automatically saves chats with easy access via slide-in sidebar
 
----
+- **⚡ Smooth Animations** — Premium 60fps transitions throughout the app
 
-## Technical Overview
+- **🔒 100% Private** — No accounts, no tracking, no internet required for inference
 
-```
-lib/
-├── main.dart                          # App entry, Material 3 theme, GoRouter, onboarding
-├── core/
-│   ├── models/
-│   │   └── hf_model.dart              # Model data class
-│   ├── services/
-│   │   ├── hf_api_service.dart        # HF API client (TODO: implement)
-│   │   ├── inference_service.dart       # Streaming inference (TODO: implement)
-│   │   └── model_manager.dart          # Model lifecycle (TODO: implement)
-│   └── widgets/
-│       ├── flux_shell.dart             # Navigation shell with bottom nav
-│       ├── flux_drawer.dart            # Side drawer navigation
-│       └── model_card.dart             # Model library card
-├── features/
-│   ├── onboarding/                   # Onboarding + model selection
-│   ├── chat/                         # Chat UI with conversation history
-│   ├── assistant/                    # Voice quick actions
-│   ├── models/                       # Model library browser
-│   ├── downloads/                    # Download management
-│   └── settings/                     # App settings
-└── l10n/                            # English + Italian localization
-```
+## Screenshots
 
-### Stack
+*(Screenshots coming soon)*
 
-| Concern | Choice |
-|---|---|
-| Framework | Flutter |
-| State | Riverpod (`StateNotifier`, `StateProvider`) |
-| Navigation | go_router |
-| Persistence | Hive / SharedPreferences scaffolded |
-| Theming | Material 3, `ThemeMode.system` (adaptive light/dark) |
-| Downloads | background_downloader scaffolded |
-| Voice | speech_to_text + record scaffolded |
+## Download Models
 
----
+Flux downloads AI models directly from Hugging Face. Models are optimized for your device's RAM:
+
+| Model | Size | Required RAM | Best For |
+|-------|------|--------------|----------|
+| Flux Lite | 500 MB | 4 GB | Quick answers, older devices |
+| Flux Steady | 1.3 GB | 6 GB | Daily tasks, balanced use |
+| Flux Smart | 2.6 GB | 8 GB+ | Complex reasoning, maximum quality |
 
 ## Getting Started
 
+### Prerequisites
+- Android device with 4GB+ RAM
+- Flutter SDK (for development)
+- Android Studio or VS Code
+
+### Installation
+
 ```bash
-# Clone
+# Clone the repository
 git clone https://github.com/Finn-Technologies/flux.git
 cd flux
 
 # Install dependencies
 flutter pub get
 
-# Run
+# Run on device or emulator
 flutter run
-```
-
-```bash
-# Build debug APK
-flutter build apk --debug
 
 # Build release APK
 flutter build apk --release
 ```
 
----
+## Architecture
 
-## Privacy by Design
+```
+lib/
+├── main.dart                    # App entry, GoRouter navigation
+├── core/
+│   ├── models/
+│   │   ├── hf_model.dart        # AI model data structures
+│   │   └── chat_session.dart    # Conversation persistence
+│   ├── services/
+│   │   ├── model_service.dart   # Model management & RAM filtering
+│   │   └── inference_service.dart # On-device inference
+│   ├── providers/
+│   │   ├── download_provider.dart  # Download state management
+│   │   └── model_provider.dart     # Selected model state
+│   └── widgets/
+│       └── flux_shell.dart      # Bottom navigation shell
+├── features/
+│   ├── onboarding/              # 5-step onboarding flow
+│   │   ├── onboarding_page.dart
+│   │   └── choose_model_screen.dart
+│   ├── chat/                  # Main chat interface
+│   │   └── chat_screen.dart
+│   ├── models/                # Model download & management
+│   │   └── models_screen.dart
+│   └── settings/              # App settings
+│       └── settings_screen.dart
+└── assets/
+    ├── images/                # SVG icons
+    └── icon/                  # App icon
+```
 
-- **No account** — Flux never asks for email, phone, or any identifying information
-- **100% on-device** — All inference, storage, and processing happens locally
-- **Zero telemetry** — No analytics, no crash reporting, no external services
-- **Open source** — Full source available for audit
+## Tech Stack
 
----
+| Layer | Technology |
+|-------|------------|
+| Framework | Flutter 3.x |
+| State Management | Riverpod 2.x |
+| Navigation | go_router |
+| Local Storage | Hive + SharedPreferences |
+| Downloads | background_downloader |
+| AI Inference | llama.cpp (integrated) |
+| Styling | Material 3 with custom design |
+| Animations | Built-in Flutter (TweenAnimationBuilder, AnimatedScale) |
+
+## Design Philosophy
+
+Flux follows a **minimalist, Apple-inspired design**:
+
+- **Color palette**: Clean whites, soft grays, and deep blacks
+- **Typography**: Instrument Sans font throughout
+- **Animations**: Smooth 350ms transitions with easeOutCubic curves
+- **Navigation**: Simple 2-tab bottom bar (Home + Settings)
+- **Spacing**: Generous 20px margins, consistent 15px card radius
+
+## Privacy
+
+Flux is built with privacy as the foundation:
+
+- ✅ **No account required** — Start using immediately
+- ✅ **No internet needed** — Works completely offline
+- ✅ **No data collection** — Zero analytics or tracking
+- ✅ **Open source** — Audit the full source code
+- ✅ **Local storage only** — All data stays on your device
 
 ## Roadmap
 
-- [ ] Integrate `huggingface_hub` for real HF API access
-- [ ] Integrate `llama.cpp` / `fllama` / `mlc-llm` for on-device inference
-- [ ] Wire up `background_downloader` for real model downloads
-- [ ] Wire up `speech_to_text` for real voice input
-- [ ] Persist chat history with Hive
-- [ ] Add image upload support for vision models
+- [x] Redesigned UI with smooth animations
+- [x] Three-tier model system (Lite/Steady/Smart)
+- [x] RAM-based model filtering
+- [x] Staggered entrance animations
+- [x] Performance optimizations (RepaintBoundary, cacheExtent)
+- [ ] Image/vision model support
+- [ ] Voice input integration
+- [ ] Export conversations
+- [ ] Multiple language support
+- [ ] iOS version
 
----
+## Contributing
 
-## Dependencies
-
-| Package | Version | Purpose |
-|---|---|---|
-| `flutter_riverpod` | ^2.1.0 | State management |
-| `go_router` | ^6.0.0 | Declarative routing |
-| `hive_flutter` | ^1.1.0 | Local persistence |
-| `shared_preferences` | ^2.2.0 | Key-value settings |
-| `background_downloader` | ^9.5.4 | Background downloads |
-| `file_picker` | ^9.0.0 | Attachment file picking |
-| `record` | ^6.2.0 | Audio recording |
-| `speech_to_text` | ^7.0.0 | Voice input |
-| `flutter_localizations` | SDK | i18n (EN/IT) |
-| `flutter_animate` | ^4.5.0 | UI animations |
-
----
+We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
 MIT License — see [LICENSE](LICENSE) for details.
+
+---
+
+**Made with ❤️ by Finn Technologies**
