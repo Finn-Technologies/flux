@@ -767,7 +767,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Positioned(
               left: 20,
               right: 20,
-              top: 720,
+              top: 710,
               child: Container(
                 constraints: const BoxConstraints(
                   minHeight: 52,
