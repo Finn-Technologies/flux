@@ -15,13 +15,6 @@ dependencies:
   hive_flutter: ^1.1.0
   shared_preferences: ^2.2.0
   background_downloader: ^9.5.4
-  file_picker: ^9.0.0
-  record: ^6.2.0
-  speech_to_text: ^7.0.0
-  flutter_localizations:
-    sdk: flutter
-  flutter_animate: ^4.5.0
-  http: ^1.6.0
   flutter_svg: ^2.0.0
   google_fonts: ^6.0.0
 

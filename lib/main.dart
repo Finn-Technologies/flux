@@ -2,14 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'features/onboarding/onboarding_page.dart';
 import 'features/onboarding/choose_model_screen.dart';
 import 'features/chat/chat_screen.dart';
 import 'features/models/models_screen.dart';
 import 'features/settings/settings_screen.dart';
-import 'l10n/app_localizations.dart';
 import 'core/widgets/flux_shell.dart';
 
 import 'package:hive_flutter/hive_flutter.dart';
@@ -377,6 +375,71 @@ class FluxColorsExtension extends ThemeExtension<FluxColorsExtension> {
   }
 }
 
+// Helper for consistent tab-style slide transitions across the app
+// Each tab has a spatial position and slides from/to that position
+// Tab switch animation (Home/Settings) - both pages move simultaneously
+CustomTransitionPage buildSlidePage({
+  required GoRouterState state,
+  required Widget child,
+  required double position,
+}) {
+  return CustomTransitionPage(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 250),
+    reverseTransitionDuration: const Duration(milliseconds: 250),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return AnimatedBuilder(
+        animation: Listenable.merge([animation, secondaryAnimation]),
+        builder: (context, child) {
+          final thisProgress = Curves.easeOutCubic.transform(animation.value);
+          final thisOffset = position * (1.0 - thisProgress);
+          
+          return Transform.translate(
+            offset: Offset(thisOffset * MediaQuery.of(context).size.width, 0),
+            child: child,
+          );
+        },
+        child: child,
+      );
+    },
+  );
+}
+
+// Push/Pop animation - both pages move like tab switch
+CustomTransitionPage buildPopPage({
+  required GoRouterState state,
+  required Widget child,
+}) {
+  return CustomTransitionPage(
+    key: state.pageKey,
+    child: child,
+    transitionDuration: const Duration(milliseconds: 250),
+    reverseTransitionDuration: const Duration(milliseconds: 250),
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      return AnimatedBuilder(
+        animation: Listenable.merge([animation, secondaryAnimation]),
+        builder: (context, child) {
+          // Primary animation: this page entering/exiting
+          final primaryProgress = Curves.easeOutCubic.transform(animation.value);
+          // Secondary animation: previous page moving
+          final secondaryProgress = Curves.easeOutCubic.transform(secondaryAnimation.value);
+          
+          // When pushing (forward): this page enters from right, previous exits left
+          // When popping (reverse): this page exits to right, previous enters from left
+          final dx = 0.15 * (1.0 - primaryProgress) - 0.15 * secondaryProgress;
+          
+          return Transform.translate(
+            offset: Offset(dx * MediaQuery.of(context).size.width, 0),
+            child: child,
+          );
+        },
+        child: child,
+      );
+    },
+  );
+}
+
 class FluxApp extends ConsumerWidget {
   final bool onboarded;
   const FluxApp({super.key, required this.onboarded});
@@ -388,11 +451,18 @@ class FluxApp extends ConsumerWidget {
       routes: [
         GoRoute(
           path: '/onboarding',
-          builder: (context, state) => const OnboardingScreen(),
+          pageBuilder: (context, state) => buildSlidePage(
+            state: state,
+            child: const OnboardingScreen(),
+            position: 0, // Root
+          ),
           routes: [
             GoRoute(
               path: 'choose-model',
-              builder: (context, state) => const ChooseModelScreen(),
+              pageBuilder: (context, state) => buildPopPage(
+                state: state,
+                child: const ChooseModelScreen(),
+              ),
             ),
           ],
         ),
@@ -400,21 +470,37 @@ class FluxApp extends ConsumerWidget {
           builder: (context, state, child) => FluxShell(child: child),
           routes: [
             GoRoute(
-                path: '/home', builder: (context, state) => const ChatScreen()),
+              path: '/home',
+              pageBuilder: (context, state) => buildSlidePage(
+                state: state,
+                child: const ChatScreen(),
+                position: -0.15, // Home is on the LEFT
+              ),
+            ),
             GoRoute(
-                path: '/settings',
-                builder: (context, state) => const SettingsScreen()),
+              path: '/settings',
+              pageBuilder: (context, state) => buildSlidePage(
+                state: state,
+                child: const SettingsScreen(),
+                position: 0.15, // Settings is on the RIGHT
+              ),
+            ),
           ],
         ),
-        // Models is accessed from Settings, not in main dock
+        // Models as separate route with faster pop animation
         GoRoute(
           path: '/settings/models',
-          builder: (context, state) => const ModelsScreen(),
+          pageBuilder: (context, state) => buildPopPage(
+            state: state,
+            child: const ModelsScreen(),
+          ),
         ),
         GoRoute(
           path: '/model/:id',
-          builder: (context, state) =>
-              ChatScreen(modelId: state.location.split('/').last),
+          pageBuilder: (context, state) => buildPopPage(
+            state: state,
+            child: ChatScreen(modelId: state.location.split('/').last),
+          ),
         ),
       ],
     );
@@ -426,14 +512,6 @@ class FluxApp extends ConsumerWidget {
       darkTheme: FluxTheme.dark,
       themeMode: ThemeMode.system,
       routerConfig: router,
-      localizationsDelegates: const [
-        AppLocalizations.delegate,
-        GlobalMaterialLocalizations.delegate,
-        GlobalWidgetsLocalizations.delegate,
-      ],
-      localeResolutionCallback: (locale, supported) {
-        return supported.contains(locale) ? locale : const Locale('en');
-      },
     );
   }
 }

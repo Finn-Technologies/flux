@@ -1,6 +1,4 @@
-import 'dart:io';
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import '../models/hf_model.dart';
 
 class ModelService {
@@ -83,40 +81,5 @@ class ModelService {
       default:
         return '';
     }
-  }
-
-  /// Delete a downloaded model from the device
-  static Future<bool> deleteModel(String modelId) async {
-    try {
-      final appDir = await getApplicationDocumentsDirectory();
-      final modelsDir = Directory('${appDir.path}/models');
-      
-      if (!await modelsDir.exists()) {
-        return false;
-      }
-
-      // Find and delete the model file
-      final modelFile = File('${modelsDir.path}/${modelId.replaceAll('/', '_')}.gguf');
-      if (await modelFile.exists()) {
-        await modelFile.delete();
-        return true;
-      }
-
-      return false;
-    } catch (e) {
-      print('Error deleting model: $e');
-      return false;
-    }
-  }
-
-  /// Get the local path for a model if downloaded
-  static Future<String?> getModelLocalPath(String modelId) async {
-    final appDir = await getApplicationDocumentsDirectory();
-    final modelFile = File('${appDir.path}/models/${modelId.replaceAll('/', '_')}.gguf');
-    
-    if (await modelFile.exists()) {
-      return modelFile.path;
-    }
-    return null;
   }
 }

@@ -78,7 +78,7 @@ class SettingsScreen extends StatelessWidget {
                   _buildSettingsItem(
                     title: 'Models',
                     subtitle: 'Download and manage AI models',
-                    onTap: () => context.go('/settings/models'),
+                    onTap: () => context.push('/settings/models'),
                   ),
                   const SizedBox(height: 12),
 

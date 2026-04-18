@@ -127,7 +127,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
               left: 20,
               top: 60,
               child: GestureDetector(
-                onTap: () => context.go('/settings'),
+                onTap: () => context.pop(),
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   crossAxisAlignment: CrossAxisAlignment.center,
