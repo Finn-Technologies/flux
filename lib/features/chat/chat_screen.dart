@@ -739,12 +739,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
 
             // Chat messages area - scrollable
-            // Stops above the input field (input at top: 700)
+            // Stops above the input field (input at top: 710)
             Positioned(
               left: 20,
               right: 20,
               top: 100,
-              bottom: 144,
+              bottom: 134,
               child: messages.isEmpty
                   ? const SizedBox.shrink()
                   : ListView.builder(
@@ -759,7 +759,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
 
             // ==========================================================================
-            // Text Input Frame (8:309) - Position: x: 20, y: 700
+            // Text Input Frame (8:309) - Position: x: 20, y: 710
             // Unified design: Clean text input with NO inner borders
             // Dynamic height: 52px when empty, up to 140px (4 lines) when typing
             // Positioned above the bottom navigation bar
@@ -767,7 +767,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             Positioned(
               left: 20,
               right: 20,
-              top: 700,
+              top: 710,
               child: Container(
                 constraints: const BoxConstraints(
                   minHeight: 52,
