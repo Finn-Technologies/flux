@@ -22,17 +22,11 @@ Flux is a fully offline AI chat assistant for Android. Unlike other AI apps that
   - **Flux Steady** (1.3GB) — Balanced performance, requires 6GB RAM
   - **Flux Smart** (2.6GB) — Maximum capability, requires 8GB+ RAM
 
-- **💬 Beautiful Chat Interface** — Clean, minimalist design with smooth animations and an iOS-style feel
+- **💬 Beautiful Chat Interface** — Clean, minimalist design with smooth animations.
 
 - **📚 Conversation History** — Automatically saves chats with easy access via slide-in sidebar
 
-- **⚡ Smooth Animations** — Premium 60fps transitions throughout the app
-
 - **🔒 100% Private** — No accounts, no tracking, no internet required for inference
-
-## Screenshots
-
-*(Screenshots coming soon)*
 
 ## Download Models
 
@@ -145,10 +139,6 @@ Flux is built with privacy as the foundation:
 - [ ] Export conversations
 - [ ] Multiple language support
 - [ ] iOS version
-
-## Contributing
-
-We welcome contributions! Please read our [Contributing Guide](CONTRIBUTING.md) for details.
 
 ## License
 
