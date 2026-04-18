@@ -739,12 +739,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ),
 
             // Chat messages area - scrollable
-            // Stops 30px above the input field (input is at top: 720)
+            // Stops above the input field (input at top: 660)
             Positioned(
               left: 20,
               right: 20,
               top: 100,
-              bottom: 154,
+              bottom: 184,
               child: messages.isEmpty
                   ? const SizedBox.shrink()
                   : ListView.builder(
@@ -759,14 +759,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
 
             // ==========================================================================
-            // Text Input Frame (8:309) - Position: x: 20, y: 706
+            // Text Input Frame (8:309) - Position: x: 20, y: 660
             // Unified design: Clean text input with NO inner borders
             // Dynamic height: 52px when empty, up to 140px (4 lines) when typing
+            // Positioned above the bottom navigation bar with safe margin
             // ==========================================================================
             Positioned(
               left: 20,
               right: 20,
-              top: 720,
+              top: 660,
               child: Container(
                 constraints: const BoxConstraints(
                   minHeight: 52,
@@ -855,8 +856,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Border radius: 45px 20px 10px 45px pattern
   Widget _buildBubble(ChatMessage msg, {bool isLast = false}) {
     final isUser = msg.fromUser;
-    // No bottom padding for last message to eliminate gap
-    final bottomPadding = isLast ? 0.0 : 8.0;
+    // Increased spacing between messages for better readability
+    final bottomPadding = isLast ? 0.0 : 12.0;
 
             // AI responses (fromUser: false) - Full width, no bubble, aligned with input margins
     if (!isUser) {
@@ -865,7 +866,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         child: Text(
           msg.text,
           style: GoogleFonts.instrumentSans(
-            fontSize: 15,
+            fontSize: 16,
             fontWeight: FontWeight.w400,
             color: _Colors.black,
             height: 1.5,
