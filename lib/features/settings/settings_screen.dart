@@ -79,6 +79,7 @@ class SettingsScreen extends StatelessWidget {
                     title: 'Models',
                     subtitle: 'Download and manage AI models',
                     onTap: () => context.push('/settings/models'),
+                    index: 0,
                   ),
                   const SizedBox(height: 12),
 
@@ -89,6 +90,7 @@ class SettingsScreen extends StatelessWidget {
                     isDestructive: true,
                     onTap: () => _confirm(context, 'Clear cache?',
                         'This removes temporary files only.', 'Clear'),
+                    index: 1,
                   ),
                   const SizedBox(height: 12),
 
@@ -97,6 +99,7 @@ class SettingsScreen extends StatelessWidget {
                     title: 'About Flux',
                     subtitle: 'Version 0.1.3',
                     onTap: () => _showAboutSheet(context),
+                    index: 2,
                   ),
                 ],
               ),
@@ -112,39 +115,54 @@ class SettingsScreen extends StatelessWidget {
     required String subtitle,
     required VoidCallback onTap,
     bool isDestructive = false,
+    int index = 0,
   }) {
-    return GestureDetector(
-      onTap: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
-        decoration: BoxDecoration(
-          color: _Colors.white,
-          borderRadius: BorderRadius.circular(15),
-          border: Border.all(
-            color: _Colors.border,
-            width: 1,
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 300 + (index * 80)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, 15 * (1.0 - value)),
+            child: child,
           ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              title,
-              style: GoogleFonts.instrumentSans(
-                fontSize: 17,
-                fontWeight: FontWeight.w400,
-                color: isDestructive ? Colors.red : _Colors.black,
+        );
+      },
+      child: _AnimatedTapCard(
+        onTap: () {
+          HapticFeedback.lightImpact();
+          onTap();
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+          decoration: BoxDecoration(
+            color: _Colors.white,
+            borderRadius: BorderRadius.circular(15),
+            border: Border.all(
+              color: _Colors.border,
+              width: 1,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: GoogleFonts.instrumentSans(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w400,
+                  color: isDestructive ? Colors.red : _Colors.black,
+                ),
               ),
-            ),
-            const SizedBox(height: 2),
-            Text(
-              subtitle,
-              style: _TextStyles.subtitle,
-            ),
-          ],
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: _TextStyles.subtitle,
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -221,6 +239,50 @@ class SettingsScreen extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// Animated tap card with scale effect
+class _AnimatedTapCard extends StatefulWidget {
+  final VoidCallback onTap;
+  final Widget child;
+
+  const _AnimatedTapCard({required this.onTap, required this.child});
+
+  @override
+  State<_AnimatedTapCard> createState() => _AnimatedTapCardState();
+}
+
+class _AnimatedTapCardState extends State<_AnimatedTapCard>
+    with SingleTickerProviderStateMixin {
+  bool _isPressed = false;
+
+  void _onTapDown(TapDownDetails details) {
+    setState(() => _isPressed = true);
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    setState(() => _isPressed = false);
+    widget.onTap();
+  }
+
+  void _onTapCancel() {
+    setState(() => _isPressed = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
       ),
     );
   }

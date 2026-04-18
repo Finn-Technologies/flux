@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:google_fonts/google_fonts.dart';
@@ -86,7 +85,6 @@ class _AppAssets {
 // ============================================================================
 class _AnimDurations {
   static const Duration fast = Duration(milliseconds: 250);
-  static const Duration medium = Duration(milliseconds: 350);
 }
 
 class _AnimCurves {
@@ -238,22 +236,24 @@ class _WelcomeSlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Welcome to Flux',
-                    style: _AppTypography.heading,
-                    textAlign: TextAlign.center,
-                  )
-                      .animate()
-                      .fadeIn(duration: _AnimDurations.medium),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 100),
+                    child: Text(
+                      'Welcome to Flux',
+                      style: _AppTypography.heading,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   
                   const SizedBox(height: 60),
                   
-                  _AnimatedButton(
-                    text: 'Start',
-                    onPressed: onNext,
-                  )
-                      .animate()
-                      .fadeIn(duration: _AnimDurations.fast, delay: 100.ms),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 200),
+                    child: _AnimatedButton(
+                      text: 'Start',
+                      onPressed: onNext,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -284,9 +284,10 @@ class _PrivacySlide extends StatelessWidget {
             Positioned(
               left: 20,
               top: 74,
-              child: _BackButton(onPressed: onBack)
-                  .animate()
-                  .fadeIn(duration: _AnimDurations.fast),
+              child: _FadeInSlide(
+                delay: Duration.zero,
+                child: _BackButton(onPressed: onBack),
+              ),
             ),
 
             Positioned(
@@ -296,32 +297,35 @@ class _PrivacySlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'We value your privacy',
-                    style: _AppTypography.heading,
-                    textAlign: TextAlign.center,
-                  )
-                      .animate()
-                      .fadeIn(duration: _AnimDurations.medium),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 100),
+                    child: Text(
+                      'We value your privacy',
+                      style: _AppTypography.heading,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   
                   const SizedBox(height: 20),
                   
-                  Text(
-                    "We designed Flux to use Local AI models, so your data doesn't go to corporations, not even us.",
-                    style: _AppTypography.description,
-                    textAlign: TextAlign.center,
-                  )
-                      .animate()
-                      .fadeIn(duration: _AnimDurations.medium, delay: 50.ms),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 150),
+                    child: Text(
+                      "We designed Flux to use Local AI models, so your data doesn't go to corporations, not even us.",
+                      style: _AppTypography.description,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   
                   SizedBox(height: spacing),
                   
-                  _AnimatedButton(
-                    text: 'Next',
-                    onPressed: onNext,
-                  )
-                      .animate()
-                      .fadeIn(duration: _AnimDurations.fast, delay: 100.ms),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 200),
+                    child: _AnimatedButton(
+                      text: 'Next',
+                      onPressed: onNext,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -352,9 +356,10 @@ class _OfflineSlide extends StatelessWidget {
             Positioned(
               left: 20,
               top: 74,
-              child: _BackButton(onPressed: onBack)
-                  .animate()
-                  .fadeIn(duration: _AnimDurations.fast),
+              child: _FadeInSlide(
+                delay: Duration.zero,
+                child: _BackButton(onPressed: onBack),
+              ),
             ),
 
             Positioned(
@@ -364,32 +369,35 @@ class _OfflineSlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    'Fully offline',
-                    style: _AppTypography.heading,
-                    textAlign: TextAlign.center,
-                  )
-                      .animate()
-                      .fadeIn(duration: _AnimDurations.medium),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 100),
+                    child: Text(
+                      'Fully offline',
+                      style: _AppTypography.heading,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   
                   const SizedBox(height: 20),
                   
-                  Text(
-                    'Since we use Local AI models, Flux works entirely offline, so you can ask questions even with no coverage.',
-                    style: _AppTypography.description,
-                    textAlign: TextAlign.center,
-                  )
-                      .animate()
-                      .fadeIn(duration: _AnimDurations.medium, delay: 50.ms),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 150),
+                    child: Text(
+                      'Since we use Local AI models, Flux works entirely offline, so you can ask questions even with no coverage.',
+                      style: _AppTypography.description,
+                      textAlign: TextAlign.center,
+                    ),
+                  ),
                   
                   SizedBox(height: spacing),
                   
-                  _AnimatedButton(
-                    text: 'Next',
-                    onPressed: onNext,
-                  )
-                      .animate()
-                      .fadeIn(duration: _AnimDurations.fast, delay: 100.ms),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 200),
+                    child: _AnimatedButton(
+                      text: 'Next',
+                      onPressed: onNext,
+                    ),
+                  ),
                 ],
               ),
             ),
@@ -424,33 +432,36 @@ class _DownloadModelSlide extends StatelessWidget {
         Positioned(
           left: 20,
           top: 74,
-          child: _BackButton(onPressed: onBack)
-              .animate()
-              .fadeIn(duration: _AnimDurations.fast),
+          child: _FadeInSlide(
+            delay: Duration.zero,
+            child: _BackButton(onPressed: onBack),
+          ),
         ),
 
         Positioned(
           left: 20,
           top: 122,
           right: 20,
-          child: Text(
-            'Choose a model to download',
-            style: _AppTypography.heading,
-          )
-              .animate()
-              .fadeIn(duration: _AnimDurations.medium),
+          child: _FadeInSlide(
+            delay: const Duration(milliseconds: 100),
+            child: Text(
+              'Choose a model to download',
+              style: _AppTypography.heading,
+            ),
+          ),
         ),
 
         Positioned(
           left: 20,
           top: 173,
           right: 20,
-          child: Text(
-            'Flux recommends models optimized for your device, ensuring they work properly.',
-            style: _AppTypography.description,
-          )
-              .animate()
-              .fadeIn(duration: _AnimDurations.medium, delay: 50.ms),
+          child: _FadeInSlide(
+            delay: const Duration(milliseconds: 150),
+            child: Text(
+              'Flux recommends models optimized for your device, ensuring they work properly.',
+              style: _AppTypography.description,
+            ),
+          ),
         ),
 
         Positioned(
@@ -535,12 +546,13 @@ class _DownloadModelSlide extends StatelessWidget {
         Positioned(
           right: 20,
           bottom: 40,
-          child: _AnimatedButton(
-            text: 'Next',
-            onPressed: selectedModel != null ? onNext : null,
-          )
-              .animate()
-              .fadeIn(duration: _AnimDurations.fast),
+          child: _FadeInSlide(
+            delay: const Duration(milliseconds: 200),
+            child: _AnimatedButton(
+              text: 'Next',
+              onPressed: selectedModel != null ? onNext : null,
+            ),
+          ),
         ),
       ],
     );
@@ -570,17 +582,23 @@ class _FinishSlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    "That's it. Flux is ready!",
-                    style: _AppTypography.heading,
-                    textAlign: TextAlign.center,
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 100),
+                    child: Text(
+                      "That's it. Flux is ready!",
+                      style: _AppTypography.heading,
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                   
                   const SizedBox(height: 60),
                   
-                  _AnimatedButton(
-                    text: 'Finish',
-                    onPressed: onFinish,
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 200),
+                    child: _AnimatedButton(
+                      text: 'Finish',
+                      onPressed: onFinish,
+                    ),
                   ),
                 ],
               ),
@@ -595,6 +613,75 @@ class _FinishSlide extends StatelessWidget {
 // ============================================================================
 // COMPONENTS
 // ============================================================================
+
+// Fade in with slight upward slide animation
+class _FadeInSlide extends StatefulWidget {
+  final Widget child;
+  final Duration delay;
+
+  const _FadeInSlide({required this.child, required this.delay});
+
+  @override
+  State<_FadeInSlide> createState() => _FadeInSlideState();
+}
+
+class _FadeInSlideState extends State<_FadeInSlide>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  late Animation<double> _opacity;
+  late Animation<double> _slide;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 400),
+      vsync: this,
+    );
+
+    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    _slide = Tween<double>(begin: 20.0, end: 0.0).animate(
+      CurvedAnimation(
+        parent: _controller,
+        curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
+      ),
+    );
+
+    // Start animation after delay
+    Future.delayed(widget.delay, () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Opacity(
+          opacity: _opacity.value,
+          child: Transform.translate(
+            offset: Offset(0, _slide.value),
+            child: child,
+          ),
+        );
+      },
+      child: widget.child,
+    );
+  }
+}
 
 class _AnimatedButton extends StatefulWidget {
   final String text;

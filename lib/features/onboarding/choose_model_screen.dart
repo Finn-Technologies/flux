@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../../core/services/model_service.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
@@ -106,9 +105,22 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
         final model = _models[index];
         final isSelected = _selectedModel?.id == model.id;
 
-        return GestureDetector(
-          onTap: () => setState(() => _selectedModel = model),
-          child: AnimatedContainer(
+        return TweenAnimationBuilder<double>(
+          tween: Tween(begin: 0.0, end: 1.0),
+          duration: Duration(milliseconds: 400 + (index * 100)),
+          curve: Curves.easeOutCubic,
+          builder: (context, value, child) {
+            return Opacity(
+              opacity: value.clamp(0.0, 1.0),
+              child: Transform.translate(
+                offset: Offset(0, 20 * (1.0 - value)),
+                child: child,
+              ),
+            );
+          },
+          child: GestureDetector(
+            onTap: () => setState(() => _selectedModel = model),
+            child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
             margin: const EdgeInsets.only(bottom: 16),
@@ -158,8 +170,9 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
                   Icon(Icons.check_circle_rounded, color: colorScheme.primary, size: 28),
               ],
             ),
-          ).animate().fadeIn(delay: (index * 100).ms).slideY(begin: 0.1, end: 0),
-        );
+          ),
+        ),
+      );
       },
     );
   }

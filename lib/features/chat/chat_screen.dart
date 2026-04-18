@@ -822,25 +822,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       ),
                     ),
 
-                    // Send button - Solid black circle with opacity based on text
-                    GestureDetector(
+                    // Send button - Solid black circle with opacity and tap animation
+                    _AnimatedSendButton(
                       onTap: _sendMessage,
-                      child: Opacity(
-                        opacity: _hasText ? 1.0 : 0.3,
-                        child: Container(
-                          width: 40,
-                          height: 40,
-                          decoration: const BoxDecoration(
-                            color: _Colors.black,
-                            shape: BoxShape.circle,
-                          ),
-                          child: const Icon(
-                            Icons.arrow_upward,
-                            color: _Colors.white,
-                            size: 22,
-                          ),
-                        ),
-                      ),
+                      isEnabled: _hasText,
                     ),
                   ],
                 ),
@@ -859,52 +844,126 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // Increased spacing between messages for better readability
     final bottomPadding = isLast ? 0.0 : 12.0;
 
-            // AI responses (fromUser: false) - Full width, no bubble, aligned with input margins
-    if (!isUser) {
-      return Padding(
-        padding: EdgeInsets.only(bottom: bottomPadding),
-        child: Text(
-          msg.text,
-          style: GoogleFonts.instrumentSans(
-            fontSize: 16,
-            fontWeight: FontWeight.w400,
-            color: _Colors.black,
-            height: 1.5,
-          ),
-        ),
-      );
-    }
-
-    // User messages - Black bubble, right-aligned, aligned with input right margin
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomPadding),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.end,
-        children: [
-          Flexible(
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              decoration: BoxDecoration(
+    final bubble = !isUser
+        ? Padding(
+            padding: EdgeInsets.only(bottom: bottomPadding),
+            child: Text(
+              msg.text,
+              style: GoogleFonts.instrumentSans(
+                fontSize: 16,
+                fontWeight: FontWeight.w400,
                 color: _Colors.black,
-                borderRadius: BorderRadius.only(
-                  topLeft: const Radius.circular(24),
-                  topRight: const Radius.circular(24),
-                  bottomLeft: const Radius.circular(24),
-                  bottomRight: const Radius.circular(4),
-                ),
-              ),
-              child: Text(
-                msg.text,
-                style: GoogleFonts.instrumentSans(
-                  fontSize: 15,
-                  fontWeight: FontWeight.w400,
-                  color: _Colors.white,
-                  height: 1.4,
-                ),
+                height: 1.5,
               ),
             ),
+          )
+        : Padding(
+            padding: EdgeInsets.only(bottom: bottomPadding),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                Flexible(
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                    decoration: BoxDecoration(
+                      color: _Colors.black,
+                      borderRadius: BorderRadius.only(
+                        topLeft: const Radius.circular(24),
+                        topRight: const Radius.circular(24),
+                        bottomLeft: const Radius.circular(24),
+                        bottomRight: const Radius.circular(4),
+                      ),
+                    ),
+                    child: Text(
+                      msg.text,
+                      style: GoogleFonts.instrumentSans(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w400,
+                        color: _Colors.white,
+                        height: 1.4,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          );
+
+    // Entrance animation for new messages
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(isUser ? 20 * (1.0 - value) : -20 * (1.0 - value), 0),
+            child: child,
           ),
-        ],
+        );
+      },
+      child: bubble,
+    );
+  }
+}
+
+// Animated send button with press feedback
+class _AnimatedSendButton extends StatefulWidget {
+  final VoidCallback onTap;
+  final bool isEnabled;
+
+  const _AnimatedSendButton({required this.onTap, required this.isEnabled});
+
+  @override
+  State<_AnimatedSendButton> createState() => _AnimatedSendButtonState();
+}
+
+class _AnimatedSendButtonState extends State<_AnimatedSendButton>
+    with SingleTickerProviderStateMixin {
+  bool _isPressed = false;
+
+  void _onTapDown(TapDownDetails details) {
+    if (widget.isEnabled) setState(() => _isPressed = true);
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    if (widget.isEnabled) {
+      setState(() => _isPressed = false);
+      widget.onTap();
+    }
+  }
+
+  void _onTapCancel() {
+    setState(() => _isPressed = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.85 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: Opacity(
+          opacity: widget.isEnabled ? 1.0 : 0.3,
+          child: Container(
+            width: 40,
+            height: 40,
+            decoration: const BoxDecoration(
+              color: _Colors.black,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.arrow_upward,
+              color: _Colors.white,
+              size: 22,
+            ),
+          ),
+        ),
       ),
     );
   }

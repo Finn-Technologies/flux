@@ -220,9 +220,9 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
-                    ...downloadingModels.map((m) => Padding(
+                    ...downloadingModels.asMap().entries.map((entry) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildModelCard(m),
+                      child: _buildModelCard(entry.value, entry.key),
                     )),
                     const SizedBox(height: 24),
                   ],
@@ -234,9 +234,9 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
-                    ...installedModels.map((m) => Padding(
+                    ...installedModels.asMap().entries.map((entry) => Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: _buildModelCard(m),
+                      child: _buildModelCard(entry.value, entry.key),
                     )),
                     const SizedBox(height: 24),
                   ],
@@ -267,9 +267,9 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                             style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 12),
-                          ...trulyAvailable.map((m) => Padding(
+                          ...trulyAvailable.asMap().entries.map((entry) => Padding(
                             padding: const EdgeInsets.only(bottom: 12),
-                            child: _buildModelCard(m),
+                            child: _buildModelCard(entry.value, entry.key),
                           )),
                         ],
                       );
@@ -344,9 +344,9 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
   // Track which models are currently being downloaded to prevent double-taps
   final Set<String> _downloadingIds = {};
 
-  // Model card - same style as onboarding page
+  // Model card - same style as onboarding page with tap animation
   // In settings/models page, we only download/delete - NO SELECTION here
-  Widget _buildModelCard(HFModel model) {
+  Widget _buildModelCard(HFModel model, int index) {
     final isDownloaded = model.downloaded;
     final isDownloading = model.downloadStatus == 'downloading';
     final isInProgress = isDownloading;
@@ -354,18 +354,29 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     // Only start download if not already in progress (downloading or paused)
     final bool canStartDownload = !isDownloaded && !isInProgress && !_downloadingIds.contains(model.id);
     
-    return GestureDetector(
-      onTap: () {
-        if (canStartDownload) {
-          // Start new download
-          _downloadingIds.add(model.id);
-          final url = ModelService.getDownloadUrl(model.id);
-          ref.read(downloadProvider.notifier).startDownloadWithUrl(model, url);
-        }
-        // Note: Resuming paused downloads is done via the resume button, not by tapping the card
-        // Note: No selection on tap in settings - selection happens on home/chat screen only
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0.0, end: 1.0),
+      duration: Duration(milliseconds: 300 + (index * 50)),
+      curve: Curves.easeOutCubic,
+      builder: (context, value, child) {
+        return Opacity(
+          opacity: value.clamp(0.0, 1.0),
+          child: Transform.translate(
+            offset: Offset(0, 15 * (1.0 - value)),
+            child: child,
+          ),
+        );
       },
-      child: Container(
+      child: _AnimatedTapCard(
+        onTap: () {
+          if (canStartDownload) {
+            // Start new download
+            _downloadingIds.add(model.id);
+            final url = ModelService.getDownloadUrl(model.id);
+            ref.read(downloadProvider.notifier).startDownloadWithUrl(model, url);
+          }
+        },
+        child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
         decoration: BoxDecoration(
           color: _Colors.white,
@@ -486,80 +497,145 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
           ],
         ),
       ),
+    ),
     );
   }
 
   void _confirmDelete(HFModel model) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Text(
-          'Delete Model?',
-          style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          'Are you sure you want to delete ${model.name}? You will need to download it again to use it.',
-          style: _TextStyles.subtitle,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Cancel',
-              style: _TextStyles.body.copyWith(color: _Colors.textSecondary),
-            ),
-          ),
-          TextButton(
-            onPressed: () {
-              ref.read(downloadProvider.notifier).deleteModel(model.id);
-              Navigator.pop(ctx);
-            },
-            child: Text(
-              'Delete',
-              style: _TextStyles.body.copyWith(color: Colors.red),
-            ),
-          ),
-        ],
-      ),
+    _showAnimatedDialog(
+      title: 'Delete Model?',
+      content: 'Are you sure you want to delete ${model.name}? You will need to download it again to use it.',
+      cancelText: 'Cancel',
+      actionText: 'Delete',
+      actionColor: Colors.red,
+      onAction: () => ref.read(downloadProvider.notifier).deleteModel(model.id),
     );
   }
 
   void _confirmCancel(HFModel model) {
-    showDialog(
+    _showAnimatedDialog(
+      title: 'Cancel Download?',
+      content: 'Are you sure you want to cancel the download of ${model.name}? Downloaded progress will be lost.',
+      cancelText: 'Continue',
+      actionText: 'Cancel Download',
+      actionColor: Colors.red,
+      onAction: () {
+        ref.read(downloadProvider.notifier).cancelDownload(model.id);
+        _downloadingIds.remove(model.id);
+      },
+    );
+  }
+
+  void _showAnimatedDialog({
+    required String title,
+    required String content,
+    required String cancelText,
+    required String actionText,
+    required Color actionColor,
+    required VoidCallback onAction,
+  }) {
+    showGeneralDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: _Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
-        title: Text(
-          'Cancel Download?',
-          style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          'Are you sure you want to cancel the download of ${model.name}? Downloaded progress will be lost.',
-          style: _TextStyles.subtitle,
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Continue',
-              style: _TextStyles.body.copyWith(color: _Colors.textSecondary),
+      pageBuilder: (context, animation, secondaryAnimation) {
+        return Container();
+      },
+      transitionBuilder: (context, animation, secondaryAnimation, child) {
+        final curve = Curves.easeOutCubic;
+        final tween = Tween<double>(begin: 0.0, end: 1.0);
+        final fadeAnimation = tween.animate(CurvedAnimation(
+          parent: animation,
+          curve: curve,
+        ));
+        final scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(CurvedAnimation(
+          parent: animation,
+          curve: curve,
+        ));
+
+        return Opacity(
+          opacity: fadeAnimation.value,
+          child: Transform.scale(
+            scale: scaleAnimation.value,
+            child: AlertDialog(
+              backgroundColor: _Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
+              title: Text(
+                title,
+                style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
+              ),
+              content: Text(
+                content,
+                style: _TextStyles.subtitle,
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(
+                    cancelText,
+                    style: _TextStyles.body.copyWith(color: _Colors.textSecondary),
+                  ),
+                ),
+                TextButton(
+                  onPressed: () {
+                    onAction();
+                    Navigator.pop(context);
+                  },
+                  child: Text(
+                    actionText,
+                    style: _TextStyles.body.copyWith(color: actionColor),
+                  ),
+                ),
+              ],
             ),
           ),
-          TextButton(
-            onPressed: () {
-              ref.read(downloadProvider.notifier).cancelDownload(model.id);
-              _downloadingIds.remove(model.id);
-              Navigator.pop(ctx);
-            },
-            child: Text(
-              'Cancel Download',
-              style: _TextStyles.body.copyWith(color: Colors.red),
-            ),
-          ),
-        ],
+        );
+      },
+      transitionDuration: const Duration(milliseconds: 250),
+      barrierDismissible: true,
+      barrierLabel: '',
+      barrierColor: _Colors.black.withValues(alpha: 0.3),
+    );
+  }
+}
+
+// Animated tap card with scale effect
+class _AnimatedTapCard extends StatefulWidget {
+  final VoidCallback onTap;
+  final Widget child;
+
+  const _AnimatedTapCard({required this.onTap, required this.child});
+
+  @override
+  State<_AnimatedTapCard> createState() => _AnimatedTapCardState();
+}
+
+class _AnimatedTapCardState extends State<_AnimatedTapCard>
+    with SingleTickerProviderStateMixin {
+  bool _isPressed = false;
+
+  void _onTapDown(TapDownDetails details) {
+    setState(() => _isPressed = true);
+  }
+
+  void _onTapUp(TapUpDetails details) {
+    setState(() => _isPressed = false);
+    widget.onTap();
+  }
+
+  void _onTapCancel() {
+    setState(() => _isPressed = false);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTapDown: _onTapDown,
+      onTapUp: _onTapUp,
+      onTapCancel: _onTapCancel,
+      child: AnimatedScale(
+        scale: _isPressed ? 0.97 : 1.0,
+        duration: const Duration(milliseconds: 150),
+        curve: Curves.easeOutCubic,
+        child: widget.child,
       ),
     );
   }

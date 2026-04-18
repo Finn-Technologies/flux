@@ -377,7 +377,7 @@ class FluxColorsExtension extends ThemeExtension<FluxColorsExtension> {
 
 // Helper for consistent tab-style slide transitions across the app
 // Each tab has a spatial position and slides from/to that position
-// Tab switch animation (Home/Settings) - both pages move simultaneously
+// Unified smooth animation for all transitions
 CustomTransitionPage buildSlidePage({
   required GoRouterState state,
   required Widget child,
@@ -386,18 +386,34 @@ CustomTransitionPage buildSlidePage({
   return CustomTransitionPage(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 250),
-    reverseTransitionDuration: const Duration(milliseconds: 250),
+    transitionDuration: const Duration(milliseconds: 350),
+    reverseTransitionDuration: const Duration(milliseconds: 300),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      // Use smooth spring-like curve
+      final curve = Curves.easeInOutCubicEmphasized;
+      
       return AnimatedBuilder(
         animation: Listenable.merge([animation, secondaryAnimation]),
         builder: (context, child) {
-          final thisProgress = Curves.easeOutCubic.transform(animation.value);
-          final thisOffset = position * (1.0 - thisProgress);
+          final thisProgress = curve.transform(animation.value);
+          final secondaryProgress = curve.transform(secondaryAnimation.value);
           
-          return Transform.translate(
-            offset: Offset(thisOffset * MediaQuery.of(context).size.width, 0),
-            child: child,
+          // Calculate offset with smooth interpolation
+          final thisOffset = position * (1.0 - thisProgress);
+          final combinedOffset = thisOffset - (0.08 * secondaryProgress * (position > 0 ? -1 : 1));
+          
+          // Add subtle scale for depth
+          final scale = 0.98 + (0.02 * thisProgress);
+          
+          return Transform.scale(
+            scale: scale.clamp(0.98, 1.0),
+            child: Transform.translate(
+              offset: Offset(combinedOffset * MediaQuery.of(context).size.width, 0),
+              child: Opacity(
+                opacity: 0.5 + (0.5 * thisProgress.clamp(0.0, 1.0)),
+                child: child,
+              ),
+            ),
           );
         },
         child: child,
@@ -406,7 +422,7 @@ CustomTransitionPage buildSlidePage({
   );
 }
 
-// Push/Pop animation - both pages move like tab switch
+// Hierarchical push/pop - same smooth animation
 CustomTransitionPage buildPopPage({
   required GoRouterState state,
   required Widget child,
@@ -414,24 +430,31 @@ CustomTransitionPage buildPopPage({
   return CustomTransitionPage(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 250),
-    reverseTransitionDuration: const Duration(milliseconds: 250),
+    transitionDuration: const Duration(milliseconds: 350),
+    reverseTransitionDuration: const Duration(milliseconds: 300),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curve = Curves.easeInOutCubicEmphasized;
+      
       return AnimatedBuilder(
         animation: Listenable.merge([animation, secondaryAnimation]),
         builder: (context, child) {
-          // Primary animation: this page entering/exiting
-          final primaryProgress = Curves.easeOutCubic.transform(animation.value);
-          // Secondary animation: previous page moving
-          final secondaryProgress = Curves.easeOutCubic.transform(secondaryAnimation.value);
+          final primaryProgress = curve.transform(animation.value);
+          final secondaryProgress = curve.transform(secondaryAnimation.value);
           
-          // When pushing (forward): this page enters from right, previous exits left
-          // When popping (reverse): this page exits to right, previous enters from left
-          final dx = 0.15 * (1.0 - primaryProgress) - 0.15 * secondaryProgress;
+          // Push: enter from right (0.15 to 0)
+          // Pop: exit to right (0 to 0.15)
+          final dx = 0.15 * (1.0 - primaryProgress) - 0.08 * secondaryProgress;
+          final scale = 0.98 + (0.02 * primaryProgress);
           
-          return Transform.translate(
-            offset: Offset(dx * MediaQuery.of(context).size.width, 0),
-            child: child,
+          return Transform.scale(
+            scale: scale.clamp(0.98, 1.0),
+            child: Transform.translate(
+              offset: Offset(dx * MediaQuery.of(context).size.width, 0),
+              child: Opacity(
+                opacity: 0.5 + (0.5 * primaryProgress.clamp(0.0, 1.0)),
+                child: child,
+              ),
+            ),
           );
         },
         child: child,
