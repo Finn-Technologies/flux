@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:go_router/go_router.dart';
 import '../../core/theme/flux_theme.dart';
+import '../../core/widgets/animated_tap_card.dart';
+import '../../l10n/app_localizations.dart';
 
 // ============================================================================
 // TYPOGRAPHY - Instrument Sans
@@ -38,14 +40,12 @@ class SettingsScreen extends StatelessWidget {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final brightness = Theme.of(context).brightness;
 
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
       ),
-    );
-
-    return Scaffold(
+      child: Scaffold(
       backgroundColor: flux.background,
       body: SafeArea(
         child: Stack(
@@ -54,7 +54,7 @@ class SettingsScreen extends StatelessWidget {
               left: 20,
               top: 60,
               child: Text(
-                'Settings',
+                AppLocalizations.of(context)!.settings,
                 style: _TextStyles.title(context),
               ),
             ),
@@ -63,14 +63,14 @@ class SettingsScreen extends StatelessWidget {
               left: 20,
               right: 20,
               top: 120,
-              bottom: 100,
+              bottom: 108,
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   _buildSettingsItem(
                     context: context,
-                    title: 'Models',
-                    subtitle: 'Download and manage AI models',
+                    title: AppLocalizations.of(context)!.models,
+                    subtitle: AppLocalizations.of(context)!.downloadAndManageModels,
                     onTap: () => context.push('/settings/models'),
                     index: 0,
                   ),
@@ -78,18 +78,37 @@ class SettingsScreen extends StatelessWidget {
 
                   _buildSettingsItem(
                     context: context,
-                    title: 'Clear cache',
-                    subtitle: 'Remove temporary files',
+                    title: AppLocalizations.of(context)!.clearCache,
+                    subtitle: AppLocalizations.of(context)!.removeTemporaryFiles,
                     isDestructive: true,
                     onTap: () => _confirm(
                       context,
-                      'Clear cache?',
-                      'This removes temporary files only.',
-                      'Clear',
+                      AppLocalizations.of(context)!.clearCacheQuestion,
+                      AppLocalizations.of(context)!.clearCacheMessage,
+                      AppLocalizations.of(context)!.confirm,
                       () async {
                         final prefs = await SharedPreferences.getInstance();
+                        // Preserve critical flags
+                        final onboarded = prefs.getBool('onboarded');
+                        final selectedModel = prefs.getString('selectedModelId');
                         await prefs.clear();
+                        if (onboarded == true) await prefs.setBool('onboarded', true);
+                        if (selectedModel != null) await prefs.setString('selectedModelId', selectedModel);
                         await Hive.box('settings').clear();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(
+                                'Cache cleared',
+                                style: GoogleFonts.instrumentSans(fontSize: 14),
+                              ),
+                              duration: const Duration(seconds: 2),
+                              behavior: SnackBarBehavior.floating,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              margin: const EdgeInsets.all(20),
+                            ),
+                          );
+                        }
                       },
                     ),
                     index: 1,
@@ -98,8 +117,8 @@ class SettingsScreen extends StatelessWidget {
 
                   _buildSettingsItem(
                     context: context,
-                    title: 'About Flux',
-                    subtitle: 'Version 0.1.4',
+                    title: AppLocalizations.of(context)!.aboutFlux,
+                    subtitle: '${AppLocalizations.of(context)!.version} 0.1.5',
                     onTap: () => _showAboutSheet(context),
                     index: 2,
                   ),
@@ -108,6 +127,7 @@ class SettingsScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -123,8 +143,8 @@ class SettingsScreen extends StatelessWidget {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 300 + (index * 80)),
-      curve: Curves.easeOutCubic,
+      duration: Duration(milliseconds: 350 + (index * 80)),
+      curve: Curves.easeInOutCubic,
       builder: (context, value, child) {
         return Opacity(
           opacity: value.clamp(0.0, 1.0),
@@ -134,7 +154,7 @@ class SettingsScreen extends StatelessWidget {
           ),
         );
       },
-      child: _AnimatedTapCard(
+      child: AnimatedTapCard(
         onTap: () {
           HapticFeedback.lightImpact();
           onTap();
@@ -173,27 +193,15 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _confirm(BuildContext context, String title, String message, String action, [VoidCallback? onAction]) {
-    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: flux.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          title,
-          style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          message,
-          style: _TextStyles.subtitle(context),
-        ),
+        title: Text(title),
+        content: Text(message),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: Text(
-              'Cancel',
-              style: _TextStyles.subtitle(context),
-            ),
+            child: Text(AppLocalizations.of(context)!.cancel),
           ),
           TextButton(
             onPressed: () {
@@ -202,11 +210,7 @@ class SettingsScreen extends StatelessWidget {
             },
             child: Text(
               action,
-              style: GoogleFonts.instrumentSans(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-                color: Colors.red,
-              ),
+              style: const TextStyle(color: Colors.red),
             ),
           ),
         ],
@@ -226,7 +230,7 @@ class SettingsScreen extends StatelessWidget {
       ),
       builder: (ctx) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(40, 40, 40, 80),
+          padding: const EdgeInsets.fromLTRB(40, 30, 40, 60),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -236,62 +240,18 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Version 0.1.4',
+                '${AppLocalizations.of(context)!.version} 0.1.5',
                 style: _TextStyles.subtitle(context),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               Text(
-                'Your private AI assistant that runs locally on your device. Your data stays on your phone \u2014 no account needed.',
+                AppLocalizations.of(context)!.yourPrivateAI,
                 textAlign: TextAlign.center,
                 style: _TextStyles.body(context).copyWith(color: flux.textSecondary),
               ),
             ],
           ),
         ),
-      ),
-    );
-  }
-}
-
-// Animated tap card with scale effect
-class _AnimatedTapCard extends StatefulWidget {
-  final VoidCallback onTap;
-  final Widget child;
-
-  const _AnimatedTapCard({required this.onTap, required this.child});
-
-  @override
-  State<_AnimatedTapCard> createState() => _AnimatedTapCardState();
-}
-
-class _AnimatedTapCardState extends State<_AnimatedTapCard>
-    with SingleTickerProviderStateMixin {
-  bool _isPressed = false;
-
-  void _onTapDown(TapDownDetails details) {
-    setState(() => _isPressed = true);
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    setState(() => _isPressed = false);
-    widget.onTap();
-  }
-
-  void _onTapCancel() {
-    setState(() => _isPressed = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
-      child: AnimatedScale(
-        scale: _isPressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOutCubic,
-        child: widget.child,
       ),
     );
   }

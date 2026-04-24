@@ -15,6 +15,8 @@ class InferenceService {
     required String prompt,
     String? localPath,
     String? systemPrompt,
+    List<Map<String, String>> history = const [],
+    int maxTokens = 1024,
   }) async* {
     if (localPath == null || !File(localPath).existsSync()) {
       yield "Error: Local model file not found at $localPath.";
@@ -27,20 +29,25 @@ class InferenceService {
           await _engine!.dispose();
           _engine = null;
         }
-        
-        final threads = Platform.numberOfProcessors > 4 ? 4 : 2;
+
+        // Use up to 6 threads for batch processing, but cap interactive at 4
+        // to leave headroom for UI and system tasks.
+        final cpuCount = Platform.numberOfProcessors;
+        final threads = cpuCount > 4 ? 4 : (cpuCount > 1 ? cpuCount : 2);
+        final batchThreads = cpuCount > 6 ? 6 : (cpuCount > 2 ? cpuCount : 2);
+
         _engine = LlamaEngine(LlamaBackend());
         // Disable noisy logs for production stability
         LlamaEngine.configureLogging(level: LlamaLogLevel.none);
-        
+
         await _engine!.loadModel(
           localPath,
           modelParams: ModelParams(
             numberOfThreads: threads,
-            numberOfThreadsBatch: threads,
-            contextSize: 1024,
+            numberOfThreadsBatch: batchThreads,
+            contextSize: 2048,
             gpuLayers: 0,
-            batchSize: 512,
+            batchSize: 1024,
             microBatchSize: 512,
           ),
         );
@@ -53,7 +60,28 @@ class InferenceService {
       }
 
       final systemMessage = systemPrompt ?? "You are Flux, an on-device AI. Answer concisely and accurately. Never hallucinate other conversations or users. Stop immediately after answering.";
-      final fullPrompt = "<|im_start|>system\n$systemMessage\n<|im_end|>\n<|im_start|>user\n$prompt\n<|im_end|>\n<|im_start|>assistant\n";
+
+      // Build the full prompt with conversation history for memory.
+      // We keep a rough token budget: system prompt (~60 tokens) + history + current prompt.
+      // At ~4 chars/token, 1800 chars ≈ 450 tokens, leaving ~1500 tokens for the response.
+      const int maxHistoryChars = 1800;
+      final buffer = StringBuffer();
+      buffer.write("<|im_start|>system\n$systemMessage\n<|im_end|>\n");
+
+      if (history.isNotEmpty) {
+        int historyChars = 0;
+        for (final turn in history) {
+          final role = turn['role'] ?? 'user';
+          final content = turn['content'] ?? '';
+          final segment = "<|im_start|>$role\n$content\n<|im_end|>\n";
+          historyChars += segment.length;
+          if (historyChars > maxHistoryChars) break;
+          buffer.write(segment);
+        }
+      }
+
+      buffer.write("<|im_start|>user\n$prompt\n<|im_end|>\n<|im_start|>assistant\n");
+      final fullPrompt = buffer.toString();
 
       // Aggressive stop sequences to prevent continuation
       final stopSequences = [
@@ -72,7 +100,7 @@ class InferenceService {
         fullPrompt,
         params: GenerationParams(
           temp: 0.1, // Near-deterministic but avoids backend issues with exact 0.0
-          maxTokens: 512,
+          maxTokens: maxTokens,
           penalty: 1.1,
           stopSequences: stopSequences,
         ),

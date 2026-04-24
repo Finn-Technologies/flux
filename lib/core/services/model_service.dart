@@ -18,6 +18,17 @@ class ModelService {
       capabilities: ['chat', 'speed', 'low-ram'],
     ),
     HFModel(
+      id: 'flux-creative-qwen-2.5-coder-0.5b',
+      name: 'Flux Creative',
+      baseModel: 'Qwen 2.5 Coder 0.5B',
+      description: 'Optimized for creations and coding tasks. Small but mighty for creative generation.',
+      sizeMB: 644,
+      requiredRAM: 4,
+      speed: 5.0,
+      quality: 4.2,
+      capabilities: ['code', 'creative', 'low-ram'],
+    ),
+    HFModel(
       id: 'flux-steady-qwen-3.5-2b',
       name: 'Flux Steady',
       baseModel: 'Qwen 3.5 2B',
@@ -44,10 +55,10 @@ class ModelService {
   static Future<int> getDeviceRAM() async {
     try {
       final memoryBytes = await _channel.invokeMethod<int>('getDeviceRAM');
-      if (memoryBytes == null || memoryBytes <= 0) return 8;
+      if (memoryBytes == null || memoryBytes <= 0) return 4;
       return (memoryBytes / (1024 * 1024 * 1024)).round();
     } on PlatformException {
-      return 8;
+      return 4;
     } catch (_) {
       return 4;
     }
@@ -74,6 +85,8 @@ class ModelService {
     switch (modelId) {
       case 'flux-lite-qwen-3.5-0.8b':
         return 'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf';
+      case 'flux-creative-qwen-2.5-coder-0.5b':
+        return 'https://huggingface.co/Qwen/Qwen2.5-Coder-0.5B-Instruct-GGUF/resolve/main/qwen2.5-coder-0.5b-instruct-q8_0.gguf';
       case 'flux-steady-qwen-3.5-2b':
         return 'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf';
       case 'flux-smart-qwen-3.5-4b':

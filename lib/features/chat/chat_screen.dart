@@ -11,7 +11,9 @@ import '../../core/providers/download_provider.dart';
 import '../../core/models/chat_session.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/rich_message_renderer.dart';
+import '../../core/widgets/animated_tap_card.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../../l10n/app_localizations.dart';
 
 // ============================================================================
 // TYPOGRAPHY
@@ -102,6 +104,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _hasText = false;
   bool _isClearingChat = false;
 
+  // Performance: local ValueNotifier for streaming text avoids rebuilding the entire message list on every token
+  final _streamingTextNotifier = ValueNotifier<String>('');
+
   void _startNewChat() {
     setState(() => _isClearingChat = true);
     Future.delayed(const Duration(milliseconds: 200), () {
@@ -126,7 +131,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     ref.read(chatMessagesProvider.notifier).addMessage(ChatMessage(text: text, fromUser: true, time: DateTime.now()));
     _controller.clear();
     _focusNode.unfocus();
-    _scrollToBottom();
+    _scrollToBottom(smooth: false);
 
     final selectedModel = ref.read(selectedModelProvider);
     if (selectedModel == null || selectedModel.localPath == null) {
@@ -141,13 +146,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     setState(() => _isStreaming = true);
+    _streamingTextNotifier.value = '';
+
+    // Build conversation history for memory (exclude the current user message and any thinking placeholder)
+    final currentMessages = ref.read(chatMessagesProvider);
+    final history = <Map<String, String>>[];
+    for (final msg in currentMessages) {
+      if (msg.fromUser) {
+        history.add({'role': 'user', 'content': msg.text});
+      } else if (msg.text.isNotEmpty) {
+        history.add({'role': 'assistant', 'content': msg.text});
+      }
+    }
+
     String accumulated = '';
+    bool receivedFirstToken = false;
 
     final stream = InferenceService().streamChat(
       modelId: selectedModel.id,
       prompt: text,
       localPath: selectedModel.localPath,
       systemPrompt: "You are Flux, a helpful and friendly AI assistant.",
+      history: history,
+      maxTokens: 4096,
     );
 
     int tokenCount = 0;
@@ -155,34 +176,41 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (!mounted) break;
       accumulated += token;
       tokenCount++;
-      
-      final shouldUpdate = tokenCount % 3 == 0 || 
-                          token.contains('.') || 
-                          token.contains('!') || 
-                          token.contains('?') ||
-                          token.contains('\n');
-      
-      if (shouldUpdate) {
-        ref.read(chatMessagesProvider.notifier).updateLastMessage(
-          ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
-        );
-        _scrollToBottom();
-        await Future.delayed(Duration.zero);
+
+      if (!receivedFirstToken) {
+        receivedFirstToken = true;
+        _streamingTextNotifier.value = accumulated;
+      } else {
+        final shouldUpdate = tokenCount % 3 == 0 ||
+                            token.contains('.') ||
+                            token.contains('!') ||
+                            token.contains('?') ||
+                            token.contains('\n');
+
+        if (shouldUpdate) {
+          _streamingTextNotifier.value = accumulated;
+        }
       }
+      _scrollToBottom();
+      await Future.delayed(Duration.zero);
     }
 
     if (mounted) {
-      ref.read(chatMessagesProvider.notifier).updateLastMessage(
+      _streamingTextNotifier.value = accumulated;
+      setState(() => _isStreaming = false);
+      HapticFeedback.selectionClick();
+
+      // Single provider update at the end with final text
+      ref.read(chatMessagesProvider.notifier).addMessage(
         ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
       );
-      setState(() => _isStreaming = false);
-      
+
       if (_currentConversationId != null) {
         final messages = ref.read(chatMessagesProvider);
         final conv = ChatSession(
           id: _currentConversationId!,
-          title: messages.first.text.length > 30 
-              ? '${messages.first.text.substring(0, 30)}...' 
+          title: messages.first.text.length > 30
+              ? '${messages.first.text.substring(0, 30)}...'
               : messages.first.text,
           messages: messages,
           updatedAt: DateTime.now(),
@@ -193,10 +221,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  void _scrollToBottom() {
+  void _scrollToBottom({bool smooth = true}) {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scrollController.hasClients) {
-        _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+        final maxExtent = _scrollController.position.maxScrollExtent;
+        if (smooth) {
+          _scrollController.animateTo(
+            maxExtent,
+            duration: const Duration(milliseconds: 250),
+            curve: Curves.easeOutCubic,
+          );
+        } else {
+          _scrollController.jumpTo(maxExtent);
+        }
       }
     });
   }
@@ -225,24 +262,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  'Select Model',
+                  AppLocalizations.of(context)!.selectModel,
                   style: _TextStyles.title(context),
                 ),
                 const SizedBox(height: 20),
                 if (downloadedModels.isEmpty)
                   Text(
-                    'No models downloaded. Go to Library to download.',
+                    AppLocalizations.of(context)!.noModelsDownloaded,
                     style: _TextStyles.hint(context),
                   )
                 else
-                  ...downloadedModels.map((model) => GestureDetector(
+                  ...downloadedModels.where((model) => !model.id.contains('creative')).map((model) => AnimatedTapCard(
+                    scaleDown: 0.95,
                     onTap: () {
-                      ref.read(selectedModelIdProvider.notifier).state = model.id;
+                      ref.read(selectedModelIdProvider.notifier).select(model.id);
                       Navigator.pop(ctx);
                     },
                     child: Container(
                       margin: const EdgeInsets.only(bottom: 12),
-                      padding: const EdgeInsets.all(15),
+                      padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                       decoration: BoxDecoration(
                         color: flux.surface,
                         borderRadius: BorderRadius.circular(15),
@@ -301,7 +339,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 border: Border.all(color: flux.border),
                               ),
                               child: Icon(
-                                Icons.add,
+                                Icons.touch_app_outlined,
                                 color: flux.textPrimary,
                                 size: 16,
                               ),
@@ -327,7 +365,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 350),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curve = Curves.easeOutCubic;
+        final curve = Curves.easeInOutCubic;
         
         final overlayAnimation = Tween<double>(
           begin: 0.0,
@@ -415,15 +453,37 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       Expanded(
                         child: conversations.isEmpty
                             ? Center(
-                                child: Text(
-                                  'No chats yet',
-                                  style: GoogleFonts.instrumentSans(
-                                    fontSize: 15,
-                                    fontWeight: FontWeight.w400,
-                                    color: flux.textSecondary,
-                                    height: 1.22,
-                                    decoration: TextDecoration.none,
-                                  ),
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    Icon(
+                                      Icons.chat_bubble_outline,
+                                      size: 40,
+                                      color: flux.textSecondary.withValues(alpha: 0.4),
+                                    ),
+                                    const SizedBox(height: 12),
+                                    Text(
+                                      'No chats yet',
+                                      style: GoogleFonts.instrumentSans(
+                                        fontSize: 17,
+                                        fontWeight: FontWeight.w400,
+                                        color: flux.textSecondary,
+                                        height: 1.22,
+                                        decoration: TextDecoration.none,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      'Your conversations will appear here',
+                                      style: GoogleFonts.instrumentSans(
+                                        fontSize: 13,
+                                        fontWeight: FontWeight.w400,
+                                        color: flux.textSecondary.withValues(alpha: 0.6),
+                                        height: 1.22,
+                                        decoration: TextDecoration.none,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               )
                             : ListView.builder(
@@ -460,7 +520,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildChatHistoryItem(BuildContext context, ChatSession conv, VoidCallback onClose, bool isSelected) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    return GestureDetector(
+    return AnimatedTapCard(
+      scaleDown: 0.95,
       onTap: () {
         setState(() {
           _currentConversationId = conv.id;
@@ -667,6 +728,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
+    _streamingTextNotifier.dispose();
     super.dispose();
   }
 
@@ -678,15 +740,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final keyboardHeight = mediaQuery.viewInsets.bottom;
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
 
-    const navBarTopFromBottom = 50.0 + 28.0;
-
-    final inputBottom = keyboardHeight > 0
-        ? keyboardHeight + 20
-        : navBarTopFromBottom + 30;
-
-    const inputMaxHeight = 140.0;
-    const inputSpacing = 20.0;
-    final messagesBottom = inputBottom + inputMaxHeight + inputSpacing;
+    final inputBottom = keyboardHeight > 0 ? keyboardHeight + 20 : 108.0;
 
     return Scaffold(
       backgroundColor: flux.background,
@@ -698,15 +752,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             top: topPadding + 60,
             width: 28,
             height: 28,
-            child: GestureDetector(
-              onTap: () => _showChatHistory(context),
-              child: SvgPicture.asset(
-                'assets/images/menu-02.svg',
-                width: 28,
-                height: 28,
-                colorFilter: ColorFilter.mode(
-                  flux.textPrimary,
-                  BlendMode.srcIn,
+            child: Semantics(
+              label: 'Chat history',
+              button: true,
+              child: Tooltip(
+                message: 'Chat history',
+                child: AnimatedTapCard(
+                  onTap: () => _showChatHistory(context),
+                  scaleDown: 0.85,
+                  child: SvgPicture.asset(
+                    'assets/images/menu-02.svg',
+                    width: 28,
+                    height: 28,
+                    colorFilter: ColorFilter.mode(
+                      flux.textPrimary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                 ),
               ),
             ),
@@ -715,8 +777,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           Positioned(
             left: 63,
             top: topPadding + 58,
-            child: GestureDetector(
+            child: AnimatedTapCard(
               onTap: () => _showModelSelector(context),
+              scaleDown: 0.95,
               child: Consumer(
                 builder: (context, ref, child) {
                   final selectedModel = ref.watch(selectedModelProvider);
@@ -725,6 +788,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   String suffix = '';
                   if (modelName.toLowerCase().contains('lite')) {
                     suffix = ' Lite';
+                  } else if (modelName.toLowerCase().contains('creative')) {
+                    suffix = ' Creative';
                   } else if (modelName.toLowerCase().contains('steady')) {
                     suffix = ' Steady';
                   } else if (modelName.toLowerCase().contains('smart')) {
@@ -732,6 +797,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   }
                   
                   return Row(
+                    mainAxisSize: MainAxisSize.min,
                     children: [
                       Text(
                         'Flux',
@@ -746,6 +812,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             color: flux.textPrimary.withValues(alpha: 0.5),
                           ),
                         ),
+                      const SizedBox(width: 4),
+                      Icon(
+                        Icons.chevron_right_rounded,
+                        size: 22,
+                        color: flux.textPrimary.withValues(alpha: 0.3),
+                      ),
                     ],
                   );
                 },
@@ -759,44 +831,54 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               top: topPadding + 60,
               width: 28,
               height: 28,
-              child: _AnimatedPencilButton(
-                onTap: _startNewChat,
+              child: Semantics(
+                label: 'New chat',
+                button: true,
+                child: Tooltip(
+                  message: 'New chat',
+                  child: _AnimatedPencilButton(
+                    onTap: _startNewChat,
+                  ),
+                ),
               ),
             ),
-
-          Positioned(
-            left: 20,
-            right: 20,
-            top: topPadding + 105,
-            bottom: messagesBottom,
-            child: AnimatedOpacity(
-              opacity: _isClearingChat ? 0.0 : 1.0,
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              child: messages.isEmpty
-                  ? const SizedBox.shrink()
-                  : ListView.builder(
-                      controller: _scrollController,
-                      padding: EdgeInsets.zero,
-                      itemCount: messages.length,
-                      cacheExtent: 200,
-                      addAutomaticKeepAlives: false,
-                      addRepaintBoundaries: true,
-                      itemBuilder: (context, index) {
-                        final msg = messages[index];
-                        return _buildBubble(msg, isLast: index == messages.length - 1);
-                      },
-                    ),
-            ),
-          ),
 
           AnimatedPositioned(
             duration: const Duration(milliseconds: 200),
             curve: Curves.easeInOut,
             left: 20,
             right: 20,
+            top: topPadding + 105,
             bottom: inputBottom,
-            child: Container(
+            child: Column(
+              children: [
+                Expanded(
+                  child: AnimatedOpacity(
+                    opacity: _isClearingChat ? 0.0 : 1.0,
+                    duration: const Duration(milliseconds: 200),
+                    curve: Curves.easeOutCubic,
+                    child: messages.isEmpty
+                        ? _buildEmptyState(context)
+                        : ListView.builder(
+                            controller: _scrollController,
+                            padding: EdgeInsets.zero,
+                            itemCount: messages.length + (_isStreaming ? 1 : 0),
+                            cacheExtent: 200,
+                            addAutomaticKeepAlives: false,
+                            addRepaintBoundaries: true,
+                            itemBuilder: (context, index) {
+                              if (index == messages.length) {
+                                return _buildStreamingBubble(true);
+                              }
+                              final msg = messages[index];
+                              final isLast = index == messages.length - 1 && !_isStreaming;
+                              return _buildBubble(msg, isLast: isLast);
+                            },
+                          ),
+                  ),
+                ),
+                const SizedBox(height: 20),
+                Container(
               constraints: const BoxConstraints(
                 minHeight: 52,
                 maxHeight: 140,
@@ -831,7 +913,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         textInputAction: TextInputAction.newline,
                         style: _TextStyles.message(context),
                         decoration: InputDecoration(
-                          hintText: 'Type here',
+                          hintText: 'Message Flux...',
                           hintStyle: _TextStyles.hint(context),
                           filled: false,
                           fillColor: Colors.transparent,
@@ -844,7 +926,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           isDense: true,
                           counterText: '',
                         ),
-                        onSubmitted: (_) {},
+                        onSubmitted: (_) => _sendMessage(),
                       ),
                     ),
                   ),
@@ -855,6 +937,40 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                 ],
               ),
+            ),
+          ],
+        ),
+      ),
+    ],
+  ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.auto_awesome_outlined,
+            size: 48,
+            color: flux.textSecondary.withValues(alpha: 0.4),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            'How can I help you today?',
+            style: _TextStyles.hint(context).copyWith(
+              fontSize: 17,
+              color: flux.textSecondary.withValues(alpha: 0.6),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start a conversation with Flux',
+            style: _TextStyles.hint(context).copyWith(
+              fontSize: 13,
+              color: flux.textSecondary.withValues(alpha: 0.4),
             ),
           ),
         ],
@@ -867,14 +983,71 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final bottomPadding = isLast ? 0.0 : 12.0;
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final isError = !isUser && msg.text.startsWith('Error:');
+
+    Widget bubbleContent;
+    if (!isUser) {
+      bubbleContent = RichMessageRenderer(
+        text: msg.text,
+        isUser: false,
+      );
+    } else {
+      bubbleContent = Text(
+        msg.text,
+        style: GoogleFonts.instrumentSans(
+          fontSize: 15,
+          fontWeight: FontWeight.w400,
+          color: isDark ? flux.textPrimary : flux.background,
+          height: 1.4,
+        ),
+      );
+    }
 
     final bubble = !isUser
         ? RepaintBoundary(
             child: Padding(
               padding: EdgeInsets.only(bottom: bottomPadding),
-              child: RichMessageRenderer(
-                text: msg.text,
-                isUser: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  bubbleContent,
+                  if (isError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 8),
+                      child: AnimatedTapCard(
+                        onTap: () {
+                          // Retry: prepend the user's last message to the input and send
+                          final lastUserMsg = ref.read(chatMessagesProvider).lastWhere((m) => m.fromUser, orElse: () => msg);
+                          _controller.text = lastUserMsg.text;
+                          // Remove the error message
+                          ref.read(chatMessagesProvider.notifier).clear();
+                          _sendMessage();
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: flux.textPrimary.withValues(alpha: 0.06),
+                            borderRadius: BorderRadius.circular(100),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.refresh, size: 14, color: flux.textPrimary),
+                              const SizedBox(width: 6),
+                              Text(
+                                'Retry',
+                                style: GoogleFonts.instrumentSans(
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w500,
+                                  color: flux.textPrimary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
               ),
             ),
           )
@@ -896,15 +1069,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           bottomRight: Radius.circular(4),
                         ),
                       ),
-                      child: Text(
-                        msg.text,
-                        style: GoogleFonts.instrumentSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w400,
-                          color: isDark ? flux.textPrimary : flux.background,
-                          height: 1.4,
-                        ),
-                      ),
+                      child: bubbleContent,
                     ),
                   ),
                 ],
@@ -916,7 +1081,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
         duration: const Duration(milliseconds: 300),
-        curve: Curves.easeOutCubic,
+        curve: Curves.easeInOutCubic,
         builder: (context, value, child) {
           return Opacity(
             opacity: value.clamp(0.0, 1.0),
@@ -926,67 +1091,138 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           );
         },
-        child: bubble,
+        child: GestureDetector(
+          onLongPress: msg.text.isNotEmpty
+              ? () {
+                  Clipboard.setData(ClipboardData(text: msg.text));
+                  HapticFeedback.lightImpact();
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Copied to clipboard',
+                        style: GoogleFonts.instrumentSans(fontSize: 14),
+                      ),
+                      duration: const Duration(seconds: 2),
+                      behavior: SnackBarBehavior.floating,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      margin: const EdgeInsets.all(20),
+                    ),
+                  );
+                }
+              : null,
+          child: bubble,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildStreamingBubble(bool isLast) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    return RepaintBoundary(
+      child: Padding(
+        padding: EdgeInsets.only(bottom: isLast ? 0.0 : 12.0),
+        child: ValueListenableBuilder<String>(
+          valueListenable: _streamingTextNotifier,
+          builder: (context, streamingText, _) {
+            if (streamingText.isEmpty) {
+              return _ThinkingIndicator(flux: flux);
+            }
+            return _buildBubble(
+              ChatMessage(text: streamingText, fromUser: false, time: DateTime.now()),
+              isLast: isLast,
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _ThinkingIndicator extends StatefulWidget {
+  final FluxColorsExtension flux;
+  const _ThinkingIndicator({required this.flux});
+
+  @override
+  State<_ThinkingIndicator> createState() => _ThinkingIndicatorState();
+}
+
+class _ThinkingIndicatorState extends State<_ThinkingIndicator>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 1200),
+      vsync: this,
+    )..repeat();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: List.generate(3, (index) {
+          return AnimatedBuilder(
+            animation: _controller,
+            builder: (context, child) {
+              final double offset = (_controller.value * 3 - index) % 3;
+              final double opacity = (1.0 - (offset.abs() / 3)).clamp(0.3, 1.0);
+              return Opacity(
+                opacity: opacity,
+                child: Container(
+                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                  width: 6,
+                  height: 6,
+                  decoration: BoxDecoration(
+                    color: widget.flux.textSecondary,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+              );
+            },
+          );
+        }),
       ),
     );
   }
 }
 
 // Animated send button with press feedback
-class _AnimatedSendButton extends StatefulWidget {
+class _AnimatedSendButton extends StatelessWidget {
   final VoidCallback onTap;
   final bool isEnabled;
 
   const _AnimatedSendButton({required this.onTap, required this.isEnabled});
 
   @override
-  State<_AnimatedSendButton> createState() => _AnimatedSendButtonState();
-}
-
-class _AnimatedSendButtonState extends State<_AnimatedSendButton>
-    with SingleTickerProviderStateMixin {
-  bool _isPressed = false;
-
-  void _onTapDown(TapDownDetails details) {
-    if (widget.isEnabled) setState(() => _isPressed = true);
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    if (widget.isEnabled) {
-      setState(() => _isPressed = false);
-      widget.onTap();
-    }
-  }
-
-  void _onTapCancel() {
-    setState(() => _isPressed = false);
-  }
-
-  @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
-      child: AnimatedScale(
-        scale: _isPressed ? 0.85 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOutCubic,
-        child: Opacity(
-          opacity: widget.isEnabled ? 1.0 : 0.3,
-          child: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: flux.textPrimary,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.arrow_upward,
-              color: flux.background,
-              size: 22,
-            ),
+    return AnimatedTapCard(
+      onTap: isEnabled ? onTap : null,
+      scaleDown: 0.85,
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.3,
+        child: Container(
+          width: 40,
+          height: 40,
+          decoration: BoxDecoration(
+            color: flux.textPrimary,
+            shape: BoxShape.circle,
+          ),
+          child: Icon(
+            Icons.arrow_upward,
+            color: flux.background,
+            size: 22,
           ),
         ),
       ),
@@ -995,51 +1231,24 @@ class _AnimatedSendButtonState extends State<_AnimatedSendButton>
 }
 
 // Animated pencil button with press feedback
-class _AnimatedPencilButton extends StatefulWidget {
+class _AnimatedPencilButton extends StatelessWidget {
   final VoidCallback onTap;
 
   const _AnimatedPencilButton({required this.onTap});
 
   @override
-  State<_AnimatedPencilButton> createState() => _AnimatedPencilButtonState();
-}
-
-class _AnimatedPencilButtonState extends State<_AnimatedPencilButton>
-    with SingleTickerProviderStateMixin {
-  bool _isPressed = false;
-
-  void _onTapDown(TapDownDetails details) {
-    setState(() => _isPressed = true);
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    setState(() => _isPressed = false);
-    widget.onTap();
-  }
-
-  void _onTapCancel() {
-    setState(() => _isPressed = false);
-  }
-
-  @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
-      child: AnimatedScale(
-        scale: _isPressed ? 0.75 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOutCubic,
-        child: SvgPicture.asset(
-          'assets/images/pencil-edit-02.svg',
-          width: 28,
-          height: 28,
-          colorFilter: ColorFilter.mode(
-            flux.textPrimary,
-            BlendMode.srcIn,
-          ),
+    return AnimatedTapCard(
+      onTap: onTap,
+      scaleDown: 0.75,
+      child: SvgPicture.asset(
+        'assets/images/pencil-edit-02.svg',
+        width: 28,
+        height: 28,
+        colorFilter: ColorFilter.mode(
+          flux.textPrimary,
+          BlendMode.srcIn,
         ),
       ),
     );

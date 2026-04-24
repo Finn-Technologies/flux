@@ -1,0 +1,179 @@
+{
+  "@@locale": "en",
+  "appTitle": "Flux",
+  "@appTitle": {
+    "description": "The title of the application"
+  },
+  "home": "Home",
+  "@home": {
+    "description": "Home tab label"
+  },
+  "creations": "Creations",
+  "@creations": {
+    "description": "Creations tab label"
+  },
+  "settings": "Settings",
+  "@settings": {
+    "description": "Settings tab label"
+  },
+  "models": "Models",
+  "@models": {
+    "description": "Models screen title"
+  },
+  "downloadAndManageModels": "Download and manage AI models",
+  "@downloadAndManageModels": {
+    "description": "Subtitle for models settings item"
+  },
+  "clearCache": "Clear cache",
+  "@clearCache": {
+    "description": "Clear cache settings item"
+  },
+  "removeTemporaryFiles": "Remove temporary files",
+  "@removeTemporaryFiles": {
+    "description": "Subtitle for clear cache"
+  },
+  "aboutFlux": "About Flux",
+  "@aboutFlux": {
+    "description": "About Flux settings item"
+  },
+  "version": "Version",
+  "@version": {
+    "description": "Version label"
+  },
+  "yourPrivateAI": "Your private AI assistant that runs locally on your device. Your data stays on your phone — no account needed.",
+  "@yourPrivateAI": {
+    "description": "About Flux description"
+  },
+  "selectModel": "Select Model",
+  "@selectModel": {
+    "description": "Model selection dialog title"
+  },
+  "noModelsDownloaded": "No models downloaded. Go to Library to download.",
+  "@noModelsDownloaded": {
+    "description": "Message when no models are available"
+  },
+  "poweredBy": "Powered by",
+  "@poweredBy": {
+    "description": "Model info prefix"
+  },
+  "delete": "Delete",
+  "@delete": {
+    "description": "Delete action"
+  },
+  "cancel": "Cancel",
+  "@cancel": {
+    "description": "Cancel action"
+  },
+  "confirm": "Confirm",
+  "@confirm": {
+    "description": "Confirm action"
+  },
+  "clearCacheQuestion": "Clear cache?",
+  "@clearCacheQuestion": {
+    "description": "Clear cache confirmation title"
+  },
+  "clearCacheMessage": "This removes temporary files only. Your downloaded models and chats will not be affected.",
+  "@clearCacheMessage": {
+    "description": "Clear cache confirmation message"
+  },
+  "deleteModelQuestion": "Are you sure you want to delete {model}? You will need to download it again to use it.",
+  "@deleteModelQuestion": {
+    "description": "Delete model confirmation message",
+    "placeholders": {
+      "model": {
+        "type": "String",
+        "example": "Flux Lite"
+      }
+    }
+  },
+  "cancelDownloadQuestion": "Are you sure you want to cancel the download of {model}? Downloaded progress will be lost.",
+  "@cancelDownloadQuestion": {
+    "description": "Cancel download confirmation message",
+    "placeholders": {
+      "model": {
+        "type": "String",
+        "example": "Flux Lite"
+      }
+    }
+  },
+  "preview": "Preview",
+  "@preview": {
+    "description": "Preview button label"
+  },
+  "download": "Download",
+  "@download": {
+    "description": "Download button label"
+  },
+  "downloading": "Downloading",
+  "@downloading": {
+    "description": "Downloading status"
+  },
+  "chat": "Chat",
+  "@chat": {
+    "description": "Chat screen title"
+  },
+  "typeMessage": "Type a message...",
+  "@typeMessage": {
+    "description": "Chat input placeholder"
+  },
+  "noCreations": "No creations yet",
+  "@noCreations": {
+    "description": "Empty creations message"
+  },
+  "createFirst": "Create your first AI-powered app",
+  "@createFirst": {
+    "description": "Empty creations sub-message"
+  },
+  "downloading": "Downloading",
+  "@downloading": {
+    "description": "Downloading status"
+  },
+  "noModelsYet": "No models yet",
+  "@noModelsYet": {
+    "description": "Empty models message"
+  },
+  "downloadModelToStart": "Download a model to get started",
+  "@downloadModelToStart": {
+    "description": "Empty models sub-message"
+  },
+  "deleteModelQuestion": "Delete Model?",
+  "@deleteModelQuestion": {
+    "description": "Delete model confirmation title"
+  },
+  "cancelDownloadQuestion": "Cancel Download?",
+  "@cancelDownloadQuestion": {
+    "description": "Cancel download confirmation title"
+  },
+  "cancelDownload": "Cancel Download",
+  "@cancelDownload": {
+    "description": "Cancel download action"
+  },
+  "continueDownload": "Continue Download",
+  "@continueDownload": {
+    "description": "Continue download action"
+  },
+  "buildFirstApp": "Build your first interactive mini-app",
+  "@buildFirstApp": {
+    "description": "Empty creations sub-message"
+  },
+  "welcomeToFlux": "Welcome to Flux",
+  "@welcomeToFlux": {
+    "description": "Onboarding welcome title"
+  },
+  "start": "Start",
+  "@start": {
+    "description": "Start button"
+  },
+  "skipSetup": "Skip setup",
+  "@skipSetup": {
+    "description": "Skip setup button"
+  },
+  "downloadAndContinue": "Download & Continue",
+  "@downloadAndContinue": {
+    "description": "Download and continue button"
+  },
+  "highSpeedConnectionRecommended": "High-speed connection recommended.",
+  "@highSpeedConnectionRecommended": {
+    "description": "High-speed connection recommendation"
+  }
+}

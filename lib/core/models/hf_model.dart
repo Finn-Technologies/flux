@@ -8,14 +8,14 @@ class HFModel {
   final double speed;
   final double quality;
   final List<String> capabilities;
-  bool downloaded;
-  int progress; // 0-100
-  String? localPath;
-  String? downloadStatus; // 'none', 'downloading', 'paused', 'completed', 'error'
-  double? downloadSpeed; // in MB/s
-  int? downloadedBytes;
-  int? totalBytes;
-  String? errorMessage;
+  final bool downloaded;
+  final int progress; // 0-100
+  final String? localPath;
+  final String? downloadStatus; // 'none', 'downloading', 'paused', 'completed', 'error'
+  final double? downloadSpeed; // in MB/s
+  final int? downloadedBytes;
+  final int? totalBytes;
+  final String? errorMessage;
 
   HFModel({
     required this.id,

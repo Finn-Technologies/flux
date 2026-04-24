@@ -30,7 +30,9 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
     final installed = box.values
         .map((v) => HFModel.fromJson(Map<String, dynamic>.from(v)))
         .toList();
-    state = [...state, ...installed];
+    final existingIds = state.map((m) => m.id).toSet();
+    final newModels = installed.where((m) => !existingIds.contains(m.id)).toList();
+    state = [...state, ...newModels];
   }
 
 
@@ -55,11 +57,7 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
     });
   }
 
-  Future<void> startDownload(HFModel model) async {
-    // Legacy support or fallback
-    print('Direct startDownload called, but cloud integration is disabled.');
-    return;
-  }
+
 
   Future<void> startDownloadWithUrl(HFModel model, String url) async {
     if (url.isEmpty) {
@@ -121,7 +119,9 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
   }
 
   void _markAsCompleted(String id) async {
-    final model = state.firstWhere((m) => m.id == id);
+    final matches = state.where((m) => m.id == id);
+    if (matches.isEmpty) return;
+    final model = matches.first;
     final directory = await getApplicationDocumentsDirectory();
     final modelPath =
         '${directory.path}/models/${id.replaceAll('/', '_')}.gguf';

@@ -8,6 +8,8 @@ import '../../core/services/model_service.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/theme/flux_theme.dart';
+import '../../core/widgets/animated_tap_card.dart';
+import '../../l10n/app_localizations.dart';
 
 // ============================================================================
 // TYPOGRAPHY - Instrument Sans
@@ -111,44 +113,46 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final brightness = Theme.of(context).brightness;
 
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
       ),
-    );
-
-    return Scaffold(
+      child: Scaffold(
       backgroundColor: flux.background,
       body: SafeArea(
         child: Stack(
           children: [
             Positioned(
               left: 20,
-              top: 60,
-              child: GestureDetector(
+              top: 48,
+              child: AnimatedTapCard(
                 onTap: () => context.pop(),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    SvgPicture.asset(
-                      'assets/images/back_arrow.svg',
-                      width: 10,
-                      height: 18,
-                      colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
-                    ),
-                    const SizedBox(width: 13),
-                    Text(
-                      'Back',
-                      style: GoogleFonts.instrumentSans(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w400,
-                        color: flux.textSecondary,
-                        height: 1.22,
+                scaleDown: 0.9,
+                child: Container(
+                  padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      SvgPicture.asset(
+                        'assets/images/back_arrow.svg',
+                        width: 10,
+                        height: 18,
+                        colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
                       ),
-                    ),
-                  ],
+                      const SizedBox(width: 13),
+                      Text(
+                        'Back',
+                        style: GoogleFonts.instrumentSans(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w400,
+                          color: flux.textSecondary,
+                          height: 1.22,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -157,7 +161,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
               left: 20,
               top: 100,
               child: Text(
-                'Models',
+                AppLocalizations.of(context)!.models,
                 style: _TextStyles.title(context),
               ),
             ),
@@ -166,8 +170,15 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
               left: 20,
               right: 20,
               top: 160,
-              bottom: 20,
-              child: ListView(
+              bottom: 108,
+              child: RefreshIndicator(
+                onRefresh: () async {
+                  await _loadModels();
+                  await _loadStorageInfo();
+                },
+                color: flux.textPrimary,
+                backgroundColor: flux.surface,
+                child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
                   Container(
@@ -213,7 +224,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
 
                   if (downloadingModels.isNotEmpty) ...[
                     Text(
-                      'Downloading',
+                      AppLocalizations.of(context)!.downloading,
                       style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
@@ -290,12 +301,12 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                           ),
                           const SizedBox(height: 20),
                           Text(
-                            'No models yet',
+                            AppLocalizations.of(context)!.noModelsYet,
                             style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 8),
                           Text(
-                            'Download a model to get started',
+                            AppLocalizations.of(context)!.downloadModelToStart,
                             style: _TextStyles.subtitle(context),
                           ),
                         ],
@@ -303,9 +314,11 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                     ),
                 ],
               ),
+              ),
             ),
           ],
         ),
+      ),
       ),
     );
   }
@@ -342,8 +355,8 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 300 + (index * 50)),
-      curve: Curves.easeOutCubic,
+      duration: Duration(milliseconds: 350 + (index * 60)),
+      curve: Curves.easeInOutCubic,
       builder: (context, value, child) {
         return Opacity(
           opacity: value.clamp(0.0, 1.0),
@@ -353,7 +366,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
           ),
         );
       },
-      child: _AnimatedTapCard(
+      child: AnimatedTapCard(
         onTap: () {
           if (canStartDownload) {
             _downloadingIds.add(model.id);
@@ -362,7 +375,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
           }
         },
         child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
         decoration: BoxDecoration(
           color: flux.surface,
           borderRadius: BorderRadius.circular(15),
@@ -387,15 +400,16 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Powered by ${model.baseModel ?? model.name} (${_formatSize(model.sizeMB)})',
+                        '${AppLocalizations.of(context)!.poweredBy} ${model.baseModel ?? model.name} (${_formatSize(model.sizeMB)})',
                         style: _TextStyles.modelSubtitle(context),
                       ),
                     ],
                   ),
                 ),
                 if (isDownloaded)
-                  GestureDetector(
+                  AnimatedTapCard(
                     onTap: () => _confirmDelete(model),
+                    scaleDown: 0.85,
                     child: Container(
                       width: 32,
                       height: 32,
@@ -454,8 +468,9 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  GestureDetector(
+                  AnimatedTapCard(
                     onTap: () => _confirmCancel(model),
+                    scaleDown: 0.85,
                     child: Container(
                       width: 32,
                       height: 32,
@@ -484,10 +499,10 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
 
   void _confirmDelete(HFModel model) {
     _showAnimatedDialog(
-      title: 'Delete Model?',
-      content: 'Are you sure you want to delete ${model.name}? You will need to download it again to use it.',
-      cancelText: 'Cancel',
-      actionText: 'Delete',
+      title: AppLocalizations.of(context)!.deleteModelQuestion,
+      content: AppLocalizations.of(context)!.deleteModelQuestion.replaceAll('{model}', model.name),
+      cancelText: AppLocalizations.of(context)!.cancel,
+      actionText: AppLocalizations.of(context)!.delete,
       actionColor: Colors.red,
       onAction: () => ref.read(downloadProvider.notifier).deleteModel(model.id),
     );
@@ -495,10 +510,10 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
 
   void _confirmCancel(HFModel model) {
     _showAnimatedDialog(
-      title: 'Cancel Download?',
-      content: 'Are you sure you want to cancel the download of ${model.name}? Downloaded progress will be lost.',
-      cancelText: 'Continue',
-      actionText: 'Cancel Download',
+      title: AppLocalizations.of(context)!.cancelDownloadQuestion,
+      content: AppLocalizations.of(context)!.cancelDownloadQuestion.replaceAll('{model}', model.name),
+      cancelText: AppLocalizations.of(context)!.continueDownload,
+      actionText: AppLocalizations.of(context)!.cancelDownload,
       actionColor: Colors.red,
       onAction: () {
         ref.read(downloadProvider.notifier).cancelDownload(model.id);
@@ -522,7 +537,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
         return Container();
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curve = Curves.easeOutCubic;
+        final curve = Curves.easeInOutCubic;
         final tween = Tween<double>(begin: 0.0, end: 1.0);
         final fadeAnimation = tween.animate(CurvedAnimation(
           parent: animation,
@@ -575,50 +590,6 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
       barrierDismissible: true,
       barrierLabel: '',
       barrierColor: flux.textPrimary.withValues(alpha: 0.3),
-    );
-  }
-}
-
-// Animated tap card with scale effect
-class _AnimatedTapCard extends StatefulWidget {
-  final VoidCallback onTap;
-  final Widget child;
-
-  const _AnimatedTapCard({required this.onTap, required this.child});
-
-  @override
-  State<_AnimatedTapCard> createState() => _AnimatedTapCardState();
-}
-
-class _AnimatedTapCardState extends State<_AnimatedTapCard>
-    with SingleTickerProviderStateMixin {
-  bool _isPressed = false;
-
-  void _onTapDown(TapDownDetails details) {
-    setState(() => _isPressed = true);
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    setState(() => _isPressed = false);
-    widget.onTap();
-  }
-
-  void _onTapCancel() {
-    setState(() => _isPressed = false);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
-      child: AnimatedScale(
-        scale: _isPressed ? 0.97 : 1.0,
-        duration: const Duration(milliseconds: 150),
-        curve: Curves.easeOutCubic,
-        child: widget.child,
-      ),
     );
   }
 }

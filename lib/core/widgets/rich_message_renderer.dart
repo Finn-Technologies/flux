@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/flux_theme.dart';
+import '../../core/widgets/animated_tap_card.dart';
 
 /// A rich message renderer that supports:
 /// - Bold text via **markdown**
@@ -21,7 +22,7 @@ class RichMessageRenderer extends StatelessWidget {
     final theme = Theme.of(context);
     final flux = theme.extension<FluxColorsExtension>()!;
 
-    final segments = _parseSegments(text);
+    final segments = _parseSegments(text.trim());
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -50,7 +51,10 @@ class RichMessageRenderer extends StatelessWidget {
 
     for (final match in thinkRegex.allMatches(text)) {
       if (match.start > lastEnd) {
-        segments.addAll(_parseTablesAndText(text.substring(lastEnd, match.start)));
+        final sub = text.substring(lastEnd, match.start).trim();
+        if (sub.isNotEmpty) {
+          segments.addAll(_parseTablesAndText(sub));
+        }
       }
       final content = match.group(1)!.trim();
       if (content.isNotEmpty) {
@@ -60,7 +64,10 @@ class RichMessageRenderer extends StatelessWidget {
     }
 
     if (lastEnd < text.length) {
-      segments.addAll(_parseTablesAndText(text.substring(lastEnd)));
+      final sub = text.substring(lastEnd).trim();
+      if (sub.isNotEmpty) {
+        segments.addAll(_parseTablesAndText(sub));
+      }
     }
 
     return segments;
@@ -90,7 +97,10 @@ class RichMessageRenderer extends StatelessWidget {
           i++;
         }
         if (textLines.isNotEmpty) {
-          segments.add(TextSegment(text: textLines.join('\n')));
+          final joined = textLines.join('\n').trim();
+          if (joined.isNotEmpty) {
+            segments.add(TextSegment(text: joined));
+          }
         }
       }
     }
@@ -206,9 +216,9 @@ class _ThinkBlockState extends State<_ThinkBlock>
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               // Header with tap to expand/collapse
-              GestureDetector(
+              AnimatedTapCard(
                 onTap: () => setState(() => _expanded = !_expanded),
-                behavior: HitTestBehavior.opaque,
+                scaleDown: 0.98,
                 child: Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                   child: Row(

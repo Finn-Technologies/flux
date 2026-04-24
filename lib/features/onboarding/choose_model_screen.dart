@@ -6,6 +6,8 @@ import '../../core/services/model_service.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/providers/model_provider.dart';
+import '../../core/widgets/animated_tap_card.dart';
+import '../../l10n/app_localizations.dart';
 
 class ChooseModelScreen extends ConsumerStatefulWidget {
   const ChooseModelScreen({super.key});
@@ -121,8 +123,9 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
               ),
             );
           },
-          child: GestureDetector(
+          child: AnimatedTapCard(
             onTap: () => setState(() => _selectedModel = model),
+            scaleDown: 0.95,
             child: AnimatedContainer(
             duration: const Duration(milliseconds: 250),
             curve: Curves.easeOutCubic,
@@ -207,15 +210,15 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
                         color: Colors.white,
                       ),
                     )
-                  : const Text(
-                      'Download & Continue',
+                  : Text(
+                      AppLocalizations.of(context)!.downloadAndContinue,
                       style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'High-speed connection recommended.',
+            AppLocalizations.of(context)!.highSpeedConnectionRecommended,
             style: TextStyle(fontSize: 12, color: colorScheme.secondary),
           ),
         ],
@@ -231,7 +234,7 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
     // Start download using the static service for URL
     final url = ModelService.getDownloadUrl(_selectedModel!.id);
     ref.read(downloadProvider.notifier).startDownloadWithUrl(_selectedModel!, url);
-    ref.read(selectedModelIdProvider.notifier).state = _selectedModel!.id;
+    ref.read(selectedModelIdProvider.notifier).select(_selectedModel!.id);
 
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('onboarded', true);

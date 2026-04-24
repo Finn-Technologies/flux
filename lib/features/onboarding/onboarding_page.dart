@@ -13,7 +13,8 @@ import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/providers/model_provider.dart';
 import '../../core/theme/flux_theme.dart';
-
+import '../../core/widgets/animated_tap_card.dart';
+import '../../l10n/app_localizations.dart';
 // ============================================================================
 // TYPOGRAPHY - Instrument Sans from Google Fonts
 // ============================================================================
@@ -76,11 +77,11 @@ class _AppAssets {
 // ANIMATION CONSTANTS
 // ============================================================================
 class _AnimDurations {
-  static const Duration fast = Duration(milliseconds: 250);
+  static const Duration fast = Duration(milliseconds: 350);
 }
 
 class _AnimCurves {
-  static const Curve smooth = Curves.easeInOut;
+  static const Curve smooth = Curves.easeInOutCubic;
 }
 
 // ============================================================================
@@ -146,6 +147,16 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     setState(() => _isNavigating = false);
   }
 
+  Future<void> _onSkip() async {
+    if (_isNavigating) return;
+    setState(() => _isNavigating = true);
+
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('onboarded', true);
+
+    if (mounted) context.go('/home');
+  }
+
   Future<void> _onFinish() async {
     if (_isDownloading) return;
     
@@ -154,7 +165,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     if (_selectedModel != null) {
       final url = ModelService.getDownloadUrl(_selectedModel!.id);
       ref.read(downloadProvider.notifier).startDownloadWithUrl(_selectedModel!, url);
-      ref.read(selectedModelIdProvider.notifier).state = _selectedModel!.id;
+      ref.read(selectedModelIdProvider.notifier).select(_selectedModel!.id);
     }
 
     final prefs = await SharedPreferences.getInstance();
@@ -164,39 +175,44 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final brightness = Theme.of(context).brightness;
 
-    SystemChrome.setSystemUIOverlayStyle(
-      SystemUiOverlayStyle(
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
         statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
         statusBarBrightness: brightness == Brightness.dark ? Brightness.dark : Brightness.light,
       ),
-    );
-
-    return Scaffold(
-      backgroundColor: flux.background,
-      body: SafeArea(
-        child: PageView(
-          controller: _controller,
-          physics: const NeverScrollableScrollPhysics(),
-          onPageChanged: (i) => setState(() => _page = i),
-          children: [
-            _WelcomeSlide(onNext: _onNext),
-            _PrivacySlide(onNext: _onNext, onBack: _onBack),
-            _OfflineSlide(onNext: _onNext, onBack: _onBack),
-            _DownloadModelSlide(
-              models: _models,
-              isLoading: _isLoadingModels,
-              selectedModel: _selectedModel,
-              onSelect: (model) => setState(() => _selectedModel = model),
-              onNext: _onNext,
-              onBack: _onBack,
-            ),
-            _FinishSlide(onFinish: _onFinish),
-          ],
+      child: Scaffold(
+        backgroundColor: flux.background,
+        body: SafeArea(
+          child: PageView(
+            controller: _controller,
+            physics: const NeverScrollableScrollPhysics(),
+            onPageChanged: (i) => setState(() => _page = i),
+            children: [
+              _WelcomeSlide(onNext: _onNext, onSkip: _onSkip),
+              _PrivacySlide(onNext: _onNext, onBack: _onBack),
+              _OfflineSlide(onNext: _onNext, onBack: _onBack),
+              _DownloadModelSlide(
+                models: _models,
+                isLoading: _isLoadingModels,
+                selectedModel: _selectedModel,
+                onSelect: (model) => setState(() => _selectedModel = model),
+                onNext: _onNext,
+                onBack: _onBack,
+              ),
+              _FinishSlide(onFinish: _onFinish),
+            ],
+          ),
         ),
       ),
     );
@@ -209,8 +225,9 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
 class _WelcomeSlide extends StatelessWidget {
   final VoidCallback onNext;
+  final VoidCallback onSkip;
 
-  const _WelcomeSlide({required this.onNext});
+  const _WelcomeSlide({required this.onNext, required this.onSkip});
 
   @override
   Widget build(BuildContext context) {
@@ -220,6 +237,7 @@ class _WelcomeSlide extends StatelessWidget {
         final spacing = 60.0;
         final contentHeight = 31.0 + spacing + 44;
         final topPadding = ((screenHeight - contentHeight) / 2) + 60;
+        final flux = Theme.of(context).extension<FluxColorsExtension>()!;
 
         return Stack(
           children: [
@@ -233,7 +251,7 @@ class _WelcomeSlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 100),
                     child: Text(
-                      'Welcome to Flux',
+                      AppLocalizations.of(context)!.welcomeToFlux,
                       style: _AppTypography.heading(context),
                       textAlign: TextAlign.center,
                     ),
@@ -244,8 +262,22 @@ class _WelcomeSlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 200),
                     child: _AnimatedButton(
-                      text: 'Start',
+                      text: AppLocalizations.of(context)!.start,
                       onPressed: onNext,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  _FadeInSlide(
+                    delay: const Duration(milliseconds: 250),
+                    child: AnimatedTapCard(
+                      onTap: onSkip,
+                      scaleDown: 0.95,
+                      child: Text(
+                        AppLocalizations.of(context)!.skipSetup,
+                        style: _AppTypography.backButton(context).copyWith(
+                          color: flux.textSecondary.withValues(alpha: 0.6),
+                        ),
+                      ),
                     ),
                   ),
                 ],
@@ -483,10 +515,11 @@ class _DownloadModelSlide extends StatelessWidget {
 
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
-                      child: GestureDetector(
+                      child: AnimatedTapCard(
                         onTap: () => onSelect(model),
+                        scaleDown: 0.95,
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
+                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
                           decoration: BoxDecoration(
                             color: flux.surface,
                             borderRadius: BorderRadius.circular(15),
@@ -633,21 +666,21 @@ class _FadeInSlideState extends State<_FadeInSlide>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 400),
+      duration: const Duration(milliseconds: 500),
       vsync: this,
     );
 
     _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 1.0, curve: Curves.easeInOutCubic),
       ),
     );
 
     _slide = Tween<double>(begin: 20.0, end: 0.0).animate(
       CurvedAnimation(
         parent: _controller,
-        curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
+        curve: const Interval(0.0, 1.0, curve: Curves.easeInOutCubic),
       ),
     );
 
@@ -681,56 +714,29 @@ class _FadeInSlideState extends State<_FadeInSlide>
   }
 }
 
-class _AnimatedButton extends StatefulWidget {
+class _AnimatedButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
 
   const _AnimatedButton({required this.text, required this.onPressed});
 
   @override
-  State<_AnimatedButton> createState() => _AnimatedButtonState();
-}
-
-class _AnimatedButtonState extends State<_AnimatedButton>
-    with SingleTickerProviderStateMixin {
-  bool _isPressed = false;
-
-  void _onTapDown(TapDownDetails details) {
-    setState(() => _isPressed = true);
-  }
-
-  void _onTapUp(TapUpDetails details) {
-    setState(() => _isPressed = false);
-    widget.onPressed?.call();
-  }
-
-  void _onTapCancel() {
-    setState(() => _isPressed = false);
-  }
-
-  @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    return GestureDetector(
-      onTapDown: _onTapDown,
-      onTapUp: _onTapUp,
-      onTapCancel: _onTapCancel,
-      child: AnimatedScale(
-        scale: _isPressed ? 0.95 : 1.0,
-        duration: _AnimDurations.fast,
-        curve: _AnimCurves.smooth,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
-          decoration: BoxDecoration(
-            color: widget.onPressed != null
-                ? flux.textPrimary
-                : flux.textPrimary.withValues(alpha: 0.3),
-            borderRadius: BorderRadius.circular(100),
-          ),
-          child: Text(
-            widget.text,
-            style: _AppTypography.button(context),
-          ),
+    return AnimatedTapCard(
+      onTap: onPressed,
+      scaleDown: 0.95,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+        decoration: BoxDecoration(
+          color: onPressed != null
+              ? flux.textPrimary
+              : flux.textPrimary.withValues(alpha: 0.3),
+          borderRadius: BorderRadius.circular(100),
+        ),
+        child: Text(
+          text,
+          style: _AppTypography.button(context),
         ),
       ),
     );
@@ -745,24 +751,28 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    return GestureDetector(
+    return AnimatedTapCard(
       onTap: onPressed,
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          SvgPicture.asset(
-            _AppAssets.backArrow,
-            width: 10,
-            height: 18,
-            colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
-          ),
-          const SizedBox(width: 13),
-          Text(
-            'Back',
-            style: _AppTypography.backButton(context),
-          ),
-        ],
+      scaleDown: 0.9,
+      child: Container(
+        padding: const EdgeInsets.only(right: 12, top: 12, bottom: 12),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SvgPicture.asset(
+              _AppAssets.backArrow,
+              width: 10,
+              height: 18,
+              colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
+            ),
+            const SizedBox(width: 13),
+            Text(
+              'Back',
+              style: _AppTypography.backButton(context),
+            ),
+          ],
+        ),
       ),
     );
   }
