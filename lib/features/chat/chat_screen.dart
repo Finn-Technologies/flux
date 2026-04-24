@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -7,41 +9,32 @@ import '../../core/services/inference_service.dart';
 import '../../core/providers/model_provider.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/models/chat_session.dart';
+import '../../core/theme/flux_theme.dart';
+import '../../core/widgets/rich_message_renderer.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 // ============================================================================
-// COLORS - Exact from Figma fill_ZEXJUU, fill_2766IO, fill_2N4TRD, fill_DDJ51Q
-// ============================================================================
-class _Colors {
-  static const Color background = Color(0xFFF9F9F9); // fill_ZEXJUU
-  static const Color black = Color(0xFF000000); // fill_2766IO
-  static const Color white = Color(0xFFFFFFFF); // fill_2N4TRD
-  static const Color border = Color.fromRGBO(0, 0, 0, 0.1); // fill_DDJ51Q 10%
-  static const Color textSecondary = Color.fromRGBO(0, 0, 0, 0.5); // 50% black
-}
-
-// ============================================================================
-// TYPOGRAPHY - Exact from Figma style_DJWIIE, style_8UZ7J7
+// TYPOGRAPHY
 // ============================================================================
 class _TextStyles {
-  static TextStyle get title => GoogleFonts.instrumentSans(
+  static TextStyle title(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 25,
         fontWeight: FontWeight.w400,
-        color: _Colors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
         height: 1.22,
       );
 
-  static TextStyle get message => GoogleFonts.instrumentSans(
+  static TextStyle message(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 15,
         fontWeight: FontWeight.w400,
-        color: _Colors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
         height: 1.22,
       );
 
-  static TextStyle get hint => GoogleFonts.instrumentSans(
+  static TextStyle hint(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 15,
         fontWeight: FontWeight.w400,
-        color: _Colors.textSecondary,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
         height: 1.22,
       );
 }
@@ -90,8 +83,7 @@ class ConversationsNotifier extends StateNotifier<List<ChatSession>> {
 }
 
 // ============================================================================
-// MAIN CHAT SCREEN - Exact replication of Home - Chat frame (id: 8:290)
-// Frame dimensions: 390 x 844
+// MAIN CHAT SCREEN
 // ============================================================================
 class ChatScreen extends ConsumerStatefulWidget {
   final String? modelId;
@@ -111,10 +103,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _isClearingChat = false;
 
   void _startNewChat() {
-    // Animate chat clearing
     setState(() => _isClearingChat = true);
-    
-    // Wait for fade-out animation then clear
     Future.delayed(const Duration(milliseconds: 200), () {
       ref.read(chatMessagesProvider.notifier).clear();
       setState(() {
@@ -128,7 +117,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final text = _controller.text.trim();
     if (text.isEmpty || _isStreaming) return;
 
-    // Create new conversation on first message
     final isFirstMessage = _currentConversationId == null;
     if (isFirstMessage) {
       _currentConversationId = DateTime.now().millisecondsSinceEpoch.toString();
@@ -158,18 +146,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final stream = InferenceService().streamChat(
       modelId: selectedModel.id,
       prompt: text,
-      localPath: selectedModel.localPath!,
+      localPath: selectedModel.localPath,
       systemPrompt: "You are Flux, a helpful and friendly AI assistant.",
     );
 
-    // Token-by-token streaming for faster feel
     int tokenCount = 0;
     await for (final token in stream) {
       if (!mounted) break;
       accumulated += token;
       tokenCount++;
       
-      // Update UI every 3 tokens or on punctuation for natural feel
       final shouldUpdate = tokenCount % 3 == 0 || 
                           token.contains('.') || 
                           token.contains('!') || 
@@ -181,19 +167,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
         );
         _scrollToBottom();
-        // Small yield to allow UI to render
         await Future.delayed(Duration.zero);
       }
     }
 
     if (mounted) {
-      // Final update to ensure everything is displayed
       ref.read(chatMessagesProvider.notifier).updateLastMessage(
         ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
       );
       setState(() => _isStreaming = false);
       
-      // Save conversation to sidebar after streaming completes
       if (_currentConversationId != null) {
         final messages = ref.read(chatMessagesProvider);
         final conv = ChatSession(
@@ -219,10 +202,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _showModelSelector(BuildContext context) {
-    // Use rootNavigator to show above the ShellRoute's navigation
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     showModalBottomSheet(
       context: context,
-      backgroundColor: _Colors.background,
+      backgroundColor: flux.background,
       isScrollControlled: true,
       useRootNavigator: true,
       enableDrag: false,
@@ -243,13 +226,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 Text(
                   'Select Model',
-                  style: _TextStyles.title,
+                  style: _TextStyles.title(context),
                 ),
                 const SizedBox(height: 20),
                 if (downloadedModels.isEmpty)
                   Text(
                     'No models downloaded. Go to Library to download.',
-                    style: _TextStyles.hint,
+                    style: _TextStyles.hint(context),
                   )
                 else
                   ...downloadedModels.map((model) => GestureDetector(
@@ -261,10 +244,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       margin: const EdgeInsets.only(bottom: 12),
                       padding: const EdgeInsets.all(15),
                       decoration: BoxDecoration(
-                        color: _Colors.white,
+                        color: flux.surface,
                         borderRadius: BorderRadius.circular(15),
                         border: Border.all(
-                          color: _Colors.border,
+                          color: flux.border,
                           width: 1,
                         ),
                       ),
@@ -280,16 +263,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   style: GoogleFonts.instrumentSans(
                                     fontSize: 17,
                                     fontWeight: FontWeight.w400,
-                                    color: _Colors.black,
+                                    color: flux.textPrimary,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Powered by ${model.baseModel ?? model.name} • ${model.sizeMB >= 1024 ? (model.sizeMB / 1024).toStringAsFixed(1) + ' GB' : model.sizeMB.toString() + ' MB'}',
+                                  'Powered by ${model.baseModel ?? model.name} \u2022 ${model.sizeMB >= 1024 ? '${(model.sizeMB / 1024).toStringAsFixed(1)} GB' : '${model.sizeMB} MB'}',
                                   style: GoogleFonts.instrumentSans(
                                     fontSize: 13,
                                     fontWeight: FontWeight.w400,
-                                    color: _Colors.textSecondary,
+                                    color: flux.textSecondary,
                                   ),
                                 ),
                               ],
@@ -299,13 +282,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             Container(
                               width: 32,
                               height: 32,
-                              decoration: const BoxDecoration(
-                                color: _Colors.black,
+                              decoration: BoxDecoration(
+                                color: flux.textPrimary,
                                 shape: BoxShape.circle,
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.check,
-                                color: _Colors.white,
+                                color: flux.background,
                                 size: 16,
                               ),
                             )
@@ -315,11 +298,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               height: 32,
                               decoration: BoxDecoration(
                                 shape: BoxShape.circle,
-                                border: Border.all(color: _Colors.border),
+                                border: Border.all(color: flux.border),
                               ),
-                              child: const Icon(
+                              child: Icon(
                                 Icons.add,
-                                color: _Colors.black,
+                                color: flux.textPrimary,
                                 size: 16,
                               ),
                             ),
@@ -335,11 +318,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
-  // ============================================================================
-  // CHAT HISTORY / MENU VIEW - Home - Menu View from Figma
-  // Smooth spring-like animation with parallax and staggered list items
-  // ============================================================================
   void _showChatHistory(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -347,10 +327,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 350),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        // Smooth spring-like curve
         final curve = Curves.easeOutCubic;
         
-        // Overlay animation with slight parallax
         final overlayAnimation = Tween<double>(
           begin: 0.0,
           end: 1.0,
@@ -359,7 +337,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           curve: curve,
         ));
         
-        // Menu slide animation with elastic feel
         final menuAnimation = Tween<Offset>(
           begin: const Offset(-0.85, 0),
           end: Offset.zero,
@@ -368,7 +345,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           curve: curve,
         ));
         
-        // Scale animation for subtle depth
         final scaleAnimation = Tween<double>(
           begin: 0.98,
           end: 1.0,
@@ -382,18 +358,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           builder: (context, _) {
             return Stack(
               children: [
-                // Dark overlay with parallax fade
                 Opacity(
                   opacity: overlayAnimation.value * 0.3,
                   child: GestureDetector(
                     onTap: () => Navigator.of(context).pop(),
                     child: Container(
-                      color: _Colors.black,
+                      color: flux.textPrimary,
                     ),
                   ),
                 ),
                 
-                // Menu with smooth slide and scale
                 Transform.translate(
                   offset: Offset(
                     menuAnimation.value.dx * MediaQuery.of(context).size.width,
@@ -417,15 +391,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             
             return Container(
               width: 340,
-              color: _Colors.white, // White background FFFFFF
+              color: flux.surface,
               child: SafeArea(
                 child: GestureDetector(
-                  // Prevent taps on menu from closing it
                   onTap: () {},
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // Chats title only (no back button)
                       Padding(
                         padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
                         child: Text(
@@ -433,14 +405,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           style: GoogleFonts.instrumentSans(
                             fontSize: 25,
                             fontWeight: FontWeight.w400,
-                            color: _Colors.black,
+                            color: flux.textPrimary,
                             height: 1.22,
                             decoration: TextDecoration.none,
                           ),
                         ),
                       ),
                       
-                      // Chat list with staggered entrance animation
                       Expanded(
                         child: conversations.isEmpty
                             ? Center(
@@ -449,7 +420,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   style: GoogleFonts.instrumentSans(
                                     fontSize: 15,
                                     fontWeight: FontWeight.w400,
-                                    color: _Colors.textSecondary,
+                                    color: flux.textSecondary,
                                     height: 1.22,
                                     decoration: TextDecoration.none,
                                   ),
@@ -488,9 +459,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   Widget _buildChatHistoryItem(BuildContext context, ChatSession conv, VoidCallback onClose, bool isSelected) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return GestureDetector(
       onTap: () {
-        // Set this as the active conversation
         setState(() {
           _currentConversationId = conv.id;
         });
@@ -498,10 +469,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         onClose();
       },
       onLongPress: () {
-        // Show delete/rename options
         showModalBottomSheet(
           context: context,
-          backgroundColor: _Colors.white,
+          backgroundColor: flux.surface,
           shape: const RoundedRectangleBorder(
             borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
           ),
@@ -511,7 +481,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  // Chat title preview
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     child: Text(
@@ -519,7 +488,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       style: GoogleFonts.instrumentSans(
                         fontSize: 17,
                         fontWeight: FontWeight.w600,
-                        color: _Colors.black,
+                        color: flux.textPrimary,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
@@ -527,15 +496,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
                   const Divider(height: 20),
-                  // Rename option
                   ListTile(
-                    leading: const Icon(Icons.edit, color: _Colors.black),
+                    leading: Icon(Icons.edit, color: flux.textPrimary),
                     title: Text(
                       'Rename',
                       style: GoogleFonts.instrumentSans(
                         fontSize: 17,
                         fontWeight: FontWeight.w400,
-                        color: _Colors.black,
+                        color: flux.textPrimary,
                       ),
                     ),
                     onTap: () {
@@ -543,7 +511,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       _showRenameDialog(context, conv);
                     },
                   ),
-                  // Delete option
                   ListTile(
                     leading: const Icon(Icons.delete_outline, color: Colors.red),
                     title: Text(
@@ -557,7 +524,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     onTap: () {
                       Navigator.pop(ctx);
                       ref.read(conversationsProvider.notifier).deleteConversation(conv.id);
-                      // If deleting current chat, clear it
                       if (_currentConversationId == conv.id) {
                         _startNewChat();
                       }
@@ -573,7 +539,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         margin: const EdgeInsets.only(bottom: 8),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         decoration: BoxDecoration(
-          color: isSelected ? const Color.fromRGBO(0, 0, 0, 0.08) : Colors.transparent,
+          color: isSelected ? flux.textPrimary.withValues(alpha: 0.08) : Colors.transparent,
           borderRadius: BorderRadius.circular(12),
         ),
         child: Text(
@@ -581,7 +547,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           style: GoogleFonts.instrumentSans(
             fontSize: 17,
             fontWeight: FontWeight.w400,
-            color: _Colors.black,
+            color: flux.textPrimary,
             decoration: TextDecoration.none,
           ),
           maxLines: 1,
@@ -592,17 +558,19 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _showRenameDialog(BuildContext context, ChatSession conv) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textController = TextEditingController(text: conv.title);
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _Colors.white,
+        backgroundColor: flux.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: Text(
           'Rename Chat',
           style: GoogleFonts.instrumentSans(
             fontSize: 20,
             fontWeight: FontWeight.w400,
-            color: _Colors.black,
+            color: flux.textPrimary,
           ),
         ),
         content: TextField(
@@ -611,22 +579,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           style: GoogleFonts.instrumentSans(
             fontSize: 17,
             fontWeight: FontWeight.w400,
-            color: _Colors.black,
+            color: flux.textPrimary,
           ),
           decoration: InputDecoration(
             hintText: 'Chat name',
             hintStyle: GoogleFonts.instrumentSans(
               fontSize: 17,
               fontWeight: FontWeight.w400,
-              color: _Colors.textSecondary,
+              color: flux.textSecondary,
             ),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _Colors.border),
+              borderSide: BorderSide(color: flux.border),
             ),
             focusedBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
-              borderSide: BorderSide(color: _Colors.black),
+              borderSide: BorderSide(color: flux.textPrimary),
             ),
           ),
         ),
@@ -638,7 +606,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               style: GoogleFonts.instrumentSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w400,
-                color: _Colors.textSecondary,
+                color: flux.textSecondary,
               ),
             ),
           ),
@@ -662,7 +630,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               style: GoogleFonts.instrumentSans(
                 fontSize: 15,
                 fontWeight: FontWeight.w400,
-                color: _Colors.black,
+                color: flux.textPrimary,
               ),
             ),
           ),
@@ -683,6 +651,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final brightness = Theme.of(context).brightness;
+    SystemChrome.setSystemUIOverlayStyle(
+      SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+      ),
+    );
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     _focusNode.dispose();
@@ -692,225 +672,209 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   Widget build(BuildContext context) {
-    SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
-        statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-      ),
-    );
-
     final messages = ref.watch(chatMessagesProvider);
+    final mediaQuery = MediaQuery.of(context);
+    final topPadding = mediaQuery.padding.top;
+    final keyboardHeight = mediaQuery.viewInsets.bottom;
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+
+    const navBarTopFromBottom = 50.0 + 28.0;
+
+    final inputBottom = keyboardHeight > 0
+        ? keyboardHeight + 20
+        : navBarTopFromBottom + 30;
+
+    const inputMaxHeight = 140.0;
+    const inputSpacing = 20.0;
+    final messagesBottom = inputBottom + inputMaxHeight + inputSpacing;
 
     return Scaffold(
-      backgroundColor: _Colors.background,
-      body: SafeArea(
-        child: Stack(
-          children: [
-            // ==========================================================================
-            // Positioned elements exactly as per Figma Home - Chat frame (8:290)
-            // ==========================================================================
-            
-            // menu-02 icon - Position moved higher: x: 20, y: 60, size: 28x28
-            Positioned(
-              left: 20,
-              top: 60,
-              width: 28,
-              height: 28,
-              child: GestureDetector(
-                onTap: () => _showChatHistory(context),
-                child: SvgPicture.asset(
-                  'assets/images/menu-02.svg',
-                  width: 28,
-                  height: 28,
-                ),
-              ),
-            ),
-
-            // Header title - shows "Flux" + model suffix at 50% opacity
-            Positioned(
-              left: 63,
-              top: 58,
-              child: GestureDetector(
-                onTap: () => _showModelSelector(context),
-                child: Consumer(
-                  builder: (context, ref, child) {
-                    final selectedModel = ref.watch(selectedModelProvider);
-                    final modelName = selectedModel?.name ?? '';
-                    
-                    // Extract suffix from model name (Lite, Steady, Smart)
-                    // Format: "Flux Lite", "Flux Steady", "Flux Smart"
-                    String suffix = '';
-                    if (modelName.toLowerCase().contains('lite')) {
-                      suffix = ' Lite';
-                    } else if (modelName.toLowerCase().contains('steady')) {
-                      suffix = ' Steady';
-                    } else if (modelName.toLowerCase().contains('smart')) {
-                      suffix = ' Smart';
-                    }
-                    
-                    // Always show "Flux" in full black, suffix at 50% opacity
-                    return Row(
-                      children: [
-                        Text(
-                          'Flux',
-                          style: _TextStyles.title.copyWith(
-                            color: _Colors.black,
-                          ),
-                        ),
-                        if (suffix.isNotEmpty)
-                          Text(
-                            suffix,
-                            style: _TextStyles.title.copyWith(
-                              color: _Colors.black.withValues(alpha: 0.5),
-                            ),
-                          ),
-                      ],
-                    );
-                  },
-                ),
-              ),
-            ),
-
-            // pencil-edit-02 icon - Only visible after first message is sent
-            if (messages.isNotEmpty)
-              Positioned(
-                right: 20,
-                top: 60,
+      backgroundColor: flux.background,
+      resizeToAvoidBottomInset: false,
+      body: Stack(
+        children: [
+          Positioned(
+            left: 20,
+            top: topPadding + 60,
+            width: 28,
+            height: 28,
+            child: GestureDetector(
+              onTap: () => _showChatHistory(context),
+              child: SvgPicture.asset(
+                'assets/images/menu-02.svg',
                 width: 28,
                 height: 28,
-                child: _AnimatedPencilButton(
-                  onTap: _startNewChat,
+                colorFilter: ColorFilter.mode(
+                  flux.textPrimary,
+                  BlendMode.srcIn,
                 ),
               ),
+            ),
+          ),
 
-            // Chat messages area - scrollable with clear animation
-            // Stops above the input field (input at top: 720)
-            // Added 5px padding from header (105 vs 100)
-            // Added 40px space above input field (164 vs 124)
-            Positioned(
-              left: 20,
-              right: 20,
-              top: 105,
-              bottom: 164,
-              child: AnimatedOpacity(
-                opacity: _isClearingChat ? 0.0 : 1.0,
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeOutCubic,
-                child: messages.isEmpty
-                    ? const SizedBox.shrink()
-                    : ListView.builder(
-                        controller: _scrollController,
-                        padding: EdgeInsets.zero,
-                        itemCount: messages.length,
-                        cacheExtent: 200,
-                        addAutomaticKeepAlives: false,
-                        addRepaintBoundaries: true,
-                        itemBuilder: (context, index) {
-                          final msg = messages[index];
-                          return _buildBubble(msg, isLast: index == messages.length - 1);
-                        },
+          Positioned(
+            left: 63,
+            top: topPadding + 58,
+            child: GestureDetector(
+              onTap: () => _showModelSelector(context),
+              child: Consumer(
+                builder: (context, ref, child) {
+                  final selectedModel = ref.watch(selectedModelProvider);
+                  final modelName = selectedModel?.name ?? '';
+                  
+                  String suffix = '';
+                  if (modelName.toLowerCase().contains('lite')) {
+                    suffix = ' Lite';
+                  } else if (modelName.toLowerCase().contains('steady')) {
+                    suffix = ' Steady';
+                  } else if (modelName.toLowerCase().contains('smart')) {
+                    suffix = ' Smart';
+                  }
+                  
+                  return Row(
+                    children: [
+                      Text(
+                        'Flux',
+                        style: _TextStyles.title(context).copyWith(
+                          color: flux.textPrimary,
+                        ),
                       ),
+                      if (suffix.isNotEmpty)
+                        Text(
+                          suffix,
+                          style: _TextStyles.title(context).copyWith(
+                            color: flux.textPrimary.withValues(alpha: 0.5),
+                          ),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ),
+
+          if (messages.isNotEmpty)
+            Positioned(
+              right: 20,
+              top: topPadding + 60,
+              width: 28,
+              height: 28,
+              child: _AnimatedPencilButton(
+                onTap: _startNewChat,
               ),
             ),
 
-            // ==========================================================================
-            // Text Input Frame (8:309) - Position: x: 20, y: 720
-            // Unified design: Clean text input with NO inner borders
-            // Dynamic height: 52px when empty, up to 140px (4 lines) when typing
-            // Positioned above the bottom navigation bar
-            // ==========================================================================
-            Positioned(
-              left: 20,
-              right: 20,
-              top: 720,
-              child: Container(
-                constraints: const BoxConstraints(
-                  minHeight: 52,
-                  maxHeight: 140,
+          Positioned(
+            left: 20,
+            right: 20,
+            top: topPadding + 105,
+            bottom: messagesBottom,
+            child: AnimatedOpacity(
+              opacity: _isClearingChat ? 0.0 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              child: messages.isEmpty
+                  ? const SizedBox.shrink()
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: EdgeInsets.zero,
+                      itemCount: messages.length,
+                      cacheExtent: 200,
+                      addAutomaticKeepAlives: false,
+                      addRepaintBoundaries: true,
+                      itemBuilder: (context, index) {
+                        final msg = messages[index];
+                        return _buildBubble(msg, isLast: index == messages.length - 1);
+                      },
+                    ),
+            ),
+          ),
+
+          AnimatedPositioned(
+            duration: const Duration(milliseconds: 200),
+            curve: Curves.easeInOut,
+            left: 20,
+            right: 20,
+            bottom: inputBottom,
+            child: Container(
+              constraints: const BoxConstraints(
+                minHeight: 52,
+                maxHeight: 140,
+              ),
+              padding: const EdgeInsets.only(left: 20, right: 6, top: 6, bottom: 6),
+              decoration: BoxDecoration(
+                color: flux.surface,
+                borderRadius: BorderRadius.circular(100),
+                border: Border.all(
+                  color: flux.border,
+                  width: 1,
                 ),
-                padding: const EdgeInsets.only(left: 20, right: 6, top: 6, bottom: 6),
-                decoration: BoxDecoration(
-                  color: _Colors.white,
-                  borderRadius: BorderRadius.circular(100),
-                  border: Border.all(
-                    color: _Colors.border,
-                    width: 1,
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Expanded(
+                    child: Theme(
+                      data: Theme.of(context).copyWith(
+                        inputDecorationTheme: const InputDecorationTheme(
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                        ),
+                      ),
+                      child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        minLines: 1,
+                        maxLines: 4,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                        style: _TextStyles.message(context),
+                        decoration: InputDecoration(
+                          hintText: 'Type here',
+                          hintStyle: _TextStyles.hint(context),
+                          filled: false,
+                          fillColor: Colors.transparent,
+                          border: InputBorder.none,
+                          enabledBorder: InputBorder.none,
+                          focusedBorder: InputBorder.none,
+                          errorBorder: InputBorder.none,
+                          disabledBorder: InputBorder.none,
+                          contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                          isDense: true,
+                          counterText: '',
+                        ),
+                        onSubmitted: (_) {},
+                      ),
+                    ),
                   ),
-                ),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    // Type/Attach text area - Completely transparent, no borders or backgrounds
-                    Expanded(
-                      child: Theme(
-                        data: Theme.of(context).copyWith(
-                          inputDecorationTheme: const InputDecorationTheme(
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _controller,
-                          focusNode: _focusNode,
-                          minLines: 1,
-                          maxLines: 4,
-                          keyboardType: TextInputType.multiline,
-                          textInputAction: TextInputAction.newline,
-                          style: _TextStyles.message,
-                          decoration: InputDecoration(
-                            hintText: 'Type here',
-                            hintStyle: _TextStyles.hint,
-                            filled: false,
-                            fillColor: Colors.transparent,
-                            border: InputBorder.none,
-                            enabledBorder: InputBorder.none,
-                            focusedBorder: InputBorder.none,
-                            errorBorder: InputBorder.none,
-                            disabledBorder: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 10),
-                            isDense: true,
-                            counterText: '',
-                          ),
-                          onSubmitted: (_) {},
-                        ),
-                      ),
-                    ),
 
-                    // Send button - Solid black circle with opacity and tap animation
-                    _AnimatedSendButton(
-                      onTap: _sendMessage,
-                      isEnabled: _hasText,
-                    ),
-                  ],
-                ),
+                  _AnimatedSendButton(
+                    onTap: _sendMessage,
+                    isEnabled: _hasText,
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
 
-  // Bubble widget matching Figma bubble style (8:325)
-  // Border radius: 45px 20px 10px 45px pattern
   Widget _buildBubble(ChatMessage msg, {bool isLast = false}) {
     final isUser = msg.fromUser;
-    // Increased spacing between messages for better readability
     final bottomPadding = isLast ? 0.0 : 12.0;
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     final bubble = !isUser
         ? RepaintBoundary(
             child: Padding(
               padding: EdgeInsets.only(bottom: bottomPadding),
-              child: Text(
-                msg.text,
-                style: GoogleFonts.instrumentSans(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w400,
-                  color: _Colors.black,
-                  height: 1.5,
-                ),
+              child: RichMessageRenderer(
+                text: msg.text,
+                isUser: false,
               ),
             ),
           )
@@ -924,12 +888,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     child: Container(
                       padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                       decoration: BoxDecoration(
-                        color: _Colors.black,
-                        borderRadius: BorderRadius.only(
-                          topLeft: const Radius.circular(24),
-                          topRight: const Radius.circular(24),
-                          bottomLeft: const Radius.circular(24),
-                          bottomRight: const Radius.circular(4),
+                        color: isDark ? flux.surface : flux.textPrimary,
+                        borderRadius: const BorderRadius.only(
+                          topLeft: Radius.circular(24),
+                          topRight: Radius.circular(24),
+                          bottomLeft: Radius.circular(24),
+                          bottomRight: Radius.circular(4),
                         ),
                       ),
                       child: Text(
@@ -937,7 +901,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         style: GoogleFonts.instrumentSans(
                           fontSize: 15,
                           fontWeight: FontWeight.w400,
-                          color: _Colors.white,
+                          color: isDark ? flux.textPrimary : flux.background,
                           height: 1.4,
                         ),
                       ),
@@ -948,7 +912,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           );
 
-    // Entrance animation for new messages - slide up from bottom
     return RepaintBoundary(
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
@@ -1001,6 +964,7 @@ class _AnimatedSendButtonState extends State<_AnimatedSendButton>
 
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return GestureDetector(
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
@@ -1014,13 +978,13 @@ class _AnimatedSendButtonState extends State<_AnimatedSendButton>
           child: Container(
             width: 40,
             height: 40,
-            decoration: const BoxDecoration(
-              color: _Colors.black,
+            decoration: BoxDecoration(
+              color: flux.textPrimary,
               shape: BoxShape.circle,
             ),
-            child: const Icon(
+            child: Icon(
               Icons.arrow_upward,
-              color: _Colors.white,
+              color: flux.background,
               size: 22,
             ),
           ),
@@ -1059,6 +1023,7 @@ class _AnimatedPencilButtonState extends State<_AnimatedPencilButton>
 
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return GestureDetector(
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
@@ -1071,6 +1036,10 @@ class _AnimatedPencilButtonState extends State<_AnimatedPencilButton>
           'assets/images/pencil-edit-02.svg',
           width: 28,
           height: 28,
+          colorFilter: ColorFilter.mode(
+            flux.textPrimary,
+            BlendMode.srcIn,
+          ),
         ),
       ),
     );
@@ -1093,6 +1062,7 @@ class _AnimatedChatHistoryItemState extends State<_AnimatedChatHistoryItem>
   late AnimationController _controller;
   late Animation<double> _opacity;
   late Animation<double> _slide;
+  Timer? _startTimer;
 
   @override
   void initState() {
@@ -1102,7 +1072,6 @@ class _AnimatedChatHistoryItemState extends State<_AnimatedChatHistoryItem>
       vsync: this,
     );
 
-    // Staggered delay based on index
     final delay = widget.index * 40;
 
     _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
@@ -1119,14 +1088,14 @@ class _AnimatedChatHistoryItemState extends State<_AnimatedChatHistoryItem>
       ),
     );
 
-    // Start animation after staggered delay
-    Future.delayed(Duration(milliseconds: delay), () {
+    _startTimer = Timer(Duration(milliseconds: delay), () {
       if (mounted) _controller.forward();
     });
   }
 
   @override
   void dispose() {
+    _startTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }

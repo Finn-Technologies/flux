@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../../core/theme/flux_theme.dart';
 
 class FluxShell extends StatefulWidget {
   final Widget child;
@@ -41,26 +42,18 @@ class _FluxShellState extends State<FluxShell> {
     }
   }
 
-  // Figma colors
-  static const Color _background = Color(0xFFF9F9F9);
-  static const Color _black = Color(0xFF000000);
-  static const Color _textSecondary = Color.fromRGBO(0, 0, 0, 0.5);
-
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return Scaffold(
-      backgroundColor: _background,
+      backgroundColor: flux.background,
+      resizeToAvoidBottomInset: false,
       body: Stack(
         children: [
-          // Main content - use the ShellRoute's child (current page)
           Positioned.fill(
             child: widget.child,
           ),
 
-          // Bottom Navigation - Clean dock style
-          // No background, no borders, icons only
-          // 50% opacity when not active, 100% when active
-          // Only 2 screens: Home and Settings
           Positioned(
             left: 20,
             right: 20,
@@ -68,7 +61,6 @@ class _FluxShellState extends State<FluxShell> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                // Home (index 0)
                 _buildNavItem(
                   index: 0,
                   child: (isSelected) {
@@ -77,13 +69,12 @@ class _FluxShellState extends State<FluxShell> {
                       width: 28,
                       height: 28,
                       colorFilter: ColorFilter.mode(
-                        isSelected ? _black : _textSecondary,
+                        isSelected ? flux.textPrimary : flux.textSecondary,
                         BlendMode.srcIn,
                       ),
                     );
                   },
                 ),
-                // Settings (index 1)
                 _buildNavItem(
                   index: 1,
                   child: (isSelected) {
@@ -92,7 +83,7 @@ class _FluxShellState extends State<FluxShell> {
                       width: 28,
                       height: 28,
                       colorFilter: ColorFilter.mode(
-                        isSelected ? _black : _textSecondary,
+                        isSelected ? flux.textPrimary : flux.textSecondary,
                         BlendMode.srcIn,
                       ),
                     );

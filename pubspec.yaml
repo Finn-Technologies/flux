@@ -1,6 +1,6 @@
 name: flux
 description: Flux Flutter app scaffold (offline-first, mock data)
-version: 0.1.0
+version: 0.1.4
 publish_to: 'none'
 environment:
   sdk: ">=3.0.0 <4.0.0"
@@ -22,6 +22,7 @@ dependencies:
   llamadart: ^0.6.10
 
 dev_dependencies:
+  flutter_lints: ^5.0.0
   flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter

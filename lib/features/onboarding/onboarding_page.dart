@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,65 +12,55 @@ import '../../core/services/model_service.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/providers/model_provider.dart';
-
-// ============================================================================
-// COLORS - Exact from Figma
-// ============================================================================
-class _AppColors {
-  static const Color background = Color(0xFFF9F9F9);
-  static const Color black = Color(0xFF000000);
-  static const Color white = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color.fromRGBO(0, 0, 0, 0.5);
-  static const Color border = Color.fromRGBO(0, 0, 0, 0.1);
-}
+import '../../core/theme/flux_theme.dart';
 
 // ============================================================================
 // TYPOGRAPHY - Instrument Sans from Google Fonts
 // ============================================================================
 class _AppTypography {
-  static TextStyle get heading => GoogleFonts.instrumentSans(
+  static TextStyle heading(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 25,
         fontWeight: FontWeight.w400,
-        color: _AppColors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
         height: 1.22,
         letterSpacing: 0,
       );
 
-  static TextStyle get description => GoogleFonts.instrumentSans(
+  static TextStyle description(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 20,
         fontWeight: FontWeight.w400,
-        color: _AppColors.textSecondary,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
         height: 1.22,
         letterSpacing: 0,
       );
 
-  static TextStyle get button => GoogleFonts.instrumentSans(
+  static TextStyle button(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 15,
         fontWeight: FontWeight.w400,
-        color: _AppColors.white,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.background,
         height: 1.22,
         letterSpacing: 0,
       );
 
-  static TextStyle get backButton => GoogleFonts.instrumentSans(
+  static TextStyle backButton(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 15,
         fontWeight: FontWeight.w400,
-        color: _AppColors.textSecondary,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
         height: 1.22,
         letterSpacing: 0,
       );
 
-  static TextStyle get modelTitle => GoogleFonts.instrumentSans(
+  static TextStyle modelTitle(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 17,
         fontWeight: FontWeight.w400,
-        color: _AppColors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
         letterSpacing: 0,
       );
 
-  static TextStyle get modelSubtitle => GoogleFonts.instrumentSans(
+  static TextStyle modelSubtitle(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 13,
         fontWeight: FontWeight.w400,
-        color: _AppColors.textSecondary,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
         letterSpacing: 0,
       );
 }
@@ -81,7 +73,7 @@ class _AppAssets {
 }
 
 // ============================================================================
-// ANIMATION CONSTANTS - Fast animations
+// ANIMATION CONSTANTS
 // ============================================================================
 class _AnimDurations {
   static const Duration fast = Duration(milliseconds: 250);
@@ -107,7 +99,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   bool _isNavigating = false;
   bool _isDownloading = false;
 
-  // Model selection state
   List<HFModel> _models = [];
   bool _isLoadingModels = true;
   HFModel? _selectedModel;
@@ -174,16 +165,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final brightness = Theme.of(context).brightness;
+
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
+      SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
-        statusBarBrightness: Brightness.light,
+        statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
+        statusBarBrightness: brightness == Brightness.dark ? Brightness.dark : Brightness.light,
       ),
     );
 
     return Scaffold(
-      backgroundColor: _AppColors.background,
+      backgroundColor: flux.background,
       body: SafeArea(
         child: PageView(
           controller: _controller,
@@ -240,7 +234,7 @@ class _WelcomeSlide extends StatelessWidget {
                     delay: const Duration(milliseconds: 100),
                     child: Text(
                       'Welcome to Flux',
-                      style: _AppTypography.heading,
+                      style: _AppTypography.heading(context),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -301,7 +295,7 @@ class _PrivacySlide extends StatelessWidget {
                     delay: const Duration(milliseconds: 100),
                     child: Text(
                       'We value your privacy',
-                      style: _AppTypography.heading,
+                      style: _AppTypography.heading(context),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -312,7 +306,7 @@ class _PrivacySlide extends StatelessWidget {
                     delay: const Duration(milliseconds: 150),
                     child: Text(
                       "We designed Flux to use Local AI models, so your data doesn't go to corporations, not even us.",
-                      style: _AppTypography.description,
+                      style: _AppTypography.description(context),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -373,7 +367,7 @@ class _OfflineSlide extends StatelessWidget {
                     delay: const Duration(milliseconds: 100),
                     child: Text(
                       'Fully offline',
-                      style: _AppTypography.heading,
+                      style: _AppTypography.heading(context),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -384,7 +378,7 @@ class _OfflineSlide extends StatelessWidget {
                     delay: const Duration(milliseconds: 150),
                     child: Text(
                       'Since we use Local AI models, Flux works entirely offline, so you can ask questions even with no coverage.',
-                      style: _AppTypography.description,
+                      style: _AppTypography.description(context),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -427,6 +421,7 @@ class _DownloadModelSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return Stack(
       children: [
         Positioned(
@@ -446,7 +441,7 @@ class _DownloadModelSlide extends StatelessWidget {
             delay: const Duration(milliseconds: 100),
             child: Text(
               'Choose a model to download',
-              style: _AppTypography.heading,
+              style: _AppTypography.heading(context),
             ),
           ),
         ),
@@ -459,7 +454,7 @@ class _DownloadModelSlide extends StatelessWidget {
             delay: const Duration(milliseconds: 150),
             child: Text(
               'Flux recommends models optimized for your device, ensuring they work properly.',
-              style: _AppTypography.description,
+              style: _AppTypography.description(context),
             ),
           ),
         ),
@@ -470,9 +465,9 @@ class _DownloadModelSlide extends StatelessWidget {
           right: 20,
           bottom: 100,
           child: isLoading
-              ? const Center(
+              ? Center(
                   child: CircularProgressIndicator(
-                    color: _AppColors.black,
+                    color: flux.textPrimary,
                     strokeWidth: 2,
                   ),
                 )
@@ -493,10 +488,10 @@ class _DownloadModelSlide extends StatelessWidget {
                         child: Container(
                           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
                           decoration: BoxDecoration(
-                            color: _AppColors.white,
+                            color: flux.surface,
                             borderRadius: BorderRadius.circular(15),
                             border: Border.all(
-                              color: isSelected ? _AppColors.black : _AppColors.border,
+                              color: isSelected ? flux.textPrimary : flux.border,
                               width: isSelected ? 2 : 1,
                             ),
                           ),
@@ -510,12 +505,12 @@ class _DownloadModelSlide extends StatelessWidget {
                                   children: [
                                     Text(
                                       model.name,
-                                      style: _AppTypography.modelTitle,
+                                      style: _AppTypography.modelTitle(context),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Powered by ${model.baseModel ?? model.name} (${model.sizeMB >= 1024 ? (model.sizeMB / 1024).toStringAsFixed(1) + ' GB' : model.sizeMB.toString() + ' MB'})',
-                                      style: _AppTypography.modelSubtitle,
+                                      'Powered by ${model.baseModel ?? model.name} (${model.sizeMB >= 1024 ? '${(model.sizeMB / 1024).toStringAsFixed(1)} GB' : '${model.sizeMB} MB'})',
+                                      style: _AppTypography.modelSubtitle(context),
                                     ),
                                   ],
                                 ),
@@ -526,15 +521,15 @@ class _DownloadModelSlide extends StatelessWidget {
                                 decoration: BoxDecoration(
                                   shape: BoxShape.circle,
                                   border: Border.all(
-                                    color: isSelected ? _AppColors.black : _AppColors.border,
+                                    color: isSelected ? flux.textPrimary : flux.border,
                                     width: 1,
                                   ),
-                                  color: isSelected ? _AppColors.black : _AppColors.white,
+                                  color: isSelected ? flux.textPrimary : flux.surface,
                                 ),
                                 child: Center(
                                   child: isSelected
-                                      ? const Icon(Icons.check, size: 16, color: _AppColors.white)
-                                      : const Icon(Icons.add, size: 16, color: _AppColors.black),
+                                      ? Icon(Icons.check, size: 16, color: flux.background)
+                                      : Icon(Icons.add, size: 16, color: flux.textPrimary),
                                 ),
                               ),
                             ],
@@ -589,7 +584,7 @@ class _FinishSlide extends StatelessWidget {
                     delay: const Duration(milliseconds: 100),
                     child: Text(
                       "That's it. Flux is ready!",
-                      style: _AppTypography.heading,
+                      style: _AppTypography.heading(context),
                       textAlign: TextAlign.center,
                     ),
                   ),
@@ -617,7 +612,6 @@ class _FinishSlide extends StatelessWidget {
 // COMPONENTS
 // ============================================================================
 
-// Fade in with slight upward slide animation
 class _FadeInSlide extends StatefulWidget {
   final Widget child;
   final Duration delay;
@@ -633,6 +627,7 @@ class _FadeInSlideState extends State<_FadeInSlide>
   late AnimationController _controller;
   late Animation<double> _opacity;
   late Animation<double> _slide;
+  Timer? _startTimer;
 
   @override
   void initState() {
@@ -656,14 +651,14 @@ class _FadeInSlideState extends State<_FadeInSlide>
       ),
     );
 
-    // Start animation after delay
-    Future.delayed(widget.delay, () {
+    _startTimer = Timer(widget.delay, () {
       if (mounted) _controller.forward();
     });
   }
 
   @override
   void dispose() {
+    _startTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
@@ -715,6 +710,7 @@ class _AnimatedButtonState extends State<_AnimatedButton>
 
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return GestureDetector(
       onTapDown: _onTapDown,
       onTapUp: _onTapUp,
@@ -727,13 +723,13 @@ class _AnimatedButtonState extends State<_AnimatedButton>
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
           decoration: BoxDecoration(
             color: widget.onPressed != null
-                ? _AppColors.black
-                : _AppColors.black.withValues(alpha: 0.3),
+                ? flux.textPrimary
+                : flux.textPrimary.withValues(alpha: 0.3),
             borderRadius: BorderRadius.circular(100),
           ),
           child: Text(
             widget.text,
-            style: _AppTypography.button,
+            style: _AppTypography.button(context),
           ),
         ),
       ),
@@ -748,6 +744,7 @@ class _BackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return GestureDetector(
       onTap: onPressed,
       child: Row(
@@ -758,11 +755,12 @@ class _BackButton extends StatelessWidget {
             _AppAssets.backArrow,
             width: 10,
             height: 18,
+            colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
           ),
           const SizedBox(width: 13),
           Text(
             'Back',
-            style: _AppTypography.backButton,
+            style: _AppTypography.backButton(context),
           ),
         ],
       ),

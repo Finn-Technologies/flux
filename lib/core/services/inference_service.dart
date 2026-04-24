@@ -53,11 +53,12 @@ class InferenceService {
       }
 
       final systemMessage = systemPrompt ?? "You are Flux, an on-device AI. Answer concisely and accurately. Never hallucinate other conversations or users. Stop immediately after answering.";
-      final fullPrompt = "<|im_start|>system\n$systemMessage<|im_end|>\n<|im_start|>user\n$prompt<|im_end|>\n<|im_start|>assistant\n";
+      final fullPrompt = "<|im_start|>system\n$systemMessage\n<|im_end|>\n<|im_start|>user\n$prompt\n<|im_end|>\n<|im_start|>assistant\n";
 
       // Aggressive stop sequences to prevent continuation
       final stopSequences = [
         "<|im_end|>",
+        "<|endoftext|>",
         "<|end_of_text|>",
         "<|eot_id|>",
         "\nuser",
@@ -70,7 +71,7 @@ class InferenceService {
       final stream = _engine!.generate(
         fullPrompt,
         params: GenerationParams(
-          temp: 0.0, // Maximum determinism
+          temp: 0.1, // Near-deterministic but avoids backend issues with exact 0.0
           maxTokens: 512,
           penalty: 1.1,
           stopSequences: stopSequences,
@@ -80,7 +81,7 @@ class InferenceService {
       String accumulated = "";
       await for (final token in stream) {
         accumulated += token;
-        
+
         // Manual backup stop check (some backends might not handle stopSequences perfectly)
         bool shouldStop = false;
         for (final marker in stopSequences) {
@@ -107,5 +108,6 @@ class InferenceService {
   Future<void> dispose() async {
     await _engine?.dispose();
     _engine = null;
+    _loadedModelPath = null;
   }
 }

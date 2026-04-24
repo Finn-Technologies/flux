@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:background_downloader/background_downloader.dart';
@@ -11,9 +12,17 @@ final downloadProvider =
 });
 
 class DownloadNotifier extends StateNotifier<List<HFModel>> {
+  StreamSubscription? _downloadSubscription;
+
   DownloadNotifier() : super([]) {
     _loadInstalledModels();
     _setupDownloader();
+  }
+
+  @override
+  void dispose() {
+    _downloadSubscription?.cancel();
+    super.dispose();
   }
 
   void _loadInstalledModels() {
@@ -30,7 +39,7 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
     FileDownloader().configure(
       globalConfig: [('requestTimeout', '2h')],
     ).then((_) {
-      FileDownloader().updates.listen((update) {
+      _downloadSubscription = FileDownloader().updates.listen((update) {
         if (update is TaskProgressUpdate) {
           _updateProgress(
               update.task.taskId, update.progress, update.networkSpeed);

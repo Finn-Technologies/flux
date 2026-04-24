@@ -1,1 +1,12 @@
+include: package:flutter_lints/flutter.yaml
 
+linter:
+  rules:
+    avoid_print: false
+    prefer_const_constructors: true
+    prefer_final_fields: true
+    prefer_final_locals: true
+    unnecessary_null_checks: true
+    use_super_parameters: true
+    cancel_subscriptions: true
+    close_sinks: true

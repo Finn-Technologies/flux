@@ -2,39 +2,31 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:google_fonts/google_fonts.dart';
-
-// ============================================================================
-// COLORS - Exact from Figma
-// ============================================================================
-class _Colors {
-  static const Color background = Color(0xFFF9F9F9);
-  static const Color black = Color(0xFF000000);
-  static const Color white = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color.fromRGBO(0, 0, 0, 0.5);
-  static const Color border = Color.fromRGBO(0, 0, 0, 0.1);
-}
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import '../../core/theme/flux_theme.dart';
 
 // ============================================================================
 // TYPOGRAPHY - Instrument Sans
 // ============================================================================
 class _TextStyles {
-  static TextStyle get title => GoogleFonts.instrumentSans(
+  static TextStyle title(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 25,
         fontWeight: FontWeight.w400,
-        color: _Colors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
         height: 1.22,
       );
 
-  static TextStyle get body => GoogleFonts.instrumentSans(
+  static TextStyle body(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 17,
         fontWeight: FontWeight.w400,
-        color: _Colors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
       );
 
-  static TextStyle get subtitle => GoogleFonts.instrumentSans(
+  static TextStyle subtitle(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 13,
         fontWeight: FontWeight.w400,
-        color: _Colors.textSecondary,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
       );
 }
 
@@ -43,39 +35,40 @@ class SettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final brightness = Theme.of(context).brightness;
+
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
+      SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
       ),
     );
 
     return Scaffold(
-      backgroundColor: _Colors.background,
+      backgroundColor: flux.background,
       body: SafeArea(
         child: Stack(
           children: [
-            // Header
             Positioned(
               left: 20,
               top: 60,
               child: Text(
                 'Settings',
-                style: _TextStyles.title,
+                style: _TextStyles.title(context),
               ),
             ),
 
-            // Settings items - NO bottom navigation here (FluxShell provides it)
             Positioned(
               left: 20,
               right: 20,
               top: 120,
-              bottom: 100, // Space for bottom navigation from FluxShell
+              bottom: 100,
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  // Models option
                   _buildSettingsItem(
+                    context: context,
                     title: 'Models',
                     subtitle: 'Download and manage AI models',
                     onTap: () => context.push('/settings/models'),
@@ -83,19 +76,28 @@ class SettingsScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
 
-                  // Clear cache option
                   _buildSettingsItem(
+                    context: context,
                     title: 'Clear cache',
                     subtitle: 'Remove temporary files',
                     isDestructive: true,
-                    onTap: () => _confirm(context, 'Clear cache?',
-                        'This removes temporary files only.', 'Clear'),
+                    onTap: () => _confirm(
+                      context,
+                      'Clear cache?',
+                      'This removes temporary files only.',
+                      'Clear',
+                      () async {
+                        final prefs = await SharedPreferences.getInstance();
+                        await prefs.clear();
+                        await Hive.box('settings').clear();
+                      },
+                    ),
                     index: 1,
                   ),
                   const SizedBox(height: 12),
 
-                  // About option
                   _buildSettingsItem(
+                    context: context,
                     title: 'About Flux',
                     subtitle: 'Version 0.1.4',
                     onTap: () => _showAboutSheet(context),
@@ -111,12 +113,14 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildSettingsItem({
+    required BuildContext context,
     required String title,
     required String subtitle,
     required VoidCallback onTap,
     bool isDestructive = false,
     int index = 0,
   }) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
       duration: Duration(milliseconds: 300 + (index * 80)),
@@ -138,10 +142,10 @@ class SettingsScreen extends StatelessWidget {
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
           decoration: BoxDecoration(
-            color: _Colors.white,
+            color: flux.surface,
             borderRadius: BorderRadius.circular(15),
             border: Border.all(
-              color: _Colors.border,
+              color: flux.border,
               width: 1,
             ),
           ),
@@ -153,13 +157,13 @@ class SettingsScreen extends StatelessWidget {
                 style: GoogleFonts.instrumentSans(
                   fontSize: 17,
                   fontWeight: FontWeight.w400,
-                  color: isDestructive ? Colors.red : _Colors.black,
+                  color: isDestructive ? Colors.red : flux.textPrimary,
                 ),
               ),
               const SizedBox(height: 2),
               Text(
                 subtitle,
-                style: _TextStyles.subtitle,
+                style: _TextStyles.subtitle(context),
               ),
             ],
           ),
@@ -168,30 +172,34 @@ class SettingsScreen extends StatelessWidget {
     );
   }
 
-  void _confirm(BuildContext context, String title, String message, String action) {
+  void _confirm(BuildContext context, String title, String message, String action, [VoidCallback? onAction]) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
-        backgroundColor: _Colors.white,
+        backgroundColor: flux.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           title,
-          style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
+          style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
         ),
         content: Text(
           message,
-          style: _TextStyles.subtitle,
+          style: _TextStyles.subtitle(context),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               'Cancel',
-              style: _TextStyles.subtitle,
+              style: _TextStyles.subtitle(context),
             ),
           ),
           TextButton(
-            onPressed: () => Navigator.pop(ctx),
+            onPressed: () {
+              onAction?.call();
+              Navigator.pop(ctx);
+            },
             child: Text(
               action,
               style: GoogleFonts.instrumentSans(
@@ -207,9 +215,10 @@ class SettingsScreen extends StatelessWidget {
   }
 
   void _showAboutSheet(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     showModalBottomSheet(
       context: context,
-      backgroundColor: _Colors.background,
+      backgroundColor: flux.background,
       isScrollControlled: true,
       useRootNavigator: true,
       shape: const RoundedRectangleBorder(
@@ -223,18 +232,18 @@ class SettingsScreen extends StatelessWidget {
             children: [
               Text(
                 'Flux',
-                style: _TextStyles.title,
+                style: _TextStyles.title(context),
               ),
               const SizedBox(height: 8),
               Text(
                 'Version 0.1.4',
-                style: _TextStyles.subtitle,
+                style: _TextStyles.subtitle(context),
               ),
               const SizedBox(height: 24),
               Text(
-                'Your private AI assistant that runs locally on your device. Your data stays on your phone — no account needed.',
+                'Your private AI assistant that runs locally on your device. Your data stays on your phone \u2014 no account needed.',
                 textAlign: TextAlign.center,
-                style: _TextStyles.body.copyWith(color: _Colors.textSecondary),
+                style: _TextStyles.body(context).copyWith(color: flux.textSecondary),
               ),
             ],
           ),

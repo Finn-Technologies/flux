@@ -7,51 +7,41 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/services/model_service.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
-
-// ============================================================================
-// COLORS - Exact from Figma
-// ============================================================================
-class _Colors {
-  static const Color background = Color(0xFFF9F9F9);
-  static const Color black = Color(0xFF000000);
-  static const Color white = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color.fromRGBO(0, 0, 0, 0.5);
-  static const Color border = Color.fromRGBO(0, 0, 0, 0.1);
-}
+import '../../core/theme/flux_theme.dart';
 
 // ============================================================================
 // TYPOGRAPHY - Instrument Sans
 // ============================================================================
 class _TextStyles {
-  static TextStyle get title => GoogleFonts.instrumentSans(
+  static TextStyle title(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 25,
         fontWeight: FontWeight.w400,
-        color: _Colors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
         height: 1.22,
       );
 
-  static TextStyle get body => GoogleFonts.instrumentSans(
+  static TextStyle body(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 17,
         fontWeight: FontWeight.w400,
-        color: _Colors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
       );
 
-  static TextStyle get subtitle => GoogleFonts.instrumentSans(
+  static TextStyle subtitle(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 13,
         fontWeight: FontWeight.w400,
-        color: _Colors.textSecondary,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
       );
 
-  static TextStyle get modelTitle => GoogleFonts.instrumentSans(
+  static TextStyle modelTitle(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 17,
         fontWeight: FontWeight.w400,
-        color: _Colors.black,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
       );
 
-  static TextStyle get modelSubtitle => GoogleFonts.instrumentSans(
+  static TextStyle modelSubtitle(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 13,
         fontWeight: FontWeight.w400,
-        color: _Colors.textSecondary,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
       );
 }
 
@@ -73,6 +63,15 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     super.initState();
     _loadModels();
     _loadStorageInfo();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final models = ref.read(downloadProvider);
+    _downloadingIds.removeWhere(
+      (id) => !models.any((m) => m.id == id && m.downloadStatus == 'downloading'),
+    );
   }
 
   Future<void> _loadModels() async {
@@ -109,20 +108,21 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     final downloadingModels = models.where((m) => m.downloadStatus == 'downloading').toList();
     final installedModels = models.where((m) => m.downloaded).toList();
     final usedFraction = _totalStorageGB > 0 ? _usedStorageGB / _totalStorageGB : 0.0;
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final brightness = Theme.of(context).brightness;
 
     SystemChrome.setSystemUIOverlayStyle(
-      const SystemUiOverlayStyle(
+      SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
-        statusBarIconBrightness: Brightness.dark,
+        statusBarIconBrightness: brightness == Brightness.dark ? Brightness.light : Brightness.dark,
       ),
     );
 
     return Scaffold(
-      backgroundColor: _Colors.background,
+      backgroundColor: flux.background,
       body: SafeArea(
         child: Stack(
           children: [
-            // Back button - moved up (y: 60)
             Positioned(
               left: 20,
               top: 60,
@@ -136,6 +136,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       'assets/images/back_arrow.svg',
                       width: 10,
                       height: 18,
+                      colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
                     ),
                     const SizedBox(width: 13),
                     Text(
@@ -143,7 +144,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       style: GoogleFonts.instrumentSans(
                         fontSize: 15,
                         fontWeight: FontWeight.w400,
-                        color: _Colors.textSecondary,
+                        color: flux.textSecondary,
                         height: 1.22,
                       ),
                     ),
@@ -152,17 +153,15 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
               ),
             ),
 
-            // Header - moved up (y: 100)
             Positioned(
               left: 20,
               top: 100,
               child: Text(
                 'Models',
-                style: _TextStyles.title,
+                style: _TextStyles.title(context),
               ),
             ),
 
-            // Content - moved up accordingly (y: 160)
             Positioned(
               left: 20,
               right: 20,
@@ -171,14 +170,13 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
               child: ListView(
                 padding: EdgeInsets.zero,
                 children: [
-                  // Storage card
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
-                      color: _Colors.white,
+                      color: flux.surface,
                       borderRadius: BorderRadius.circular(15),
                       border: Border.all(
-                        color: _Colors.border,
+                        color: flux.border,
                         width: 1,
                       ),
                     ),
@@ -190,11 +188,11 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                           children: [
                             Text(
                               'Storage',
-                              style: _TextStyles.subtitle,
+                              style: _TextStyles.subtitle(context),
                             ),
                             Text(
                               '${_usedStorageGB.toStringAsFixed(1)} GB / ${_totalStorageGB.toStringAsFixed(0)} GB',
-                              style: _TextStyles.subtitle,
+                              style: _TextStyles.subtitle(context),
                             ),
                           ],
                         ),
@@ -203,8 +201,8 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                           borderRadius: BorderRadius.circular(8),
                           child: LinearProgressIndicator(
                             value: usedFraction,
-                            backgroundColor: _Colors.border,
-                            valueColor: const AlwaysStoppedAnimation(_Colors.black),
+                            backgroundColor: flux.border,
+                            valueColor: AlwaysStoppedAnimation(flux.textPrimary),
                             minHeight: 8,
                           ),
                         ),
@@ -213,11 +211,10 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                   ),
                   const SizedBox(height: 24),
 
-                  // Active Downloads
                   if (downloadingModels.isNotEmpty) ...[
                     Text(
                       'Downloading',
-                      style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                      style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
                     ...downloadingModels.asMap().entries.map((entry) => Padding(
@@ -227,11 +224,10 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Installed Models
                   if (installedModels.isNotEmpty) ...[
                     Text(
                       'Installed',
-                      style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                      style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
                     ...installedModels.asMap().entries.map((entry) => Padding(
@@ -241,13 +237,11 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                     const SizedBox(height: 24),
                   ],
 
-                  // Available Models (not yet downloaded)
                   if (_isLoading)
-                    const Center(
-                      child: CircularProgressIndicator(color: _Colors.black),
+                    Center(
+                      child: CircularProgressIndicator(color: flux.textPrimary),
                     )
                   else ...[
-                    // Filter out models that are already installed or downloading
                     Builder(builder: (context) {
                       final installedIds = installedModels.map((m) => m.id).toSet();
                       final downloadingIds = downloadingModels.map((m) => m.id).toSet();
@@ -264,7 +258,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                         children: [
                           Text(
                             'Available',
-                            style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                            style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 12),
                           ...trulyAvailable.asMap().entries.map((entry) => Padding(
@@ -285,24 +279,24 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                             width: 72,
                             height: 72,
                             decoration: BoxDecoration(
-                              color: _Colors.border,
+                              color: flux.border,
                               borderRadius: BorderRadius.circular(24),
                             ),
-                            child: const Icon(
+                            child: Icon(
                               Icons.download_outlined,
                               size: 36,
-                              color: _Colors.black,
+                              color: flux.textPrimary,
                             ),
                           ),
                           const SizedBox(height: 20),
                           Text(
                             'No models yet',
-                            style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                            style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             'Download a model to get started',
-                            style: _TextStyles.subtitle,
+                            style: _TextStyles.subtitle(context),
                           ),
                         ],
                       ),
@@ -316,7 +310,6 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     );
   }
 
-  // Format size to show MB or GB appropriately
   String _formatSize(int sizeMB) {
     if (sizeMB >= 1024) {
       return '${(sizeMB / 1024).toStringAsFixed(1)} GB';
@@ -325,34 +318,27 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     }
   }
 
-  // Format downloaded size progress (e.g., "150 MB / 500 MB" or "0.5 GB / 2.5 GB")
   String _formatDownloadedSize(HFModel model) {
     final totalMB = model.sizeMB;
     final downloadedMB = (totalMB * model.progress / 100).round();
     
     if (totalMB >= 1024) {
-      // Show in GB if total is >= 1GB
       final downloadedGB = (downloadedMB / 1024).toStringAsFixed(1);
       final totalGB = (totalMB / 1024).toStringAsFixed(1);
       return '$downloadedGB GB / $totalGB GB';
     } else {
-      // Show in MB
       return '$downloadedMB MB / $totalMB MB';
     }
   }
 
-  // Track which models are currently being downloaded to prevent double-taps
   final Set<String> _downloadingIds = {};
 
-  // Model card - same style as onboarding page with tap animation
-  // In settings/models page, we only download/delete - NO SELECTION here
   Widget _buildModelCard(HFModel model, int index) {
     final isDownloaded = model.downloaded;
     final isDownloading = model.downloadStatus == 'downloading';
     final isInProgress = isDownloading;
-    
-    // Only start download if not already in progress (downloading or paused)
     final bool canStartDownload = !isDownloaded && !isInProgress && !_downloadingIds.contains(model.id);
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     
     return TweenAnimationBuilder<double>(
       tween: Tween(begin: 0.0, end: 1.0),
@@ -370,7 +356,6 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
       child: _AnimatedTapCard(
         onTap: () {
           if (canStartDownload) {
-            // Start new download
             _downloadingIds.add(model.id);
             final url = ModelService.getDownloadUrl(model.id);
             ref.read(downloadProvider.notifier).startDownloadWithUrl(model, url);
@@ -379,10 +364,10 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
         child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 12),
         decoration: BoxDecoration(
-          color: _Colors.white,
+          color: flux.surface,
           borderRadius: BorderRadius.circular(15),
           border: Border.all(
-            color: _Colors.border,
+            color: flux.border,
             width: 1,
           ),
         ),
@@ -398,17 +383,16 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                     children: [
                       Text(
                         model.name,
-                        style: _TextStyles.modelTitle,
+                        style: _TextStyles.modelTitle(context),
                       ),
                       const SizedBox(height: 4),
                       Text(
                         'Powered by ${model.baseModel ?? model.name} (${_formatSize(model.sizeMB)})',
-                        style: _TextStyles.modelSubtitle,
+                        style: _TextStyles.modelSubtitle(context),
                       ),
                     ],
                   ),
                 ),
-                // Delete button for downloaded models, or status indicator
                 if (isDownloaded)
                   GestureDetector(
                     onTap: () => _confirmDelete(model),
@@ -418,13 +402,13 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: _Colors.border,
+                          color: flux.border,
                           width: 1,
                         ),
-                        color: _Colors.white,
+                        color: flux.surface,
                       ),
-                      child: const Center(
-                        child: Icon(Icons.delete_outline, size: 16, color: _Colors.black),
+                      child: Center(
+                        child: Icon(Icons.delete_outline, size: 16, color: flux.textPrimary),
                       ),
                     ),
                   )
@@ -435,28 +419,27 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       border: Border.all(
-                        color: _Colors.border,
+                        color: flux.border,
                         width: 1,
                       ),
-                      color: _Colors.white,
+                      color: flux.surface,
                     ),
                     child: Center(
                       child: isInProgress
-                          ? const Icon(Icons.hourglass_empty, size: 16, color: _Colors.black)
-                          : const Icon(Icons.add, size: 16, color: _Colors.black),
+                          ? Icon(Icons.hourglass_empty, size: 16, color: flux.textPrimary)
+                          : Icon(Icons.add, size: 16, color: flux.textPrimary),
                     ),
                   ),
               ],
             ),
-            // Download progress indicator with cancel button only
             if (isDownloading) ...[
               const SizedBox(height: 12),
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: LinearProgressIndicator(
                   value: model.progress / 100,
-                  backgroundColor: _Colors.border,
-                  valueColor: const AlwaysStoppedAnimation(_Colors.black),
+                  backgroundColor: flux.border,
+                  valueColor: AlwaysStoppedAnimation(flux.textPrimary),
                   minHeight: 4,
                 ),
               ),
@@ -464,15 +447,13 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Progress text with speed and size info
                   Expanded(
                     child: Text(
-                      '${model.progress}% ${model.downloadSpeed != null && model.downloadSpeed! > 0 ? '• ${model.downloadSpeed!.toStringAsFixed(1)} MB/s' : ''} • ${_formatDownloadedSize(model)}',
-                      style: _TextStyles.subtitle.copyWith(fontSize: 11),
+                      '${model.progress}% ${model.downloadSpeed != null && model.downloadSpeed! > 0 ? '\u2022 ${model.downloadSpeed!.toStringAsFixed(1)} MB/s' : ''} \u2022 ${_formatDownloadedSize(model)}',
+                      style: _TextStyles.subtitle(context).copyWith(fontSize: 11),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
-                  // Cancel button only
                   GestureDetector(
                     onTap: () => _confirmCancel(model),
                     child: Container(
@@ -481,13 +462,13 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         border: Border.all(
-                          color: _Colors.border,
+                          color: flux.border,
                           width: 1,
                         ),
-                        color: _Colors.white,
+                        color: flux.surface,
                       ),
-                      child: const Center(
-                        child: Icon(Icons.close, size: 16, color: _Colors.black),
+                      child: Center(
+                        child: Icon(Icons.close, size: 16, color: flux.textPrimary),
                       ),
                     ),
                   ),
@@ -534,6 +515,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     required Color actionColor,
     required VoidCallback onAction,
   }) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     showGeneralDialog(
       context: context,
       pageBuilder: (context, animation, secondaryAnimation) {
@@ -556,22 +538,22 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
           child: Transform.scale(
             scale: scaleAnimation.value,
             child: AlertDialog(
-              backgroundColor: _Colors.white,
+              backgroundColor: flux.surface,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
               title: Text(
                 title,
-                style: _TextStyles.body.copyWith(fontWeight: FontWeight.w600),
+                style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
               ),
               content: Text(
                 content,
-                style: _TextStyles.subtitle,
+                style: _TextStyles.subtitle(context),
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: Text(
                     cancelText,
-                    style: _TextStyles.body.copyWith(color: _Colors.textSecondary),
+                    style: _TextStyles.body(context).copyWith(color: flux.textSecondary),
                   ),
                 ),
                 TextButton(
@@ -581,7 +563,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                   },
                   child: Text(
                     actionText,
-                    style: _TextStyles.body.copyWith(color: actionColor),
+                    style: _TextStyles.body(context).copyWith(color: actionColor),
                   ),
                 ),
               ],
@@ -592,7 +574,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
       transitionDuration: const Duration(milliseconds: 250),
       barrierDismissible: true,
       barrierLabel: '',
-      barrierColor: _Colors.black.withValues(alpha: 0.3),
+      barrierColor: flux.textPrimary.withValues(alpha: 0.3),
     );
   }
 }

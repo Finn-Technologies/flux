@@ -4,14 +4,14 @@ import '../models/hf_model.dart';
 class ModelService {
   static const _channel = MethodChannel('com.example.flux/storage');
 
-  // New Flux lineup with Qwen 3.5 models
+  // Flux lineup with Qwen 3.5 models (Unsloth GGUF quantizations)
   static final List<HFModel> _allModels = [
     HFModel(
       id: 'flux-lite-qwen-3.5-0.8b',
       name: 'Flux Lite',
       baseModel: 'Qwen 3.5 0.8B',
       description: 'Ultra-lightweight model for basic assistance and fast chat. Perfect for devices with limited RAM.',
-      sizeMB: 500,
+      sizeMB: 533,
       requiredRAM: 4,
       speed: 5.0,
       quality: 4.0,
@@ -22,7 +22,7 @@ class ModelService {
       name: 'Flux Steady',
       baseModel: 'Qwen 3.5 2B',
       description: 'Balanced performance with enhanced reasoning. Ideal for complex instructions and structured tasks.',
-      sizeMB: 1300,
+      sizeMB: 1280,
       requiredRAM: 6,
       speed: 4.2,
       quality: 4.6,
@@ -33,7 +33,7 @@ class ModelService {
       name: 'Flux Smart',
       baseModel: 'Qwen 3.5 4B',
       description: 'High-performance flagship model. Excels at complex problem solving, creative writing, and deep analysis.',
-      sizeMB: 2600,
+      sizeMB: 2740,
       requiredRAM: 8,
       speed: 3.5,
       quality: 5.0,
@@ -73,11 +73,11 @@ class ModelService {
   static String getDownloadUrl(String modelId) {
     switch (modelId) {
       case 'flux-lite-qwen-3.5-0.8b':
-        return 'https://huggingface.co/Qwen/Qwen2.5-0.5B-Instruct-GGUF/resolve/main/qwen2.5-0.5b-instruct-q4_k_m.gguf';
+        return 'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf';
       case 'flux-steady-qwen-3.5-2b':
-        return 'https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf';
+        return 'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf';
       case 'flux-smart-qwen-3.5-4b':
-        return 'https://huggingface.co/Qwen/Qwen2.5-3B-Instruct-GGUF/resolve/main/qwen2.5-3b-instruct-q4_k_m.gguf';
+        return 'https://huggingface.co/unsloth/Qwen3.5-4B-GGUF/resolve/main/Qwen3.5-4B-Q4_K_M.gguf';
       default:
         return '';
     }
