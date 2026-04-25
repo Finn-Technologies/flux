@@ -16,7 +16,7 @@ class InferenceService {
     String? localPath,
     String? systemPrompt,
     List<Map<String, String>> history = const [],
-    int maxTokens = 1024,
+    int maxTokens = 1000000,
   }) async* {
     if (localPath == null || !File(localPath).existsSync()) {
       yield "Error: Local model file not found at $localPath.";
@@ -45,7 +45,7 @@ class InferenceService {
           modelParams: ModelParams(
             numberOfThreads: threads,
             numberOfThreadsBatch: batchThreads,
-            contextSize: 2048,
+            contextSize: 16384,
             gpuLayers: 0,
             batchSize: 1024,
             microBatchSize: 512,
@@ -63,8 +63,8 @@ class InferenceService {
 
       // Build the full prompt with conversation history for memory.
       // We keep a rough token budget: system prompt (~60 tokens) + history + current prompt.
-      // At ~4 chars/token, 1800 chars ≈ 450 tokens, leaving ~1500 tokens for the response.
-      const int maxHistoryChars = 1800;
+      // With 16k context, we can afford a generous history and still have room for long responses.
+      const int maxHistoryChars = 18000;
       final buffer = StringBuffer();
       buffer.write("<|im_start|>system\n$systemMessage\n<|im_end|>\n");
 
@@ -91,9 +91,7 @@ class InferenceService {
         "<|eot_id|>",
         "\nuser",
         "\nUser",
-        "\n###",
-        "### User:",
-        "User:",
+        "\n### User:",
       ];
 
       final stream = _engine!.generate(
@@ -111,9 +109,15 @@ class InferenceService {
         accumulated += token;
 
         // Manual backup stop check (some backends might not handle stopSequences perfectly)
+        // We only check the end of the string to avoid cutting off if the AI mentions 
+        // these sequences in the middle of a valid response.
         bool shouldStop = false;
+        final tail = accumulated.length > 20 
+            ? accumulated.substring(accumulated.length - 20) 
+            : accumulated;
+
         for (final marker in stopSequences) {
-          if (accumulated.contains(marker)) {
+          if (tail.contains(marker)) {
             shouldStop = true;
             break;
           }

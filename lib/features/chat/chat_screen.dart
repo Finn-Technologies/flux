@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/services/inference_service.dart';
 import '../../core/providers/model_provider.dart';
@@ -12,34 +11,9 @@ import '../../core/models/chat_session.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/rich_message_renderer.dart';
 import '../../core/widgets/animated_tap_card.dart';
+import '../../core/widgets/flux_widgets.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../l10n/app_localizations.dart';
-
-// ============================================================================
-// TYPOGRAPHY
-// ============================================================================
-class _TextStyles {
-  static TextStyle title(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 25,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        height: 1.22,
-      );
-
-  static TextStyle message(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        height: 1.22,
-      );
-
-  static TextStyle hint(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
-        height: 1.22,
-      );
-}
 
 // ============================================================================
 // PROVIDERS
@@ -168,7 +142,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       localPath: selectedModel.localPath,
       systemPrompt: "You are Flux, a helpful and friendly AI assistant.",
       history: history,
-      maxTokens: 4096,
+      maxTokens: 1000000,
     );
 
     int tokenCount = 0;
@@ -181,6 +155,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         receivedFirstToken = true;
         _streamingTextNotifier.value = accumulated;
       } else {
+        // Optimize: Only update every 3 tokens or on punctuation to reduce rebuild frequency
         final shouldUpdate = tokenCount % 3 == 0 ||
                             token.contains('.') ||
                             token.contains('!') ||
@@ -240,6 +215,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _showModelSelector(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+    
     showModalBottomSheet(
       context: context,
       backgroundColor: flux.background,
@@ -263,13 +240,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               children: [
                 Text(
                   AppLocalizations.of(context)!.selectModel,
-                  style: _TextStyles.title(context),
+                  style: textTheme.displaySmall,
                 ),
                 const SizedBox(height: 20),
                 if (downloadedModels.isEmpty)
                   Text(
                     AppLocalizations.of(context)!.noModelsDownloaded,
-                    style: _TextStyles.hint(context),
+                    style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
                   )
                 else
                   ...downloadedModels.where((model) => !model.id.contains('creative')).map((model) => AnimatedTapCard(
@@ -298,20 +275,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               children: [
                                 Text(
                                   model.name,
-                                  style: GoogleFonts.instrumentSans(
-                                    fontSize: 17,
-                                    fontWeight: FontWeight.w400,
-                                    color: flux.textPrimary,
-                                  ),
+                                  style: textTheme.bodyLarge,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'Powered by ${model.baseModel ?? model.name} \u2022 ${model.sizeMB >= 1024 ? '${(model.sizeMB / 1024).toStringAsFixed(1)} GB' : '${model.sizeMB} MB'}',
-                                  style: GoogleFonts.instrumentSans(
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w400,
-                                    color: flux.textSecondary,
-                                  ),
+                                  style: textTheme.bodySmall,
                                 ),
                               ],
                             ),
@@ -358,6 +327,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _showChatHistory(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
@@ -440,13 +411,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
                         child: Text(
                           'Chats',
-                          style: GoogleFonts.instrumentSans(
-                            fontSize: 25,
-                            fontWeight: FontWeight.w400,
-                            color: flux.textPrimary,
-                            height: 1.22,
-                            decoration: TextDecoration.none,
-                          ),
+                          style: textTheme.displaySmall?.copyWith(decoration: TextDecoration.none),
                         ),
                       ),
                       
@@ -464,22 +429,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     const SizedBox(height: 12),
                                     Text(
                                       'No chats yet',
-                                      style: GoogleFonts.instrumentSans(
-                                        fontSize: 17,
-                                        fontWeight: FontWeight.w400,
+                                      style: textTheme.bodyLarge?.copyWith(
                                         color: flux.textSecondary,
-                                        height: 1.22,
                                         decoration: TextDecoration.none,
                                       ),
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
                                       'Your conversations will appear here',
-                                      style: GoogleFonts.instrumentSans(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w400,
+                                      style: textTheme.bodySmall?.copyWith(
                                         color: flux.textSecondary.withValues(alpha: 0.6),
-                                        height: 1.22,
                                         decoration: TextDecoration.none,
                                       ),
                                     ),
@@ -495,7 +454,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 itemBuilder: (context, index) {
                                   final conv = conversations[index];
                                   final isSelected = _currentConversationId == conv.id;
-                                  return _AnimatedChatHistoryItem(
+                                  return StaggeredEntrance(
                                     index: index,
                                     child: _buildChatHistoryItem(
                                       context, 
@@ -520,6 +479,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildChatHistoryItem(BuildContext context, ChatSession conv, VoidCallback onClose, bool isSelected) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+    
     return AnimatedTapCard(
       scaleDown: 0.95,
       onTap: () {
@@ -546,11 +507,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
                     child: Text(
                       conv.title,
-                      style: GoogleFonts.instrumentSans(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: flux.textPrimary,
-                      ),
+                      style: textTheme.titleLarge,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       textAlign: TextAlign.center,
@@ -561,11 +518,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     leading: Icon(Icons.edit, color: flux.textPrimary),
                     title: Text(
                       'Rename',
-                      style: GoogleFonts.instrumentSans(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w400,
-                        color: flux.textPrimary,
-                      ),
+                      style: textTheme.bodyLarge,
                     ),
                     onTap: () {
                       Navigator.pop(ctx);
@@ -576,11 +529,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     leading: const Icon(Icons.delete_outline, color: Colors.red),
                     title: Text(
                       'Delete',
-                      style: GoogleFonts.instrumentSans(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w400,
-                        color: Colors.red,
-                      ),
+                      style: textTheme.bodyLarge?.copyWith(color: Colors.red),
                     ),
                     onTap: () {
                       Navigator.pop(ctx);
@@ -605,12 +554,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ),
         child: Text(
           conv.title,
-          style: GoogleFonts.instrumentSans(
-            fontSize: 17,
-            fontWeight: FontWeight.w400,
-            color: flux.textPrimary,
-            decoration: TextDecoration.none,
-          ),
+          style: textTheme.bodyLarge?.copyWith(decoration: TextDecoration.none),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
@@ -620,7 +564,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   void _showRenameDialog(BuildContext context, ChatSession conv) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
     final textController = TextEditingController(text: conv.title);
+    
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -628,27 +574,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: Text(
           'Rename Chat',
-          style: GoogleFonts.instrumentSans(
-            fontSize: 20,
-            fontWeight: FontWeight.w400,
-            color: flux.textPrimary,
-          ),
+          style: textTheme.headlineMedium,
         ),
         content: TextField(
           controller: textController,
           autofocus: true,
-          style: GoogleFonts.instrumentSans(
-            fontSize: 17,
-            fontWeight: FontWeight.w400,
-            color: flux.textPrimary,
-          ),
+          style: textTheme.bodyLarge,
           decoration: InputDecoration(
             hintText: 'Chat name',
-            hintStyle: GoogleFonts.instrumentSans(
-              fontSize: 17,
-              fontWeight: FontWeight.w400,
-              color: flux.textSecondary,
-            ),
+            hintStyle: textTheme.bodyLarge?.copyWith(color: flux.textSecondary),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
               borderSide: BorderSide(color: flux.border),
@@ -664,11 +598,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               'Cancel',
-              style: GoogleFonts.instrumentSans(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-                color: flux.textSecondary,
-              ),
+              style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
             ),
           ),
           TextButton(
@@ -688,11 +618,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             },
             child: Text(
               'Save',
-              style: GoogleFonts.instrumentSans(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-                color: flux.textPrimary,
-              ),
+              style: textTheme.bodyMedium?.copyWith(color: flux.textPrimary),
             ),
           ),
         ],
@@ -739,6 +665,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final topPadding = mediaQuery.padding.top;
     final keyboardHeight = mediaQuery.viewInsets.bottom;
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
 
     final inputBottom = keyboardHeight > 0 ? keyboardHeight + 20 : 108.0;
 
@@ -801,14 +728,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     children: [
                       Text(
                         'Flux',
-                        style: _TextStyles.title(context).copyWith(
-                          color: flux.textPrimary,
-                        ),
+                        style: textTheme.displaySmall,
                       ),
                       if (suffix.isNotEmpty)
                         Text(
                           suffix,
-                          style: _TextStyles.title(context).copyWith(
+                          style: textTheme.displaySmall?.copyWith(
                             color: flux.textPrimary.withValues(alpha: 0.5),
                           ),
                         ),
@@ -863,7 +788,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             controller: _scrollController,
                             padding: EdgeInsets.zero,
                             itemCount: messages.length + (_isStreaming ? 1 : 0),
-                            cacheExtent: 200,
+                            cacheExtent: 300,
                             addAutomaticKeepAlives: false,
                             addRepaintBoundaries: true,
                             itemBuilder: (context, index) {
@@ -911,10 +836,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         maxLines: 4,
                         keyboardType: TextInputType.multiline,
                         textInputAction: TextInputAction.newline,
-                        style: _TextStyles.message(context),
+                        style: textTheme.bodyMedium,
                         decoration: InputDecoration(
                           hintText: 'Message Flux...',
-                          hintStyle: _TextStyles.hint(context),
+                          hintStyle: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
                           filled: false,
                           fillColor: Colors.transparent,
                           border: InputBorder.none,
@@ -948,6 +873,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   Widget _buildEmptyState(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+    
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -960,16 +887,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           const SizedBox(height: 16),
           Text(
             'How can I help you today?',
-            style: _TextStyles.hint(context).copyWith(
-              fontSize: 17,
+            style: textTheme.bodyLarge?.copyWith(
               color: flux.textSecondary.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 8),
           Text(
             'Start a conversation with Flux',
-            style: _TextStyles.hint(context).copyWith(
-              fontSize: 13,
+            style: textTheme.bodySmall?.copyWith(
               color: flux.textSecondary.withValues(alpha: 0.4),
             ),
           ),
@@ -982,6 +907,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isUser = msg.fromUser;
     final bottomPadding = isLast ? 0.0 : 12.0;
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isError = !isUser && msg.text.startsWith('Error:');
 
@@ -994,9 +920,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     } else {
       bubbleContent = Text(
         msg.text,
-        style: GoogleFonts.instrumentSans(
-          fontSize: 15,
-          fontWeight: FontWeight.w400,
+        style: textTheme.bodyMedium?.copyWith(
           color: isDark ? flux.textPrimary : flux.background,
           height: 1.4,
         ),
@@ -1016,10 +940,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       padding: const EdgeInsets.only(top: 8),
                       child: AnimatedTapCard(
                         onTap: () {
-                          // Retry: prepend the user's last message to the input and send
                           final lastUserMsg = ref.read(chatMessagesProvider).lastWhere((m) => m.fromUser, orElse: () => msg);
                           _controller.text = lastUserMsg.text;
-                          // Remove the error message
                           ref.read(chatMessagesProvider.notifier).clear();
                           _sendMessage();
                         },
@@ -1036,11 +958,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               const SizedBox(width: 6),
                               Text(
                                 'Retry',
-                                style: GoogleFonts.instrumentSans(
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                  color: flux.textPrimary,
-                                ),
+                                style: textTheme.labelLarge?.copyWith(color: flux.textPrimary),
                               ),
                             ],
                           ),
@@ -1100,7 +1018,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     SnackBar(
                       content: Text(
                         'Copied to clipboard',
-                        style: GoogleFonts.instrumentSans(fontSize: 14),
+                        style: textTheme.bodySmall,
                       ),
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
@@ -1176,7 +1094,7 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator>
             animation: _controller,
             builder: (context, child) {
               final double offset = (_controller.value * 3 - index) % 3;
-              final double opacity = (1.0 - (offset.abs() / 3)).clamp(0.3, 1.0);
+              final double opacity = (1.0 - (offset.abs() / 2)).clamp(0.2, 1.0);
               return Opacity(
                 opacity: opacity,
                 child: Container(
@@ -1255,76 +1173,3 @@ class _AnimatedPencilButton extends StatelessWidget {
   }
 }
 
-// Staggered entrance animation for sidebar chat history items
-class _AnimatedChatHistoryItem extends StatefulWidget {
-  final int index;
-  final Widget child;
-
-  const _AnimatedChatHistoryItem({required this.index, required this.child});
-
-  @override
-  State<_AnimatedChatHistoryItem> createState() => _AnimatedChatHistoryItemState();
-}
-
-class _AnimatedChatHistoryItemState extends State<_AnimatedChatHistoryItem>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _opacity;
-  late Animation<double> _slide;
-  Timer? _startTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 400),
-      vsync: this,
-    );
-
-    final delay = widget.index * 40;
-
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    _slide = Tween<double>(begin: 15.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 1.0, curve: Curves.easeOutCubic),
-      ),
-    );
-
-    _startTimer = Timer(Duration(milliseconds: delay), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _startTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: _controller,
-        builder: (context, child) {
-          return Opacity(
-            opacity: _opacity.value.clamp(0.0, 1.0),
-            child: Transform.translate(
-              offset: Offset(0, _slide.value),
-              child: child,
-            ),
-          );
-        },
-        child: RepaintBoundary(child: widget.child),
-      ),
-    );
-  }
-}

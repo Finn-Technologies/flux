@@ -4,40 +4,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/services/inference_service.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
+import '../../core/widgets/flux_widgets.dart';
 import 'creations_screen.dart';
-
-// ============================================================================
-// TYPOGRAPHY
-// ============================================================================
-class _TextStyles {
-  static TextStyle title(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 25,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        height: 1.22,
-      );
-
-  static TextStyle message(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        height: 1.22,
-      );
-
-  static TextStyle hint(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
-        height: 1.22,
-      );
-}
 
 // ============================================================================
 // EDITOR SCREEN
@@ -107,7 +80,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     // Creative model only
     final downloaded = ref.read(downloadProvider);
     final creativeModels = downloaded.where(
-      (m) => m.id == 'flux-creative-qwen-2.5-coder-0.5b' && m.downloaded,
+      (m) => m.id == 'flux-creative-qwen-3.5-0.8b' && m.downloaded,
     );
     final creativeModel = creativeModels.isNotEmpty ? creativeModels.first : null;
 
@@ -147,7 +120,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
           "Use inline CSS and JavaScript. Make it visually polished and interactive. "
           "If the user asks to refine or change something, output the full updated HTML again.",
       history: history,
-      maxTokens: 50000,
+      maxTokens: 1000000,
     );
 
     int tokenCount = 0;
@@ -279,6 +252,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     final keyboardHeight = mediaQuery.viewInsets.bottom;
     final topPadding = mediaQuery.padding.top;
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
     final brightness = Theme.of(context).brightness;
     final inputBottom = keyboardHeight > 0 ? keyboardHeight + 20 : 108.0;
 
@@ -296,52 +270,14 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
               Positioned(
                 left: 20,
                 top: topPadding + 48,
-                child: Semantics(
-                  label: 'Back',
-                  button: true,
-                  child: Tooltip(
-                    message: 'Back',
-                    child: AnimatedTapCard(
-                      onTap: () => context.pop(),
-                      scaleDown: 0.9,
-                      child: Container(
-                        padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          children: [
-                            SvgPicture.asset(
-                              'assets/images/back_arrow.svg',
-                              width: 10,
-                              height: 18,
-                              colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
-                            ),
-                            const SizedBox(width: 13),
-                            Text(
-                              'Back',
-                              style: GoogleFonts.instrumentSans(
-                                fontSize: 15,
-                                fontWeight: FontWeight.w400,
-                                color: flux.textSecondary,
-                                height: 1.22,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
+                child: FluxBackButton(onTap: () => context.pop()),
               ),
 
               // Title
               Positioned(
                 left: 20,
                 top: topPadding + 100,
-                child: Text(
-                  'New Creation',
-                  style: _TextStyles.title(context),
-                ),
+                child: const FluxTitle(title: 'New Creation'),
               ),
 
               // Messages & Input
@@ -361,7 +297,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                               controller: _scrollController,
                               padding: EdgeInsets.zero,
                               itemCount: _messages.length + (_isStreaming ? 1 : 0),
-                              cacheExtent: 200,
+                              cacheExtent: 300,
                               addAutomaticKeepAlives: false,
                               addRepaintBoundaries: true,
                               itemBuilder: (context, index) {
@@ -402,10 +338,10 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                                 maxLines: 4,
                                 keyboardType: TextInputType.multiline,
                                 textInputAction: TextInputAction.newline,
-                                style: _TextStyles.message(context),
+                                style: textTheme.bodyMedium,
                                 decoration: InputDecoration(
                                   hintText: 'Describe your app idea...',
-                                  hintStyle: _TextStyles.hint(context),
+                                  hintStyle: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
                                   filled: false,
                                   border: InputBorder.none,
                                   enabledBorder: InputBorder.none,
@@ -432,6 +368,8 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context, FluxColorsExtension flux) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -440,25 +378,36 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
           const SizedBox(height: 16),
           Text(
             'Build something amazing',
-            style: _TextStyles.hint(context).copyWith(fontSize: 17, color: flux.textSecondary.withValues(alpha: 0.6)),
+            style: textTheme.bodyLarge?.copyWith(color: flux.textSecondary.withValues(alpha: 0.6)),
           ),
           const SizedBox(height: 8),
           Text(
             'Describe an app and Flux will code it',
-            style: _TextStyles.hint(context).copyWith(fontSize: 13, color: flux.textSecondary.withValues(alpha: 0.4)),
+            style: textTheme.bodySmall?.copyWith(color: flux.textSecondary.withValues(alpha: 0.4)),
           ),
         ],
       ),
     );
   }
 
+  String _stripThinkTags(String text) {
+    // Remove <think>...</think> blocks, including partial ones during streaming
+    final thinkRegex = RegExp(r'<think>[\s\S]*?(?:</think>|$)', caseSensitive: false);
+    return text.replaceAll(thinkRegex, '').trim();
+  }
+
   Widget _buildBubble(_EditorMessage msg, FluxColorsExtension flux, {bool isLast = false}) {
     final isUser = msg.fromUser;
     final bottomPadding = isLast ? 0.0 : 12.0;
+    final textTheme = Theme.of(context).textTheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isError = !isUser && msg.text.startsWith('Error:');
+    
+    // Hide <think> tags from the display text
+    final displayText = isUser ? msg.text : _stripThinkTags(msg.text);
+    
     final html = !isUser ? _extractHtml(msg.text) : null;
-    final explanation = !isUser && html != null ? _extractExplanation(msg.text) : null;
+    final explanation = !isUser && html != null ? _extractExplanation(displayText) : null;
 
     Widget bubbleContent;
     if (!isUser && html != null && html.isNotEmpty) {
@@ -471,7 +420,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
               padding: const EdgeInsets.only(bottom: 12),
               child: Text(
                 explanation,
-                style: GoogleFonts.instrumentSans(fontSize: 15, fontWeight: FontWeight.w400, color: flux.textPrimary, height: 1.5),
+                style: textTheme.bodyMedium?.copyWith(height: 1.5),
               ),
             ),
           // Preview card
@@ -505,9 +454,9 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Preview Creation', style: GoogleFonts.instrumentSans(fontSize: 15, fontWeight: FontWeight.w600, color: flux.textPrimary)),
+                        Text('Preview Creation', style: textTheme.titleLarge?.copyWith(fontSize: 15)),
                         const SizedBox(height: 2),
-                        Text('Tap to open interactive app', style: GoogleFonts.instrumentSans(fontSize: 12, color: flux.textSecondary)),
+                        Text('Tap to open interactive app', style: textTheme.bodySmall),
                       ],
                     ),
                   ),
@@ -542,7 +491,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                     children: [
                       Icon(Icons.refresh, size: 14, color: flux.textPrimary),
                       const SizedBox(width: 6),
-                      Text('Retry', style: GoogleFonts.instrumentSans(fontSize: 13, fontWeight: FontWeight.w500, color: flux.textPrimary)),
+                      Text('Retry', style: textTheme.labelLarge?.copyWith(color: flux.textPrimary)),
                     ],
                   ),
                 ),
@@ -552,13 +501,13 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
       );
     } else if (!isUser) {
       bubbleContent = Text(
-        msg.text,
-        style: GoogleFonts.instrumentSans(fontSize: 15, fontWeight: FontWeight.w400, color: flux.textPrimary, height: 1.4),
+        displayText,
+        style: textTheme.bodyMedium?.copyWith(height: 1.4),
       );
     } else {
       bubbleContent = Text(
-        msg.text,
-        style: GoogleFonts.instrumentSans(fontSize: 15, fontWeight: FontWeight.w400, color: isDark ? flux.textPrimary : flux.background, height: 1.4),
+        displayText,
+        style: textTheme.bodyMedium?.copyWith(color: isDark ? flux.textPrimary : flux.background, height: 1.4),
       );
     }
 
@@ -611,7 +560,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                   HapticFeedback.lightImpact();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Copied to clipboard', style: GoogleFonts.instrumentSans(fontSize: 14)),
+                      content: Text('Copied to clipboard', style: textTheme.bodySmall),
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -633,7 +582,8 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
         child: ValueListenableBuilder<String>(
           valueListenable: _streamingTextNotifier,
           builder: (context, streamingText, _) {
-            if (streamingText.isEmpty) {
+            final stripped = _stripThinkTags(streamingText);
+            if (streamingText.isEmpty || (stripped.isEmpty && streamingText.isNotEmpty)) {
               return _ThinkingIndicator(flux: flux);
             }
             return _buildBubble(
@@ -669,6 +619,8 @@ class _PreviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       backgroundColor: flux.background,
       body: SafeArea(
@@ -696,11 +648,7 @@ class _PreviewScreen extends StatelessWidget {
                     child: Center(
                       child: Text(
                         'Preview',
-                        style: GoogleFonts.instrumentSans(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: flux.textPrimary,
-                        ),
+                        style: textTheme.titleLarge,
                       ),
                     ),
                   ),
@@ -784,7 +732,7 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTicke
             animation: _controller,
             builder: (context, child) {
               final double offset = (_controller.value * 3 - index) % 3;
-              final double opacity = (1.0 - (offset.abs() / 3)).clamp(0.3, 1.0);
+              final double opacity = (1.0 - (offset.abs() / 2)).clamp(0.2, 1.0);
               return Opacity(
                 opacity: opacity,
                 child: Container(
@@ -801,3 +749,4 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTicke
     );
   }
 }
+

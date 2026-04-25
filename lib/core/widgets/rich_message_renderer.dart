@@ -38,6 +38,12 @@ class RichMessageRenderer extends StatelessWidget {
     if (segment is TableSegment) {
       return _TableBlock(rows: segment.rows, flux: flux);
     }
+    if (segment is HeaderSegment) {
+      return _HeaderBlock(text: segment.text, level: segment.level, flux: flux);
+    }
+    if (segment is MathSegment) {
+      return _MathBlock(text: segment.text, flux: flux);
+    }
     if (segment is TextSegment) {
       return _RichTextBlock(text: segment.text, flux: flux, isUser: isUser);
     }
@@ -46,6 +52,8 @@ class RichMessageRenderer extends StatelessWidget {
 
   List<MessageSegment> _parseSegments(String text) {
     final segments = <MessageSegment>[];
+    
+    // First, extract think blocks
     final thinkRegex = RegExp(r'<think>(.*?)</think>', dotAll: true);
     int lastEnd = 0;
 
@@ -53,7 +61,7 @@ class RichMessageRenderer extends StatelessWidget {
       if (match.start > lastEnd) {
         final sub = text.substring(lastEnd, match.start).trim();
         if (sub.isNotEmpty) {
-          segments.addAll(_parseTablesAndText(sub));
+          segments.addAll(_parseBlocks(sub));
         }
       }
       final content = match.group(1)!.trim();
@@ -66,20 +74,51 @@ class RichMessageRenderer extends StatelessWidget {
     if (lastEnd < text.length) {
       final sub = text.substring(lastEnd).trim();
       if (sub.isNotEmpty) {
-        segments.addAll(_parseTablesAndText(sub));
+        segments.addAll(_parseBlocks(sub));
       }
     }
 
     return segments;
   }
 
-  List<MessageSegment> _parseTablesAndText(String text) {
+  List<MessageSegment> _parseBlocks(String text) {
     final segments = <MessageSegment>[];
     final lines = text.split('\n');
     int i = 0;
 
     while (i < lines.length) {
-      if (_isTableRow(lines[i])) {
+      final String rawLine = lines[i];
+      final String trimmedLine = rawLine.trim();
+      
+      // Header check (using startsWith with literal strings)
+      if (trimmedLine.startsWith('#### ')) {
+        segments.add(HeaderSegment(text: trimmedLine.substring(5).trim(), level: 4));
+        i++;
+      } else if (trimmedLine.startsWith('### ')) {
+        segments.add(HeaderSegment(text: trimmedLine.substring(4).trim(), level: 3));
+        i++;
+      }
+      // Math block check
+      else if (trimmedLine.startsWith('\$\$')) {
+        final mathLines = <String>[];
+        if (trimmedLine.length > 2 && trimmedLine.endsWith('\$\$')) {
+           // Single line $$ ... $$
+           segments.add(MathSegment(text: trimmedLine.substring(2, trimmedLine.length - 2).trim()));
+           i++;
+        } else {
+          i++; // Skip starting $$
+          while (i < lines.length && !lines[i].trim().startsWith('\$\$')) {
+            mathLines.add(lines[i]);
+            i++;
+          }
+          if (mathLines.isNotEmpty) {
+            segments.add(MathSegment(text: mathLines.join('\n').trim()));
+          }
+          if (i < lines.length) i++; // Skip ending $$
+        }
+      }
+      // Table check
+      else if (_isTableRow(rawLine)) {
         final tableLines = <String>[];
         while (i < lines.length && _isTableRow(lines[i])) {
           tableLines.add(lines[i]);
@@ -90,10 +129,18 @@ class RichMessageRenderer extends StatelessWidget {
         } else {
           segments.add(TextSegment(text: tableLines.join('\n')));
         }
-      } else {
+      } 
+      // Regular text
+      else {
         final textLines = <String>[];
-        while (i < lines.length && !_isTableRow(lines[i])) {
-          textLines.add(lines[i]);
+        while (i < lines.length) {
+          final l = lines[i];
+          final tl = l.trim();
+          // Stop if we hit any special block start
+          if (_isTableRow(l) || tl.startsWith('###') || tl.startsWith('\$\$')) {
+            break;
+          }
+          textLines.add(l);
           i++;
         }
         if (textLines.isNotEmpty) {
@@ -131,6 +178,74 @@ class TableSegment extends MessageSegment {
   TableSegment({required this.rows});
 }
 
+class HeaderSegment extends MessageSegment {
+  final String text;
+  final int level;
+  HeaderSegment({required this.text, required this.level});
+}
+
+class MathSegment extends MessageSegment {
+  final String text;
+  MathSegment({required this.text});
+}
+
+/// Renders headers (###, ####)
+class _HeaderBlock extends StatelessWidget {
+  final String text;
+  final int level;
+  final FluxColorsExtension flux;
+
+  const _HeaderBlock({required this.text, required this.level, required this.flux});
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    
+    // Choose style based on level
+    final style = level == 3 
+        ? textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)
+        : textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      child: Text(text, style: style),
+    );
+  }
+}
+
+/// Renders math blocks ($$)
+class _MathBlock extends StatelessWidget {
+  final String text;
+  final FluxColorsExtension flux;
+
+  const _MathBlock({required this.text, required this.flux});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.symmetric(vertical: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: flux.textPrimary.withValues(alpha: 0.04),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: flux.border, width: 0.5),
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Text(
+          text,
+          style: GoogleFonts.firaCode(
+            fontSize: 14,
+            color: flux.textPrimary,
+            fontStyle: FontStyle.italic,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Renders inline bold text via **markdown**
 class _RichTextBlock extends StatelessWidget {
   final String text;
@@ -159,17 +274,45 @@ class _RichTextBlock extends StatelessWidget {
 
   List<InlineSpan> _parseSpans(String text, FluxColorsExtension flux) {
     final spans = <InlineSpan>[];
-    final regex = RegExp(r'\*\*(.*?)\*\*');
+    // Combined regex for bold (**), inline code (`), and inline math ($)
+    // Matches: 1:Bold, 3:Code, 5:Math
+    final regex = RegExp(r'(\*\*(.*?)\*\*)|(`(.*?)`)|(\$(.*?)\$)');
     int lastEnd = 0;
 
     for (final match in regex.allMatches(text)) {
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
       }
-      spans.add(TextSpan(
-        text: match.group(1),
-        style: const TextStyle(fontWeight: FontWeight.w700),
-      ));
+
+      if (match.group(1) != null) {
+        // Bold match
+        spans.add(TextSpan(
+          text: match.group(2),
+          style: const TextStyle(fontWeight: FontWeight.w700),
+        ));
+      } else if (match.group(3) != null) {
+        // Code match
+        spans.add(TextSpan(
+          text: match.group(4),
+          style: GoogleFonts.firaCode(
+            backgroundColor: flux.textPrimary.withValues(alpha: 0.06),
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+            color: flux.textPrimary,
+          ),
+        ));
+      } else if (match.group(5) != null) {
+        // Math match
+        spans.add(TextSpan(
+          text: match.group(6),
+          style: GoogleFonts.firaCode(
+            fontSize: 14,
+            fontWeight: FontWeight.w400,
+            fontStyle: FontStyle.italic,
+            color: flux.textPrimary,
+          ),
+        ));
+      }
       lastEnd = match.end;
     }
 

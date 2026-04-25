@@ -2,12 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
+import '../../core/widgets/flux_widgets.dart';
 import '../../l10n/app_localizations.dart';
 
 // ============================================================================
@@ -139,30 +139,6 @@ class CreationsNotifier extends StateNotifier<List<Creation>> {
 }
 
 // ============================================================================
-// TYPOGRAPHY
-// ============================================================================
-class _TextStyles {
-  static TextStyle title(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 25,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        height: 1.22,
-      );
-
-  static TextStyle body(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 17,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-      );
-
-  static TextStyle subtitle(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 13,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
-      );
-}
-
-// ============================================================================
 // MAIN COLLECTION SCREEN
 // ============================================================================
 class CreationsScreen extends ConsumerStatefulWidget {
@@ -175,6 +151,8 @@ class CreationsScreen extends ConsumerStatefulWidget {
 class _CreationsScreenState extends ConsumerState<CreationsScreen> {
   void _showOptionsSheet(BuildContext context, Creation creation) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+
     showModalBottomSheet(
       context: context,
       backgroundColor: flux.surface,
@@ -192,11 +170,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                 child: Text(
                   creation.title.isNotEmpty ? creation.title : 'Untitled Creation',
-                  style: GoogleFonts.instrumentSans(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w600,
-                    color: flux.textPrimary,
-                  ),
+                  style: textTheme.titleLarge,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
@@ -207,11 +181,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
                 title: Text(
                   'Delete',
-                  style: GoogleFonts.instrumentSans(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.red,
-                  ),
+                  style: textTheme.bodyLarge?.copyWith(color: Colors.red),
                 ),
                 onTap: () {
                   Navigator.pop(ctx);
@@ -227,6 +197,8 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
 
   void _showDeleteConfirmDialog(BuildContext context, Creation creation) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -234,18 +206,18 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
           'Delete Creation?',
-          style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
+          style: textTheme.headlineMedium,
         ),
         content: Text(
           '"${creation.title}" will be permanently removed.',
-          style: _TextStyles.subtitle(context),
+          style: textTheme.bodySmall,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               'Cancel',
-              style: _TextStyles.subtitle(context),
+              style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
             ),
           ),
           TextButton(
@@ -256,11 +228,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
             },
             child: Text(
               'Delete',
-              style: GoogleFonts.instrumentSans(
-                fontSize: 15,
-                fontWeight: FontWeight.w400,
-                color: Colors.red,
-              ),
+              style: textTheme.bodyMedium?.copyWith(color: Colors.red),
             ),
           ),
         ],
@@ -291,13 +259,12 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
   Widget build(BuildContext context) {
     final creations = ref.watch(creationsProvider);
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    final mediaQuery = MediaQuery.of(context);
-    final topPadding = mediaQuery.padding.top;
+    final topPadding = mediaPadding(context).top;
     final brightness = Theme.of(context).brightness;
 
     final downloaded = ref.watch(downloadProvider);
     final creativeModels = downloaded.where(
-      (m) => m.id == 'flux-creative-qwen-2.5-coder-0.5b' && m.downloaded,
+      (m) => m.id == 'flux-creative-qwen-3.5-0.8b' && m.downloaded,
     );
     final creativeModel = creativeModels.isNotEmpty ? creativeModels.first : null;
 
@@ -314,10 +281,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
             Positioned(
               left: 20,
               top: topPadding + 58,
-              child: Text(
-                AppLocalizations.of(context)!.creations,
-                style: _TextStyles.title(context),
-              ),
+              child: FluxTitle(title: AppLocalizations.of(context)!.creations),
             ),
 
             // Content area
@@ -381,7 +345,11 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
     );
   }
 
+  EdgeInsets mediaPadding(BuildContext context) => MediaQuery.of(context).padding;
+
   Widget _buildCreativePrompt(BuildContext context, FluxColorsExtension flux) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(20),
@@ -415,16 +383,12 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                   children: [
                     Text(
                       'Flux Creative Required',
-                      style: GoogleFonts.instrumentSans(
-                        fontSize: 17,
-                        fontWeight: FontWeight.w600,
-                        color: flux.textPrimary,
-                      ),
+                      style: textTheme.titleLarge,
                     ),
                     const SizedBox(height: 2),
                     Text(
                       'Install the Creative model to start creating.',
-                      style: _TextStyles.subtitle(context),
+                      style: textTheme.bodySmall,
                     ),
                   ],
                 ),
@@ -443,9 +407,8 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
               ),
               child: Center(
                 child: Text(
-                  'Install Flux Lite',
-                  style: GoogleFonts.instrumentSans(
-                    fontSize: 15,
+                  'Install Flux Creative',
+                  style: textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w500,
                     color: flux.background,
                   ),
@@ -456,10 +419,8 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              '500 MB download',
-              style: GoogleFonts.instrumentSans(
-                fontSize: 12,
-                fontWeight: FontWeight.w400,
+              '~890 MB download',
+              style: textTheme.labelLarge?.copyWith(
                 color: flux.textSecondary.withValues(alpha: 0.7),
               ),
             ),
@@ -470,6 +431,8 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context, FluxColorsExtension flux) {
+    final textTheme = Theme.of(context).textTheme;
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -482,18 +445,14 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
           const SizedBox(height: 16),
           Text(
             AppLocalizations.of(context)!.noCreations,
-            style: GoogleFonts.instrumentSans(
-              fontSize: 17,
-              fontWeight: FontWeight.w400,
+            style: textTheme.bodyLarge?.copyWith(
               color: flux.textSecondary.withValues(alpha: 0.7),
             ),
           ),
           const SizedBox(height: 6),
           Text(
             AppLocalizations.of(context)!.buildFirstApp,
-            style: GoogleFonts.instrumentSans(
-              fontSize: 13,
-              fontWeight: FontWeight.w400,
+            style: textTheme.bodySmall?.copyWith(
               color: flux.textSecondary.withValues(alpha: 0.5),
             ),
           ),
@@ -514,21 +473,23 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         childAspectRatio: isWide ? 3.2 : 4.0,
       ),
       itemCount: creations.length,
-      cacheExtent: 200,
+      cacheExtent: 300,
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       itemBuilder: (context, index) {
         final creation = creations[index];
-        return _CreationCard(
+        return StaggeredEntrance(
           index: index,
-          creation: creation,
-          flux: flux,
-          onTap: () {
-            HapticFeedback.lightImpact();
-            context.push('/creations/editor', extra: creation.id);
-          },
-          onLongPress: () => _showOptionsSheet(context, creation),
-          onPlayPreview: () => _showPreview(context, creation),
+          child: _CreationCard(
+            creation: creation,
+            flux: flux,
+            onTap: () {
+              HapticFeedback.lightImpact();
+              context.push('/creations/editor', extra: creation.id);
+            },
+            onLongPress: () => _showOptionsSheet(context, creation),
+            onPlayPreview: () => _showPreview(context, creation),
+          ),
         );
       },
     );
@@ -539,7 +500,6 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
 // CREATION CARD
 // ============================================================================
 class _CreationCard extends StatelessWidget {
-  final int index;
   final Creation creation;
   final FluxColorsExtension flux;
   final VoidCallback onTap;
@@ -547,7 +507,6 @@ class _CreationCard extends StatelessWidget {
   final VoidCallback onPlayPreview;
 
   const _CreationCard({
-    required this.index,
     required this.creation,
     required this.flux,
     required this.onTap,
@@ -567,109 +526,92 @@ class _CreationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 400 + (index * 60)),
-      curve: Curves.easeInOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(0, 18 * (1.0 - value)),
-            child: child,
-          ),
-        );
-      },
-      child: AnimatedTapCard(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Container(
-          decoration: BoxDecoration(
-            color: flux.surface,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: flux.border, width: 1),
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: Row(
-            children: [
-              // Visual preview area (Compact Square)
-              Container(
-                width: 60,
-                height: double.infinity,
-                color: flux.textPrimary.withValues(alpha: 0.03),
-                child: Center(
-                  child: Icon(
-                    Icons.code_rounded,
-                    size: 20,
-                    color: flux.textSecondary.withValues(alpha: 0.2),
-                  ),
+    final textTheme = Theme.of(context).textTheme;
+
+    return AnimatedTapCard(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      child: Container(
+        decoration: BoxDecoration(
+          color: flux.surface,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: flux.border, width: 1),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Row(
+          children: [
+            // Visual preview area (Compact Square)
+            Container(
+              width: 60,
+              height: double.infinity,
+              color: flux.textPrimary.withValues(alpha: 0.03),
+              child: Center(
+                child: Icon(
+                  Icons.code_rounded,
+                  size: 20,
+                  color: flux.textSecondary.withValues(alpha: 0.2),
                 ),
               ),
+            ),
 
-              // Text info (Compact)
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Text(
-                        creation.title.isNotEmpty ? creation.title : 'Untitled',
-                        style: GoogleFonts.instrumentSans(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: flux.textPrimary,
-                        ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        _formatDate(creation.updatedAt),
-                        style: GoogleFonts.instrumentSans(
-                          fontSize: 11,
-                          fontWeight: FontWeight.w400,
-                          color: flux.textSecondary.withValues(alpha: 0.5),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-
-              // Play button or pin icon
-              if (creation.html.isNotEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: AnimatedTapCard(
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      onPlayPreview();
-                    },
-                    scaleDown: 0.85,
-                    child: Container(
-                      width: 32,
-                      height: 32,
-                      decoration: BoxDecoration(
-                        color: flux.textPrimary,
-                        shape: BoxShape.circle,
-                      ),
-                      child: Icon(Icons.play_arrow_rounded, color: flux.background, size: 18),
+            // Text info (Compact)
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text(
+                      creation.title.isNotEmpty ? creation.title : 'Untitled',
+                      style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                  ),
-                )
-              else if (creation.isPinned)
-                Padding(
-                  padding: const EdgeInsets.only(right: 12),
-                  child: Icon(
-                    Icons.push_pin_rounded,
-                    size: 14,
-                    color: flux.textSecondary.withValues(alpha: 0.3),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatDate(creation.updatedAt),
+                      style: textTheme.labelLarge?.copyWith(
+                        color: flux.textSecondary.withValues(alpha: 0.5),
+                        fontWeight: FontWeight.w400,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+
+            // Play button or pin icon
+            if (creation.html.isNotEmpty)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: AnimatedTapCard(
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    onPlayPreview();
+                  },
+                  scaleDown: 0.85,
+                  child: Container(
+                    width: 32,
+                    height: 32,
+                    decoration: BoxDecoration(
+                      color: flux.textPrimary,
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(Icons.play_arrow_rounded, color: flux.background, size: 18),
                   ),
                 ),
-            ],
-          ),
+              )
+            else if (creation.isPinned)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: Icon(
+                  Icons.push_pin_rounded,
+                  size: 14,
+                  color: flux.textSecondary.withValues(alpha: 0.3),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -687,6 +629,8 @@ class _CreationPreviewScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
       backgroundColor: flux.background,
       body: SafeArea(
@@ -714,11 +658,7 @@ class _CreationPreviewScreen extends StatelessWidget {
                     child: Center(
                       child: Text(
                         'Preview',
-                        style: GoogleFonts.instrumentSans(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w600,
-                          color: flux.textPrimary,
-                        ),
+                        style: textTheme.titleLarge,
                       ),
                     ),
                   ),
@@ -739,3 +679,4 @@ class _CreationPreviewScreen extends StatelessWidget {
     );
   }
 }
+

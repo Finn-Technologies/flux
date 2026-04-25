@@ -2,50 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/services/model_service.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
+import '../../core/widgets/flux_widgets.dart';
 import '../../l10n/app_localizations.dart';
-
-// ============================================================================
-// TYPOGRAPHY - Instrument Sans
-// ============================================================================
-class _TextStyles {
-  static TextStyle title(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 25,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        height: 1.22,
-      );
-
-  static TextStyle body(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 17,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-      );
-
-  static TextStyle subtitle(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 13,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
-      );
-
-  static TextStyle modelTitle(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 17,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-      );
-
-  static TextStyle modelSubtitle(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 13,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
-      );
-}
 
 class ModelsScreen extends ConsumerStatefulWidget {
   const ModelsScreen({super.key});
@@ -111,6 +74,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     final installedModels = models.where((m) => m.downloaded).toList();
     final usedFraction = _totalStorageGB > 0 ? _usedStorageGB / _totalStorageGB : 0.0;
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
     final brightness = Theme.of(context).brightness;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -126,44 +90,13 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
             Positioned(
               left: 20,
               top: 48,
-              child: AnimatedTapCard(
-                onTap: () => context.pop(),
-                scaleDown: 0.9,
-                child: Container(
-                  padding: const EdgeInsets.only(right: 12, top: 10, bottom: 10),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      SvgPicture.asset(
-                        'assets/images/back_arrow.svg',
-                        width: 10,
-                        height: 18,
-                        colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
-                      ),
-                      const SizedBox(width: 13),
-                      Text(
-                        'Back',
-                        style: GoogleFonts.instrumentSans(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w400,
-                          color: flux.textSecondary,
-                          height: 1.22,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              child: FluxBackButton(onTap: () => context.pop()),
             ),
 
             Positioned(
               left: 20,
               top: 100,
-              child: Text(
-                AppLocalizations.of(context)!.models,
-                style: _TextStyles.title(context),
-              ),
+              child: FluxTitle(title: AppLocalizations.of(context)!.models),
             ),
 
             Positioned(
@@ -180,44 +113,47 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                 backgroundColor: flux.surface,
                 child: ListView(
                 padding: EdgeInsets.zero,
+                cacheExtent: 500,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(20),
-                    decoration: BoxDecoration(
-                      color: flux.surface,
-                      borderRadius: BorderRadius.circular(15),
-                      border: Border.all(
-                        color: flux.border,
-                        width: 1,
+                  RepaintBoundary(
+                    child: Container(
+                      padding: const EdgeInsets.all(20),
+                      decoration: BoxDecoration(
+                        color: flux.surface,
+                        borderRadius: BorderRadius.circular(15),
+                        border: Border.all(
+                          color: flux.border,
+                          width: 1,
+                        ),
                       ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            Text(
-                              'Storage',
-                              style: _TextStyles.subtitle(context),
-                            ),
-                            Text(
-                              '${_usedStorageGB.toStringAsFixed(1)} GB / ${_totalStorageGB.toStringAsFixed(0)} GB',
-                              style: _TextStyles.subtitle(context),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 12),
-                        ClipRRect(
-                          borderRadius: BorderRadius.circular(8),
-                          child: LinearProgressIndicator(
-                            value: usedFraction,
-                            backgroundColor: flux.border,
-                            valueColor: AlwaysStoppedAnimation(flux.textPrimary),
-                            minHeight: 8,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Text(
+                                'Storage',
+                                style: textTheme.bodySmall,
+                              ),
+                              Text(
+                                '${_usedStorageGB.toStringAsFixed(1)} GB / ${_totalStorageGB.toStringAsFixed(0)} GB',
+                                style: textTheme.bodySmall,
+                              ),
+                            ],
                           ),
-                        ),
-                      ],
+                          const SizedBox(height: 12),
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: LinearProgressIndicator(
+                              value: usedFraction,
+                              backgroundColor: flux.border,
+                              valueColor: AlwaysStoppedAnimation(flux.textPrimary),
+                              minHeight: 8,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                   const SizedBox(height: 24),
@@ -225,7 +161,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                   if (downloadingModels.isNotEmpty) ...[
                     Text(
                       AppLocalizations.of(context)!.downloading,
-                      style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
+                      style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
                     ...downloadingModels.asMap().entries.map((entry) => Padding(
@@ -238,7 +174,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                   if (installedModels.isNotEmpty) ...[
                     Text(
                       'Installed',
-                      style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
+                      style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
                     ...installedModels.asMap().entries.map((entry) => Padding(
@@ -269,7 +205,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                         children: [
                           Text(
                             'Available',
-                            style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
+                            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 12),
                           ...trulyAvailable.asMap().entries.map((entry) => Padding(
@@ -302,12 +238,12 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                           const SizedBox(height: 20),
                           Text(
                             AppLocalizations.of(context)!.noModelsYet,
-                            style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
+                            style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 8),
                           Text(
                             AppLocalizations.of(context)!.downloadModelToStart,
-                            style: _TextStyles.subtitle(context),
+                            style: textTheme.bodySmall,
                           ),
                         ],
                       ),
@@ -352,20 +288,10 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     final isInProgress = isDownloading;
     final bool canStartDownload = !isDownloaded && !isInProgress && !_downloadingIds.contains(model.id);
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
     
-    return TweenAnimationBuilder<double>(
-      tween: Tween(begin: 0.0, end: 1.0),
-      duration: Duration(milliseconds: 350 + (index * 60)),
-      curve: Curves.easeInOutCubic,
-      builder: (context, value, child) {
-        return Opacity(
-          opacity: value.clamp(0.0, 1.0),
-          child: Transform.translate(
-            offset: Offset(0, 15 * (1.0 - value)),
-            child: child,
-          ),
-        );
-      },
+    return StaggeredEntrance(
+      index: index,
       child: AnimatedTapCard(
         onTap: () {
           if (canStartDownload) {
@@ -396,12 +322,12 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                     children: [
                       Text(
                         model.name,
-                        style: _TextStyles.modelTitle(context),
+                        style: textTheme.bodyLarge,
                       ),
                       const SizedBox(height: 4),
                       Text(
                         '${AppLocalizations.of(context)!.poweredBy} ${model.baseModel ?? model.name} (${_formatSize(model.sizeMB)})',
-                        style: _TextStyles.modelSubtitle(context),
+                        style: textTheme.bodySmall,
                       ),
                     ],
                   ),
@@ -448,13 +374,15 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
             ),
             if (isDownloading) ...[
               const SizedBox(height: 12),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: LinearProgressIndicator(
-                  value: model.progress / 100,
-                  backgroundColor: flux.border,
-                  valueColor: AlwaysStoppedAnimation(flux.textPrimary),
-                  minHeight: 4,
+              RepaintBoundary(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: LinearProgressIndicator(
+                    value: model.progress / 100,
+                    backgroundColor: flux.border,
+                    valueColor: AlwaysStoppedAnimation(flux.textPrimary),
+                    minHeight: 4,
+                  ),
                 ),
               ),
               const SizedBox(height: 8),
@@ -464,7 +392,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                   Expanded(
                     child: Text(
                       '${model.progress}% ${model.downloadSpeed != null && model.downloadSpeed! > 0 ? '\u2022 ${model.downloadSpeed!.toStringAsFixed(1)} MB/s' : ''} \u2022 ${_formatDownloadedSize(model)}',
-                      style: _TextStyles.subtitle(context).copyWith(fontSize: 11),
+                      style: textTheme.bodySmall?.copyWith(fontSize: 11),
                       overflow: TextOverflow.ellipsis,
                     ),
                   ),
@@ -531,6 +459,8 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     required VoidCallback onAction,
   }) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+    
     showGeneralDialog(
       context: context,
       pageBuilder: (context, animation, secondaryAnimation) {
@@ -557,18 +487,18 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
               title: Text(
                 title,
-                style: _TextStyles.body(context).copyWith(fontWeight: FontWeight.w600),
+                style: textTheme.headlineMedium,
               ),
               content: Text(
                 content,
-                style: _TextStyles.subtitle(context),
+                style: textTheme.bodySmall,
               ),
               actions: [
                 TextButton(
                   onPressed: () => Navigator.pop(context),
                   child: Text(
                     cancelText,
-                    style: _TextStyles.body(context).copyWith(color: flux.textSecondary),
+                    style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
                   ),
                 ),
                 TextButton(
@@ -578,7 +508,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                   },
                   child: Text(
                     actionText,
-                    style: _TextStyles.body(context).copyWith(color: actionColor),
+                    style: textTheme.bodyMedium?.copyWith(color: actionColor),
                   ),
                 ),
               ],
@@ -593,3 +523,4 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     );
   }
 }
+

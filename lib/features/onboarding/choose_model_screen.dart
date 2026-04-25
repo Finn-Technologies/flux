@@ -212,7 +212,7 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
                     )
                   : Text(
                       AppLocalizations.of(context)!.downloadAndContinue,
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
                     ),
             ),
           ),

@@ -48,10 +48,64 @@ class FluxTheme {
     final surface = colors.surface;
     final border = colors.border;
 
+    final baseTextTheme = GoogleFonts.instrumentSansTextTheme(
+      isLight ? Typography.blackMountainView : Typography.whiteMountainView,
+    );
+
+    final textTheme = baseTextTheme.copyWith(
+      displayLarge: baseTextTheme.displayLarge?.copyWith(
+        color: textPrimary,
+        fontSize: 32,
+        fontWeight: FontWeight.w400,
+        letterSpacing: -0.5,
+      ),
+      displayMedium: baseTextTheme.displayMedium?.copyWith(
+        color: textPrimary,
+        fontSize: 28,
+        fontWeight: FontWeight.w400,
+      ),
+      displaySmall: baseTextTheme.displaySmall?.copyWith(
+        color: textPrimary,
+        fontSize: 24,
+        fontWeight: FontWeight.w400,
+      ),
+      headlineMedium: baseTextTheme.headlineMedium?.copyWith(
+        color: textPrimary,
+        fontSize: 20,
+        fontWeight: FontWeight.w600,
+      ),
+      titleLarge: baseTextTheme.titleLarge?.copyWith(
+        color: textPrimary,
+        fontSize: 17,
+        fontWeight: FontWeight.w600,
+      ),
+      bodyLarge: baseTextTheme.bodyLarge?.copyWith(
+        color: textPrimary,
+        fontSize: 17,
+        fontWeight: FontWeight.w400,
+      ),
+      bodyMedium: baseTextTheme.bodyMedium?.copyWith(
+        color: textPrimary,
+        fontSize: 15,
+        fontWeight: FontWeight.w400,
+      ),
+      bodySmall: baseTextTheme.bodySmall?.copyWith(
+        color: textSecondary,
+        fontSize: 13,
+        fontWeight: FontWeight.w400,
+      ),
+      labelLarge: baseTextTheme.labelLarge?.copyWith(
+        color: textSecondary,
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+
     return ThemeData(
       useMaterial3: true,
       brightness: brightness,
       scaffoldBackgroundColor: background,
+      textTheme: textTheme,
       colorScheme: isLight
           ? ColorScheme.light(
               surface: background,
@@ -85,11 +139,7 @@ class FluxTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         centerTitle: false,
-        titleTextStyle: GoogleFonts.instrumentSans(
-          color: textPrimary,
-          fontSize: 17,
-          fontWeight: FontWeight.w600,
-        ),
+        titleTextStyle: textTheme.titleLarge,
         iconTheme: IconThemeData(color: textPrimary),
         systemOverlayStyle: isLight ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
       ),
