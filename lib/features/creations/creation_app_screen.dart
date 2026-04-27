@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/theme/flux_theme.dart';
+import '../../l10n/app_localizations.dart';
 import 'creations_screen.dart';
 
 class CreationAppScreen extends ConsumerStatefulWidget {
@@ -43,7 +44,7 @@ class _CreationAppScreenState extends ConsumerState<CreationAppScreen> {
       _controller.loadHtmlString(creation.html);
     } catch (e) {
       setState(() {
-        _error = "Creation not found";
+        _error = AppLocalizations.of(context)!.creationNotFound;
         _isLoading = false;
       });
     }
@@ -74,7 +75,7 @@ class _CreationAppScreenState extends ConsumerState<CreationAppScreen> {
                     const SizedBox(height: 24),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
-                      child: const Text("Go Back"),
+                      child: Text(AppLocalizations.of(context)!.goBack),
                     ),
                   ],
                 ),

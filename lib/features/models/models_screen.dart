@@ -129,11 +129,11 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Row(
+                            Row(
                             mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Text(
-                                'Storage',
+                                AppLocalizations.of(context)!.storage,
                                 style: textTheme.bodySmall,
                               ),
                               Text(
@@ -173,7 +173,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
 
                   if (installedModels.isNotEmpty) ...[
                     Text(
-                      'Installed',
+                      AppLocalizations.of(context)!.installed,
                       style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 12),
@@ -204,7 +204,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Available',
+                            AppLocalizations.of(context)!.available,
                             style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
                           ),
                           const SizedBox(height: 12),

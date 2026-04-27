@@ -169,7 +169,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
                 child: Text(
-                  creation.title.isNotEmpty ? creation.title : 'Untitled Creation',
+                  creation.title.isNotEmpty ? creation.title : AppLocalizations.of(context)!.untitledCreation,
                   style: textTheme.titleLarge,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -180,7 +180,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
               ListTile(
                 leading: const Icon(Icons.delete_outline, color: Colors.red),
                 title: Text(
-                  'Delete',
+                  AppLocalizations.of(context)!.delete,
                   style: textTheme.bodyLarge?.copyWith(color: Colors.red),
                 ),
                 onTap: () {
@@ -205,18 +205,18 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         backgroundColor: flux.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: Text(
-          'Delete Creation?',
+          '${AppLocalizations.of(context)!.delete} ${AppLocalizations.of(context)!.creations}?',
           style: textTheme.headlineMedium,
         ),
         content: Text(
-          '"${creation.title}" will be permanently removed.',
+          '"${creation.title}" ${AppLocalizations.of(context)!.delete}',
           style: textTheme.bodySmall,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
-              'Cancel',
+              AppLocalizations.of(context)!.cancel,
               style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
             ),
           ),
@@ -227,7 +227,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
               HapticFeedback.lightImpact();
             },
             child: Text(
-              'Delete',
+              AppLocalizations.of(context)!.delete,
               style: textTheme.bodyMedium?.copyWith(color: Colors.red),
             ),
           ),
@@ -316,10 +316,10 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                 right: 20,
                 bottom: 130,
                 child: Semantics(
-                  label: 'New Creation',
+                  label: AppLocalizations.of(context)!.newCreation,
                   button: true,
                   child: Tooltip(
-                    message: 'New Creation',
+                    message: AppLocalizations.of(context)!.newCreation,
                     child: AnimatedTapCard(
                       onTap: () {
                         HapticFeedback.lightImpact();
@@ -382,12 +382,12 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Flux Creative Required',
+                      AppLocalizations.of(context)!.fluxCreativeRequired,
                       style: textTheme.titleLarge,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      'Install the Creative model to start creating.',
+                      AppLocalizations.of(context)!.installCreativeModel,
                       style: textTheme.bodySmall,
                     ),
                   ],
@@ -407,7 +407,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
               ),
               child: Center(
                 child: Text(
-                  'Install Flux Creative',
+                  AppLocalizations.of(context)!.installFluxCreative,
                   style: textTheme.bodyMedium?.copyWith(
                     fontWeight: FontWeight.w500,
                     color: flux.background,
@@ -419,7 +419,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
           const SizedBox(height: 8),
           Center(
             child: Text(
-              '~890 MB download',
+              AppLocalizations.of(context)!.creativeDownloadSize,
               style: textTheme.labelLarge?.copyWith(
                 color: flux.textSecondary.withValues(alpha: 0.7),
               ),
@@ -514,13 +514,13 @@ class _CreationCard extends StatelessWidget {
     required this.onPlayPreview,
   });
 
-  String _formatDate(DateTime date) {
+  String _formatDate(BuildContext context, DateTime date) {
     final now = DateTime.now();
     final diff = now.difference(date);
-    if (diff.inMinutes < 1) return 'Just now';
-    if (diff.inHours < 1) return '${diff.inMinutes}m ago';
-    if (diff.inDays < 1) return '${diff.inHours}h ago';
-    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inMinutes < 1) return AppLocalizations.of(context)!.justNow;
+    if (diff.inHours < 1) return AppLocalizations.of(context)!.minutesAgo(diff.inMinutes);
+    if (diff.inDays < 1) return AppLocalizations.of(context)!.hoursAgo(diff.inHours);
+    if (diff.inDays < 7) return AppLocalizations.of(context)!.daysAgo(diff.inDays);
     return '${date.month}/${date.day}/${date.year}';
   }
 
@@ -563,14 +563,14 @@ class _CreationCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     Text(
-                      creation.title.isNotEmpty ? creation.title : 'Untitled',
+                      creation.title.isNotEmpty ? creation.title : AppLocalizations.of(context)!.untitledCreation,
                       style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      _formatDate(creation.updatedAt),
+                      _formatDate(context, creation.updatedAt),
                       style: textTheme.labelLarge?.copyWith(
                         color: flux.textSecondary.withValues(alpha: 0.5),
                         fontWeight: FontWeight.w400,
@@ -657,12 +657,12 @@ class _CreationPreviewScreen extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: Text(
-                        'Preview',
+                        AppLocalizations.of(context)!.preview,
                         style: textTheme.titleLarge,
                       ),
                     ),
                   ),
-                  const SizedBox(width: 36), // Spacer to balance the X button
+                  const SizedBox(width: 36),
                 ],
               ),
             ),
@@ -679,4 +679,3 @@ class _CreationPreviewScreen extends StatelessWidget {
     );
   }
 }
-

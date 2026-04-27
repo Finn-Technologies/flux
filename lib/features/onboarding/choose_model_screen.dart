@@ -53,9 +53,9 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => context.go('/onboarding'),
         ),
-        title: const Text(
-          'Model Picker',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
+        title: Text(
+          AppLocalizations.of(context)!.modelPicker,
+          style: const TextStyle(fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
       body: Column(
@@ -70,7 +70,7 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
                     Icon(Icons.memory, size: 16, color: colorScheme.secondary),
                     const SizedBox(width: 8),
                     Text(
-                      'Detected $_deviceRAM GB RAM',
+                      AppLocalizations.of(context)!.detectedRam(_deviceRAM),
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w600,
@@ -81,7 +81,7 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
                 ),
                 const SizedBox(height: 12),
                 Text(
-                  'Select the most optimized model for your device.',
+                  AppLocalizations.of(context)!.selectOptimizedModel,
                   style: TextStyle(fontSize: 15, color: colorScheme.secondary),
                   textAlign: TextAlign.center,
                 ),

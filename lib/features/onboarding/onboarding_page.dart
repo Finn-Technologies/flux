@@ -326,7 +326,7 @@ class _PrivacySlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 100),
                     child: Text(
-                      'We value your privacy',
+                      AppLocalizations.of(context)!.weValuePrivacy,
                       style: _AppTypography.heading(context),
                       textAlign: TextAlign.center,
                     ),
@@ -337,7 +337,7 @@ class _PrivacySlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 150),
                     child: Text(
-                      "We designed Flux to use Local AI models, so your data doesn't go to corporations, not even us.",
+                      AppLocalizations.of(context)!.privacyDescription,
                       style: _AppTypography.description(context),
                       textAlign: TextAlign.center,
                     ),
@@ -348,7 +348,7 @@ class _PrivacySlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 200),
                     child: _AnimatedButton(
-                      text: 'Next',
+                      text: AppLocalizations.of(context)!.next,
                       onPressed: onNext,
                     ),
                   ),
@@ -398,7 +398,7 @@ class _OfflineSlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 100),
                     child: Text(
-                      'Fully offline',
+                      AppLocalizations.of(context)!.fullyOffline,
                       style: _AppTypography.heading(context),
                       textAlign: TextAlign.center,
                     ),
@@ -409,7 +409,7 @@ class _OfflineSlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 150),
                     child: Text(
-                      'Since we use Local AI models, Flux works entirely offline, so you can ask questions even with no coverage.',
+                      AppLocalizations.of(context)!.offlineDescription,
                       style: _AppTypography.description(context),
                       textAlign: TextAlign.center,
                     ),
@@ -420,7 +420,7 @@ class _OfflineSlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 200),
                     child: _AnimatedButton(
-                      text: 'Next',
+                      text: AppLocalizations.of(context)!.next,
                       onPressed: onNext,
                     ),
                   ),
@@ -465,31 +465,31 @@ class _DownloadModelSlide extends StatelessWidget {
           ),
         ),
 
-        Positioned(
-          left: 20,
-          top: 122,
-          right: 20,
-          child: _FadeInSlide(
-            delay: const Duration(milliseconds: 100),
-            child: Text(
-              'Choose a model to download',
-              style: _AppTypography.heading(context),
+          Positioned(
+            left: 20,
+            top: 122,
+            right: 20,
+            child: _FadeInSlide(
+              delay: const Duration(milliseconds: 100),
+              child: Text(
+                AppLocalizations.of(context)!.chooseModel,
+                style: _AppTypography.heading(context),
+              ),
             ),
           ),
-        ),
 
-        Positioned(
-          left: 20,
-          top: 173,
-          right: 20,
-          child: _FadeInSlide(
-            delay: const Duration(milliseconds: 150),
-            child: Text(
-              'Flux recommends models optimized for your device, ensuring they work properly.',
-              style: _AppTypography.description(context),
+          Positioned(
+            left: 20,
+            top: 173,
+            right: 20,
+            child: _FadeInSlide(
+              delay: const Duration(milliseconds: 150),
+              child: Text(
+                AppLocalizations.of(context)!.chooseModelDescription,
+                style: _AppTypography.description(context),
+              ),
             ),
           ),
-        ),
 
         Positioned(
           left: 20,
@@ -616,7 +616,7 @@ class _FinishSlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 100),
                     child: Text(
-                      "That's it. Flux is ready!",
+                      AppLocalizations.of(context)!.thatsIt,
                       style: _AppTypography.heading(context),
                       textAlign: TextAlign.center,
                     ),
@@ -627,7 +627,7 @@ class _FinishSlide extends StatelessWidget {
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 200),
                     child: _AnimatedButton(
-                      text: 'Finish',
+                      text: AppLocalizations.of(context)!.finish,
                       onPressed: onFinish,
                     ),
                   ),
@@ -768,7 +768,7 @@ class _BackButton extends StatelessWidget {
             ),
             const SizedBox(width: 13),
             Text(
-              'Back',
+              AppLocalizations.of(context)!.back,
               style: _AppTypography.backButton(context),
             ),
           ],

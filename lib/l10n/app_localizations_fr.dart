@@ -126,4 +126,205 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get highSpeedConnectionRecommended =>
       'Connexion haut débit recommandée.';
+
+  @override
+  String get noModelSelected => 'Aucun modèle sélectionné';
+
+  @override
+  String get noModelSelectedMessage =>
+      'Aucun modèle n\'est actuellement sélectionné ou téléchargé. Veuillez visiter la Bibliothèque pour télécharger un modèle d\'abord.';
+
+  @override
+  String get messageFlux => 'Message à Flux...';
+
+  @override
+  String get howCanIHelp => 'Comment puis-je vous aider aujourd\'hui ?';
+
+  @override
+  String get startConversation => 'Commencez une conversation avec Flux';
+
+  @override
+  String get retry => 'Réessayer';
+
+  @override
+  String get copiedToClipboard => 'Copié dans le presse-papiers';
+
+  @override
+  String get chats => 'Chats';
+
+  @override
+  String get noChatsYet => 'Pas encore de chats';
+
+  @override
+  String get conversationsAppearHere => 'Vos conversations apparaîtront ici';
+
+  @override
+  String get rename => 'Renommer';
+
+  @override
+  String get renameChat => 'Renommer le chat';
+
+  @override
+  String get chatName => 'Nom du chat';
+
+  @override
+  String get save => 'Enregistrer';
+
+  @override
+  String get newChat => 'Nouveau chat';
+
+  @override
+  String get chatHistory => 'Historique des chats';
+
+  @override
+  String get weValuePrivacy => 'Nous valorisons votre vie privée';
+
+  @override
+  String get privacyDescription =>
+      'Nous avons conçu Flux pour utiliser des modèles d\'IA locaux, afin que vos données ne soient pas transmises aux entreprises, pas même à nous.';
+
+  @override
+  String get fullyOffline => 'Entièrement hors ligne';
+
+  @override
+  String get offlineDescription =>
+      'Comme nous utilisons des modèles d\'IA locaux, Flux fonctionne entièrement hors ligne, vous pouvez donc poser des questions même sans couverture.';
+
+  @override
+  String get chooseModel => 'Choisissez un modèle à télécharger';
+
+  @override
+  String get chooseModelDescription =>
+      'Flux recommande des modèles optimisés pour votre appareil, garantissant qu\'ils fonctionnent correctement.';
+
+  @override
+  String get thatsIt => 'C\'est tout. Flux est prêt !';
+
+  @override
+  String get finish => 'Terminer';
+
+  @override
+  String get next => 'Suivant';
+
+  @override
+  String get back => 'Retour';
+
+  @override
+  String get storage => 'Stockage';
+
+  @override
+  String get installed => 'Installés';
+
+  @override
+  String get available => 'Disponibles';
+
+  @override
+  String get fluxCreativeRequired => 'Flux Creative requis';
+
+  @override
+  String get installCreativeModel =>
+      'Installez le modèle Creative pour commencer à créer.';
+
+  @override
+  String get installFluxCreative => 'Installer Flux Creative';
+
+  @override
+  String get creativeDownloadSize => '~890 Mo de téléchargement';
+
+  @override
+  String get selectModelToChat => 'Sélectionnez un modèle pour discuter';
+
+  @override
+  String get buildSomethingAmazing => 'Construisez quelque chose d\'incroyable';
+
+  @override
+  String get describeAppIdea => 'Décrivez votre idée d\'app...';
+
+  @override
+  String get previewCreation => 'Aperçu de la création';
+
+  @override
+  String get tapToOpenApp => 'Touchez pour ouvrir l\'app interactive';
+
+  @override
+  String get fluxCreativeNotInstalled => 'Flux Creative n\'est pas installé.';
+
+  @override
+  String get installCreativeToUseCreations =>
+      'Veuillez l\'installer depuis Modèles pour utiliser Créations.';
+
+  @override
+  String get modelArchitectureUnsupported =>
+      'Architecture de modèle non prise en charge. Veuillez essayer un modèle Llama 3.2 ou Qwen standard pour l\'instant.';
+
+  @override
+  String get inferenceError => 'Erreur d\'inférence';
+
+  @override
+  String get cacheCleared => 'Cache vidé';
+
+  @override
+  String searchingFor(Object query) {
+    return 'Recherche de \"$query\"...';
+  }
+
+  @override
+  String get sources => 'Sources';
+
+  @override
+  String get searched => 'Recherché';
+
+  @override
+  String get reasoned => 'Raisonné';
+
+  @override
+  String get thinking => 'Réflexion';
+
+  @override
+  String get closeMenu => 'Fermer le menu';
+
+  @override
+  String get untitledCreation => 'Création sans titre';
+
+  @override
+  String get newCreation => 'Nouvelle création';
+
+  @override
+  String get modelPicker => 'Sélecteur de modèle';
+
+  @override
+  String detectedRam(Object ram) {
+    return '$ram Go de RAM détectés';
+  }
+
+  @override
+  String get selectOptimizedModel =>
+      'Sélectionnez le modèle le plus optimisé pour votre appareil.';
+
+  @override
+  String get creationNotFound => 'Création introuvable';
+
+  @override
+  String get goBack => 'Retour';
+
+  @override
+  String get untitled => 'Sans titre';
+
+  @override
+  String get justNow => 'À l\'instant';
+
+  @override
+  String minutesAgo(Object minutes) {
+    return 'il y a ${minutes}m';
+  }
+
+  @override
+  String hoursAgo(Object hours) {
+    return 'il y a ${hours}h';
+  }
+
+  @override
+  String daysAgo(Object days) {
+    return 'il y a ${days}d';
+  }
 }

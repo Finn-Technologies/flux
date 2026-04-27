@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:go_router/go_router.dart';
+import '../../core/constants/app_version.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
@@ -78,7 +79,7 @@ class SettingsScreen extends StatelessWidget {
                             ScaffoldMessenger.of(context).showSnackBar(
                               SnackBar(
                                 content: Text(
-                                  'Cache cleared',
+                                  AppLocalizations.of(context)!.cacheCleared,
                                   style: textTheme.bodySmall,
                                 ),
                                 duration: const Duration(seconds: 2),
@@ -99,7 +100,7 @@ class SettingsScreen extends StatelessWidget {
                     child: _buildSettingsItem(
                       context: context,
                       title: AppLocalizations.of(context)!.aboutFlux,
-                      subtitle: '${AppLocalizations.of(context)!.version} 0.1.5',
+                      subtitle: '${AppLocalizations.of(context)!.version} ${AppVersion.version}',
                       onTap: () => _showAboutSheet(context),
                     ),
                   ),
@@ -216,7 +217,7 @@ class SettingsScreen extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                '${AppLocalizations.of(context)!.version} 0.1.5',
+                '${AppLocalizations.of(context)!.version} ${AppVersion.version}',
                 style: textTheme.bodySmall,
               ),
               const SizedBox(height: 16),

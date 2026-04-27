@@ -7,9 +7,11 @@ import 'package:go_router/go_router.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/services/inference_service.dart';
 import '../../core/providers/download_provider.dart';
+import '../../core/models/hf_model.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
+import '../../l10n/app_localizations.dart';
 import 'creations_screen.dart';
 
 // ============================================================================
@@ -31,11 +33,33 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
   bool _hasText = false;
   String? _latestHtml;
   bool _isPreviewOpen = false;
+  DateTime? _lastSendTime;
 
   // Local message state for performance
   final List<_EditorMessage> _messages = [];
   final _streamingTextNotifier = ValueNotifier<String>('');
   WebViewController? _webViewController;
+
+  // Batched token buffering for throttled UI updates during streaming
+  final StringBuffer _streamBuffer = StringBuffer();
+  Timer? _flushTimer;
+
+  void _startFlushTimer() {
+    _flushTimer?.cancel();
+    _flushTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+      if (_streamBuffer.isNotEmpty) {
+        _streamingTextNotifier.value = _streamBuffer.toString();
+      }
+    });
+  }
+
+  void _stopFlushTimer() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    if (_streamBuffer.isNotEmpty) {
+      _streamingTextNotifier.value = _streamBuffer.toString();
+    }
+  }
 
   @override
   void initState() {
@@ -65,9 +89,58 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     });
   }
 
+  /// Heuristic: response looks cut-off if it doesn't end with a terminal
+  /// punctuation, a closing tag, or a code-block fence.
+  bool _looksTruncated(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return false;
+    if (RegExp(r'[.!?\u3002\uFF01\uFF1F]$').hasMatch(trimmed)) return false;
+    if (trimmed.endsWith('```')) return false;
+    if (trimmed.endsWith('</think>')) return false;
+    if (trimmed.endsWith('</html>')) return false;
+    if (trimmed.endsWith('</body>')) return false;
+    if (trimmed.endsWith('</div>')) return false;
+    if (trimmed.endsWith(')')) return false;
+    if (trimmed.endsWith(']')) return false;
+    if (trimmed.endsWith('}')) return false;
+    if (trimmed.endsWith('"')) return false;
+    if (trimmed.endsWith('\'')) return false;
+    return true;
+  }
+
+  Future<String> _generateWithModel({
+    required String prompt,
+    required HFModel model,
+    required List<Map<String, String>> history,
+    required String systemPrompt,
+    required StringBuffer buffer,
+  }) async {
+    final stream = InferenceService().streamChat(
+      modelId: model.id,
+      prompt: prompt,
+      localPath: model.localPath,
+      systemPrompt: systemPrompt,
+      history: history,
+      maxTokens: 8192,
+    );
+
+    await for (final token in stream) {
+      if (!mounted) break;
+      buffer.write(token);
+    }
+    return buffer.toString();
+  }
+
   void _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isStreaming) return;
+
+    // Debounce: prevent double-sends within 500ms
+    final now = DateTime.now();
+    if (_lastSendTime != null && now.difference(_lastSendTime!).inMilliseconds < 500) {
+      return;
+    }
+    _lastSendTime = now;
 
     HapticFeedback.lightImpact();
     setState(() {
@@ -87,7 +160,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     if (creativeModel == null || creativeModel.localPath == null) {
       setState(() {
         _messages.add(_EditorMessage(
-          text: "Flux Creative is not installed. Please install it from Models to use Creations.",
+          text: '${AppLocalizations.of(context)!.fluxCreativeNotInstalled} ${AppLocalizations.of(context)!.installCreativeToUseCreations}',
           fromUser: false,
           time: DateTime.now(),
         ));
@@ -96,7 +169,9 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     }
 
     setState(() => _isStreaming = true);
+    _streamBuffer.clear();
     _streamingTextNotifier.value = '';
+    _startFlushTimer();
 
     // Build history
     final history = <Map<String, String>>[];
@@ -108,41 +183,48 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
       }
     }
 
-    String accumulated = '';
-    bool receivedFirstToken = false;
+    final systemPrompt = "You are Flux Creator. The user wants to build simple interactive HTML mini-apps. "
+        "Always respond with a complete, self-contained HTML file inside a markdown code block (```html ... ```). "
+        "Use inline CSS and JavaScript. Make it visually polished and interactive. "
+        "If the user asks to refine or change something, output the full updated HTML again.";
 
-    final stream = InferenceService().streamChat(
-      modelId: creativeModel.id,
+    // First generation pass
+    String accumulated = await _generateWithModel(
       prompt: text,
-      localPath: creativeModel.localPath,
-      systemPrompt: "You are Flux Creator. The user wants to build simple interactive HTML mini-apps. "
-          "Always respond with a complete, self-contained HTML file inside a markdown code block (```html ... ```). "
-          "Use inline CSS and JavaScript. Make it visually polished and interactive. "
-          "If the user asks to refine or change something, output the full updated HTML again.",
+      model: creativeModel,
       history: history,
-      maxTokens: 1000000,
+      systemPrompt: systemPrompt,
+      buffer: _streamBuffer,
     );
 
-    int tokenCount = 0;
-    await for (final token in stream) {
-      if (!mounted) break;
-      accumulated += token;
-      tokenCount++;
+    // Auto-continuation for truncated responses
+    int continuationAttempts = 0;
+    const maxContinuations = 3;
+    while (mounted &&
+        _looksTruncated(accumulated) &&
+        continuationAttempts < maxContinuations) {
+      continuationAttempts++;
+      _streamBuffer.clear();
+      _streamingTextNotifier.value = accumulated;
 
-      if (!receivedFirstToken) {
-        receivedFirstToken = true;
-        _streamingTextNotifier.value = accumulated;
-      } else {
-        final shouldUpdate = tokenCount % 3 == 0 ||
-                            token.contains('.') ||
-                            token.contains('!') ||
-                            token.contains('?') ||
-                            token.contains('\n');
-        if (shouldUpdate) _streamingTextNotifier.value = accumulated;
-      }
-      _scrollToBottom();
-      await Future.delayed(Duration.zero);
+      final contHistory = <Map<String, String>>[
+        ...history,
+        {'role': 'assistant', 'content': accumulated},
+      ];
+
+      final cont = await _generateWithModel(
+        prompt: 'Continue exactly from where you left off. Do not repeat anything already said.',
+        model: creativeModel,
+        history: contHistory,
+        systemPrompt: systemPrompt,
+        buffer: _streamBuffer,
+      );
+
+      if (cont.trim().isEmpty) break;
+      accumulated += cont;
     }
+
+    _stopFlushTimer();
 
     if (mounted) {
       _streamingTextNotifier.value = accumulated;
@@ -239,6 +321,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
 
   @override
   void dispose() {
+    _flushTimer?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
@@ -264,8 +347,11 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
       child: Scaffold(
         backgroundColor: flux.background,
         resizeToAvoidBottomInset: false,
-        body: Stack(
-          children: [
+        body: GestureDetector(
+          onTap: () => FocusScope.of(context).unfocus(),
+          behavior: HitTestBehavior.translucent,
+          child: Stack(
+            children: [
               // Back button
               Positioned(
                 left: 20,
@@ -277,7 +363,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
               Positioned(
                 left: 20,
                 top: topPadding + 100,
-                child: const FluxTitle(title: 'New Creation'),
+                child: FluxTitle(title: AppLocalizations.of(context)!.newChat),
               ),
 
               // Messages & Input
@@ -340,7 +426,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                                 textInputAction: TextInputAction.newline,
                                 style: textTheme.bodyMedium,
                                 decoration: InputDecoration(
-                                  hintText: 'Describe your app idea...',
+                                  hintText: AppLocalizations.of(context)!.describeAppIdea,
                                   hintStyle: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
                                   filled: false,
                                   border: InputBorder.none,
@@ -363,6 +449,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
               ),
           ],
         ),
+        ),
       ),
     );
   }
@@ -377,12 +464,12 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
           Icon(Icons.code_rounded, size: 48, color: flux.textSecondary.withValues(alpha: 0.4)),
           const SizedBox(height: 16),
           Text(
-            'Build something amazing',
+            AppLocalizations.of(context)!.buildSomethingAmazing,
             style: textTheme.bodyLarge?.copyWith(color: flux.textSecondary.withValues(alpha: 0.6)),
           ),
           const SizedBox(height: 8),
           Text(
-            'Describe an app and Flux will code it',
+            AppLocalizations.of(context)!.describeAppIdea,
             style: textTheme.bodySmall?.copyWith(color: flux.textSecondary.withValues(alpha: 0.4)),
           ),
         ],
@@ -454,9 +541,9 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text('Preview Creation', style: textTheme.titleLarge?.copyWith(fontSize: 15)),
+                        Text(AppLocalizations.of(context)!.previewCreation, style: textTheme.titleLarge?.copyWith(fontSize: 15)),
                         const SizedBox(height: 2),
-                        Text('Tap to open interactive app', style: textTheme.bodySmall),
+                        Text(AppLocalizations.of(context)!.tapToOpenApp, style: textTheme.bodySmall),
                       ],
                     ),
                   ),
@@ -491,7 +578,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                     children: [
                       Icon(Icons.refresh, size: 14, color: flux.textPrimary),
                       const SizedBox(width: 6),
-                      Text('Retry', style: textTheme.labelLarge?.copyWith(color: flux.textPrimary)),
+                      Text(AppLocalizations.of(context)!.retry, style: textTheme.labelLarge?.copyWith(color: flux.textPrimary)),
                     ],
                   ),
                 ),
@@ -560,7 +647,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                   HapticFeedback.lightImpact();
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Copied to clipboard', style: textTheme.bodySmall),
+                      content: Text(AppLocalizations.of(context)!.copiedToClipboard, style: textTheme.bodySmall),
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
                       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
@@ -576,6 +663,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
   }
 
   Widget _buildStreamingBubble(FluxColorsExtension flux, bool isLast) {
+    final textTheme = Theme.of(context).textTheme;
     return RepaintBoundary(
       child: Padding(
         padding: EdgeInsets.only(bottom: isLast ? 0.0 : 12.0),
@@ -586,10 +674,11 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
             if (streamingText.isEmpty || (stripped.isEmpty && streamingText.isNotEmpty)) {
               return _ThinkingIndicator(flux: flux);
             }
-            return _buildBubble(
-              _EditorMessage(text: streamingText, fromUser: false, time: DateTime.now()),
-              flux,
-              isLast: isLast,
+            // Plain text during streaming — rich markdown parsing is too
+            // expensive for long outputs and causes crashes.
+            return Text(
+              stripped,
+              style: textTheme.bodyMedium?.copyWith(height: 1.4),
             );
           },
         ),
@@ -647,7 +736,7 @@ class _PreviewScreen extends StatelessWidget {
                   Expanded(
                     child: Center(
                       child: Text(
-                        'Preview',
+                        AppLocalizations.of(context)!.preview,
                         style: textTheme.titleLarge,
                       ),
                     ),

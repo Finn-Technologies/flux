@@ -5,9 +5,11 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/services/inference_service.dart';
+import '../../core/services/search_service.dart';
 import '../../core/providers/model_provider.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/models/chat_session.dart';
+import '../../core/models/hf_model.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/rich_message_renderer.dart';
 import '../../core/widgets/animated_tap_card.dart';
@@ -77,9 +79,42 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   String? _currentConversationId;
   bool _hasText = false;
   bool _isClearingChat = false;
+  DateTime? _lastSendTime;
+  bool _searchEnabled = false;
+  bool _isSearching = false;
+  String? _lastSearchQuery;
+  List<SearchResult> _lastSearchResults = [];
+
+  /// Running summary of older conversation turns.
+  /// Updated every 4 messages so the model keeps context without a bloated prompt.
+  String? _contextSummary;
 
   // Performance: local ValueNotifier for streaming text avoids rebuilding the entire message list on every token
   final _streamingTextNotifier = ValueNotifier<String>('');
+
+  // Batched token buffering: accumulate tokens here and flush to the notifier
+  // on a timer so the UI rebuilds at most ~6-7 times per second instead of
+  // hundreds of times per second during fast generation.
+  final StringBuffer _streamBuffer = StringBuffer();
+  Timer? _flushTimer;
+
+  void _startFlushTimer() {
+    _flushTimer?.cancel();
+    _flushTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+      if (_streamBuffer.isNotEmpty) {
+        _streamingTextNotifier.value = _streamBuffer.toString();
+      }
+    });
+  }
+
+  void _stopFlushTimer() {
+    _flushTimer?.cancel();
+    _flushTimer = null;
+    // Final flush of any remaining buffered text
+    if (_streamBuffer.isNotEmpty) {
+      _streamingTextNotifier.value = _streamBuffer.toString();
+    }
+  }
 
   void _startNewChat() {
     setState(() => _isClearingChat = true);
@@ -87,14 +122,108 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ref.read(chatMessagesProvider.notifier).clear();
       setState(() {
         _currentConversationId = null;
+        _contextSummary = null;
+        _lastSearchQuery = null;
+        _lastSearchResults = [];
         _isClearingChat = false;
       });
     });
   }
 
+  /// Every 4 messages, summarize the older turns so the context window stays lean.
+  /// The summary is stored in [_contextSummary] and injected as a prior assistant
+  /// message in future history builds.
+  Future<void> _compactHistoryIfNeeded(
+    List<ChatMessage> messages,
+    HFModel model,
+  ) async {
+    final totalTurns = messages.length;
+    if (totalTurns < 6 || totalTurns % 4 != 0) return;
+
+    // Everything except the most recent user-assistant pair gets summarized.
+    final older = messages.sublist(0, messages.length - 2);
+    final transcript = older
+        .map((m) => '${m.fromUser ? "User" : "Assistant"}: ${m.text}')
+        .join('\n');
+
+    final summaryStream = InferenceService().streamChat(
+      modelId: model.id,
+      prompt:
+          'Summarize the following conversation concisely in 1-3 sentences. '
+          'Preserve key facts, names, decisions, and user preferences. '
+          'Do not greet or explain yourself.\n\n$transcript',
+      localPath: model.localPath,
+      systemPrompt:
+          'You are a compression engine. Output only the summary. No preamble.',
+      maxTokens: 256,
+    );
+
+    String summary = '';
+    await for (final token in summaryStream) {
+      summary += token;
+    }
+
+    summary = summary.trim();
+    if (summary.isNotEmpty && mounted) {
+      setState(() => _contextSummary = summary);
+    }
+  }
+
+  Future<String> _generateWithModel({
+    required String prompt,
+    required HFModel model,
+    required List<Map<String, String>> history,
+    required String systemPrompt,
+    required StringBuffer buffer,
+  }) async {
+    final stream = InferenceService().streamChat(
+      modelId: model.id,
+      prompt: prompt,
+      localPath: model.localPath,
+      systemPrompt: systemPrompt,
+      history: history,
+      maxTokens: 8192,
+    );
+
+    await for (final token in stream) {
+      if (!mounted) break;
+      buffer.write(token);
+    }
+    return buffer.toString();
+  }
+
+  /// Heuristic: response looks cut-off if it doesn't end with a terminal
+  /// punctuation, a closing tag, or a code-block fence.
+  bool _looksTruncated(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return false;
+    // Ends with proper terminal punctuation
+    if (RegExp(r'[.!?\u3002\uFF01\uFF1F]$').hasMatch(trimmed)) return false;
+    // Ends with a closing markdown/code tag or fence
+    if (trimmed.endsWith('```')) return false;
+    if (trimmed.endsWith('</think>')) return false;
+    if (trimmed.endsWith('</html>')) return false;
+    if (trimmed.endsWith('</body>')) return false;
+    if (trimmed.endsWith('</div>')) return false;
+    if (trimmed.endsWith(')')) return false;
+    if (trimmed.endsWith(']')) return false;
+    if (trimmed.endsWith('}')) return false;
+    if (trimmed.endsWith('"')) return false;
+    if (trimmed.endsWith('\'')) return false;
+    // Ends mid-sentence or mid-word → likely truncated
+    return true;
+  }
+
   void _sendMessage() async {
     final text = _controller.text.trim();
     if (text.isEmpty || _isStreaming) return;
+
+    // Debounce: prevent double-sends within 500ms
+    final now = DateTime.now();
+    if (_lastSendTime != null && now.difference(_lastSendTime!).inMilliseconds < 500) {
+      return;
+    }
+    _lastSendTime = now;
 
     final isFirstMessage = _currentConversationId == null;
     if (isFirstMessage) {
@@ -111,7 +240,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     if (selectedModel == null || selectedModel.localPath == null) {
       ref.read(chatMessagesProvider.notifier).updateLastMessage(
         ChatMessage(
-          text: "No model is currently selected or downloaded. Please visit the Library to download a model first.",
+          text: AppLocalizations.of(context)!.noModelSelectedMessage,
           fromUser: false,
           time: DateTime.now(),
         ),
@@ -120,12 +249,23 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     setState(() => _isStreaming = true);
+    _streamBuffer.clear();
     _streamingTextNotifier.value = '';
+    _startFlushTimer();
 
-    // Build conversation history for memory (exclude the current user message and any thinking placeholder)
+    // Build conversation history with compaction support.
     final currentMessages = ref.read(chatMessagesProvider);
     final history = <Map<String, String>>[];
-    for (final msg in currentMessages) {
+
+    if (_contextSummary != null && _contextSummary!.isNotEmpty) {
+      history.add({'role': 'assistant', 'content': _contextSummary!});
+    }
+
+    final recentMessages = currentMessages.length > 4
+        ? currentMessages.sublist(currentMessages.length - 4)
+        : currentMessages;
+
+    for (final msg in recentMessages) {
       if (msg.fromUser) {
         history.add({'role': 'user', 'content': msg.text});
       } else if (msg.text.isNotEmpty) {
@@ -133,49 +273,88 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     }
 
-    String accumulated = '';
-    bool receivedFirstToken = false;
+    String prompt = text;
+    String? searchContext;
+    List<SearchResult> searchResults = [];
 
-    final stream = InferenceService().streamChat(
-      modelId: selectedModel.id,
-      prompt: text,
-      localPath: selectedModel.localPath,
-      systemPrompt: "You are Flux, a helpful and friendly AI assistant.",
+    // Web search: when enabled, fetch live results and prepend them as context.
+    if (_searchEnabled) {
+      setState(() {
+        _isSearching = true;
+        _lastSearchQuery = text;
+      });
+
+      searchResults = await SearchService().search(text);
+
+      setState(() {
+        _isSearching = false;
+        _lastSearchResults = searchResults;
+      });
+
+      if (searchResults.isNotEmpty) {
+        searchContext = SearchService().formatResultsForModel(searchResults);
+        prompt =
+            '$searchContext\n\n'
+            'Using the authoritative web search results above, answer the following. '
+            'Base your answer primarily on the search results provided. \n'
+            'Question: $text';
+      }
+    }
+
+    final systemPrompt =
+        "You are Flux, a helpful and friendly AI assistant. "
+        "IMPORTANT: You have perfect memory of this conversation. "
+        "The full conversation history is provided to you with every message, "
+        "so you can reference anything said earlier. "
+        "Never claim you do not remember something from this chat — you do. "
+        "${searchContext != null ? "You have been provided with live web search results above. Use them as your primary source of truth and cite them in your answer. " : ""}"
+        "Answer concisely and accurately.";
+
+    // First generation pass
+    String accumulated = await _generateWithModel(
+      prompt: prompt,
+      model: selectedModel,
       history: history,
-      maxTokens: 1000000,
+      systemPrompt: systemPrompt,
+      buffer: _streamBuffer,
     );
 
-    int tokenCount = 0;
-    await for (final token in stream) {
-      if (!mounted) break;
-      accumulated += token;
-      tokenCount++;
+    // Auto-continuation: if the response looks truncated, ask the model to
+    // continue from where it left off. We do this silently without adding
+    // extra user-visible messages.
+    int continuationAttempts = 0;
+    const maxContinuations = 3;
+    while (mounted &&
+        _looksTruncated(accumulated) &&
+        continuationAttempts < maxContinuations) {
+      continuationAttempts++;
+      _streamBuffer.clear();
+      _streamingTextNotifier.value = accumulated;
 
-      if (!receivedFirstToken) {
-        receivedFirstToken = true;
-        _streamingTextNotifier.value = accumulated;
-      } else {
-        // Optimize: Only update every 3 tokens or on punctuation to reduce rebuild frequency
-        final shouldUpdate = tokenCount % 3 == 0 ||
-                            token.contains('.') ||
-                            token.contains('!') ||
-                            token.contains('?') ||
-                            token.contains('\n');
+      final contHistory = <Map<String, String>>[
+        ...history,
+        {'role': 'assistant', 'content': accumulated},
+      ];
 
-        if (shouldUpdate) {
-          _streamingTextNotifier.value = accumulated;
-        }
-      }
-      _scrollToBottom();
-      await Future.delayed(Duration.zero);
+      final cont = await _generateWithModel(
+        prompt: 'Continue exactly from where you left off. Do not repeat anything already said.',
+        model: selectedModel,
+        history: contHistory,
+        systemPrompt: systemPrompt,
+        buffer: _streamBuffer,
+      );
+
+      if (cont.trim().isEmpty) break;
+      accumulated += cont;
     }
+
+    _stopFlushTimer();
 
     if (mounted) {
       _streamingTextNotifier.value = accumulated;
       setState(() => _isStreaming = false);
       HapticFeedback.selectionClick();
 
-      // Single provider update at the end with final text
       ref.read(chatMessagesProvider.notifier).addMessage(
         ChatMessage(text: accumulated, fromUser: false, time: DateTime.now()),
       );
@@ -192,6 +371,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           modelId: selectedModel.id,
         );
         ref.read(conversationsProvider.notifier).updateConversation(conv);
+
+        // Compact older context every 4 messages in the background.
+        if (messages.length >= 4 && messages.length % 4 == 0) {
+          _compactHistoryIfNeeded(messages, selectedModel);
+        }
       }
     }
   }
@@ -332,7 +516,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     showGeneralDialog(
       context: context,
       barrierDismissible: true,
-      barrierLabel: 'Close menu',
+      barrierLabel: AppLocalizations.of(context)!.closeMenu,
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 350),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
@@ -407,10 +591,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Padding(
+                        Padding(
                         padding: const EdgeInsets.fromLTRB(20, 60, 20, 20),
                         child: Text(
-                          'Chats',
+                          AppLocalizations.of(context)!.chats,
                           style: textTheme.displaySmall?.copyWith(decoration: TextDecoration.none),
                         ),
                       ),
@@ -428,7 +612,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     ),
                                     const SizedBox(height: 12),
                                     Text(
-                                      'No chats yet',
+                                      AppLocalizations.of(context)!.noChatsYet,
                                       style: textTheme.bodyLarge?.copyWith(
                                         color: flux.textSecondary,
                                         decoration: TextDecoration.none,
@@ -436,7 +620,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                     ),
                                     const SizedBox(height: 4),
                                     Text(
-                                      'Your conversations will appear here',
+                                      AppLocalizations.of(context)!.conversationsAppearHere,
                                       style: textTheme.bodySmall?.copyWith(
                                         color: flux.textSecondary.withValues(alpha: 0.6),
                                         decoration: TextDecoration.none,
@@ -487,6 +671,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         setState(() {
           _currentConversationId = conv.id;
         });
+        // Restore the model used for this conversation if available
+        if (conv.modelId != null) {
+          ref.read(selectedModelIdProvider.notifier).select(conv.modelId);
+        }
         ref.read(chatMessagesProvider.notifier).setMessages(conv.messages);
         onClose();
       },
@@ -517,7 +705,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ListTile(
                     leading: Icon(Icons.edit, color: flux.textPrimary),
                     title: Text(
-                      'Rename',
+                      AppLocalizations.of(context)!.rename,
                       style: textTheme.bodyLarge,
                     ),
                     onTap: () {
@@ -528,7 +716,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ListTile(
                     leading: const Icon(Icons.delete_outline, color: Colors.red),
                     title: Text(
-                      'Delete',
+                      AppLocalizations.of(context)!.delete,
                       style: textTheme.bodyLarge?.copyWith(color: Colors.red),
                     ),
                     onTap: () {
@@ -573,7 +761,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         backgroundColor: flux.surface,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
         title: Text(
-          'Rename Chat',
+          AppLocalizations.of(context)!.renameChat,
           style: textTheme.headlineMedium,
         ),
         content: TextField(
@@ -581,7 +769,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           autofocus: true,
           style: textTheme.bodyLarge,
           decoration: InputDecoration(
-            hintText: 'Chat name',
+            hintText: AppLocalizations.of(context)!.chatName,
             hintStyle: textTheme.bodyLarge?.copyWith(color: flux.textSecondary),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(12),
@@ -597,7 +785,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           TextButton(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
-              'Cancel',
+              AppLocalizations.of(context)!.cancel,
               style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
             ),
           ),
@@ -617,7 +805,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               Navigator.pop(ctx);
             },
             child: Text(
-              'Save',
+              AppLocalizations.of(context)!.save,
               style: textTheme.bodyMedium?.copyWith(color: flux.textPrimary),
             ),
           ),
@@ -651,6 +839,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
+    _flushTimer?.cancel();
     _controller.dispose();
     _focusNode.dispose();
     _scrollController.dispose();
@@ -672,18 +861,21 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return Scaffold(
       backgroundColor: flux.background,
       resizeToAvoidBottomInset: false,
-      body: Stack(
-        children: [
+      body: GestureDetector(
+        onTap: () => FocusScope.of(context).unfocus(),
+        behavior: HitTestBehavior.translucent,
+        child: Stack(
+          children: [
           Positioned(
             left: 20,
             top: topPadding + 60,
             width: 28,
             height: 28,
             child: Semantics(
-              label: 'Chat history',
+              label: AppLocalizations.of(context)!.chatHistory,
               button: true,
               child: Tooltip(
-                message: 'Chat history',
+                message: AppLocalizations.of(context)!.chatHistory,
                 child: AnimatedTapCard(
                   onTap: () => _showChatHistory(context),
                   scaleDown: 0.85,
@@ -756,11 +948,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               top: topPadding + 60,
               width: 28,
               height: 28,
-              child: Semantics(
-                label: 'New chat',
-                button: true,
-                child: Tooltip(
-                  message: 'New chat',
+            child: Semantics(
+              label: AppLocalizations.of(context)!.newChat,
+              button: true,
+              child: Tooltip(
+                message: AppLocalizations.of(context)!.newChat,
                   child: _AnimatedPencilButton(
                     onTap: _startNewChat,
                   ),
@@ -787,12 +979,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         : ListView.builder(
                             controller: _scrollController,
                             padding: EdgeInsets.zero,
-                            itemCount: messages.length + (_isStreaming ? 1 : 0),
+                            itemCount: messages.length + (_isStreaming ? 1 : 0) + (_isSearching ? 1 : 0),
                             cacheExtent: 300,
                             addAutomaticKeepAlives: false,
                             addRepaintBoundaries: true,
                             itemBuilder: (context, index) {
-                              if (index == messages.length) {
+                              // Show search indicator before streaming bubble
+                              if (_isSearching && index == messages.length) {
+                                return _buildSearchIndicator();
+                              }
+                              // Streaming bubble (either at end or before search indicator)
+                              if (index == messages.length + (_isSearching ? 1 : 0)) {
                                 return _buildStreamingBubble(true);
                               }
                               final msg = messages[index];
@@ -838,7 +1035,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         textInputAction: TextInputAction.newline,
                         style: textTheme.bodyMedium,
                         decoration: InputDecoration(
-                          hintText: 'Message Flux...',
+                          hintText: AppLocalizations.of(context)!.messageFlux,
                           hintStyle: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
                           filled: false,
                           fillColor: Colors.transparent,
@@ -856,6 +1053,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                   ),
 
+                  _SearchToggleButton(
+                    isEnabled: _searchEnabled,
+                    onTap: () {
+                      HapticFeedback.lightImpact();
+                      setState(() => _searchEnabled = !_searchEnabled);
+                    },
+                  ),
+                  const SizedBox(width: 6),
                   _AnimatedSendButton(
                     onTap: _sendMessage,
                     isEnabled: _hasText,
@@ -868,6 +1073,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       ),
     ],
   ),
+      ),
     );
   }
 
@@ -886,14 +1092,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           ),
           const SizedBox(height: 16),
           Text(
-            'How can I help you today?',
+            AppLocalizations.of(context)!.howCanIHelp,
             style: textTheme.bodyLarge?.copyWith(
               color: flux.textSecondary.withValues(alpha: 0.6),
             ),
           ),
           const SizedBox(height: 8),
           Text(
-            'Start a conversation with Flux',
+            AppLocalizations.of(context)!.startConversation,
             style: textTheme.bodySmall?.copyWith(
               color: flux.textSecondary.withValues(alpha: 0.4),
             ),
@@ -911,10 +1117,27 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isError = !isUser && msg.text.startsWith('Error:');
 
+    // Detect thinking blocks in the message
+    final hasThinking = !isUser && msg.text.contains('<think>');
+    final thinkingContent = hasThinking
+        ? msg.text.substring(
+            msg.text.indexOf('<think>') + 7,
+            msg.text.contains('</think>') ? msg.text.indexOf('</think>') : msg.text.length,
+          ).trim()
+        : '';
+
     Widget bubbleContent;
     if (!isUser) {
+      // Strip thinking tags from display text
+      var displayText = msg.text;
+      if (hasThinking) {
+        displayText = displayText.replaceAll(
+          RegExp(r'<think>.*?</think>', dotAll: true),
+          '',
+        ).trim();
+      }
       bubbleContent = RichMessageRenderer(
-        text: msg.text,
+        text: displayText.isEmpty ? msg.text : displayText,
         isUser: false,
       );
     } else {
@@ -927,6 +1150,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       );
     }
 
+    // Only show sources on the last assistant message when search results exist
+    final showSources = !isUser && isLast && _lastSearchResults.isNotEmpty && _searchEnabled;
+
     final bubble = !isUser
         ? RepaintBoundary(
             child: Padding(
@@ -934,6 +1160,30 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Metadata row: search badge + thinking indicator
+                  if (showSources || hasThinking)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 10),
+                      child: Wrap(
+                        spacing: 8,
+                        runSpacing: 6,
+                        crossAxisAlignment: WrapCrossAlignment.center,
+                        children: [
+                          if (showSources)
+                            _buildSearchBadge(flux: flux, textTheme: textTheme),
+                          if (hasThinking)
+                            _buildThinkingBadge(flux: flux, textTheme: textTheme),
+                        ],
+                      ),
+                    ),
+                  // Thinking content (collapsible-like compact display)
+                  if (hasThinking && thinkingContent.isNotEmpty)
+                    _buildThinkingPreview(
+                      content: thinkingContent,
+                      flux: flux,
+                      textTheme: textTheme,
+                    ),
+                  // Main message content
                   bubbleContent,
                   if (isError)
                     Padding(
@@ -957,7 +1207,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               Icon(Icons.refresh, size: 14, color: flux.textPrimary),
                               const SizedBox(width: 6),
                               Text(
-                                'Retry',
+                                AppLocalizations.of(context)!.retry,
                                 style: textTheme.labelLarge?.copyWith(color: flux.textPrimary),
                               ),
                             ],
@@ -965,6 +1215,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         ),
                       ),
                     ),
+                  // Sources at the bottom
+                  if (showSources) _buildSources(flux, textTheme),
                 ],
               ),
             ),
@@ -1014,10 +1266,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               ? () {
                   Clipboard.setData(ClipboardData(text: msg.text));
                   HapticFeedback.lightImpact();
-                  ScaffoldMessenger.of(context).showSnackBar(
+                      ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
                       content: Text(
-                        'Copied to clipboard',
+                        AppLocalizations.of(context)!.copiedToClipboard,
                         style: textTheme.bodySmall,
                       ),
                       duration: const Duration(seconds: 2),
@@ -1034,8 +1286,215 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     );
   }
 
+  Widget _buildSearchIndicator() {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12, left: 4),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SizedBox(
+            width: 16,
+            height: 16,
+            child: CircularProgressIndicator(
+              strokeWidth: 2,
+              color: flux.textSecondary,
+            ),
+          ),
+          const SizedBox(width: 10),
+          Text(
+            AppLocalizations.of(context)!.searchingFor(_lastSearchQuery ?? ''),
+            style: textTheme.bodySmall?.copyWith(
+              color: flux.textSecondary,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSources(FluxColorsExtension flux, TextTheme textTheme) {
+    if (_lastSearchResults.isEmpty) return const SizedBox.shrink();
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, left: 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            AppLocalizations.of(context)!.sources,
+            style: textTheme.labelLarge?.copyWith(
+              color: flux.textSecondary,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: _lastSearchResults.map((result) {
+              return AnimatedTapCard(
+                onTap: () async {
+                  final url = result.url;
+                  if (url.isNotEmpty) {
+                    // Open URL in external browser
+                    // For now just show a snackbar with the URL
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          url,
+                          style: textTheme.bodySmall,
+                        ),
+                        duration: const Duration(seconds: 3),
+                        behavior: SnackBarBehavior.floating,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                        margin: const EdgeInsets.all(20),
+                      ),
+                    );
+                  }
+                },
+                scaleDown: 0.95,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: flux.textPrimary.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(100),
+                    border: Border.all(
+                      color: flux.border.withValues(alpha: 0.5),
+                      width: 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.language,
+                        size: 12,
+                        color: flux.textSecondary,
+                      ),
+                      const SizedBox(width: 6),
+                      Flexible(
+                        child: Text(
+                          result.title,
+                          style: textTheme.labelLarge?.copyWith(
+                            color: flux.textPrimary,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBadge({required FluxColorsExtension flux, required TextTheme textTheme}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: flux.textPrimary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.language, size: 12, color: flux.textSecondary),
+          const SizedBox(width: 5),
+          Text(
+            AppLocalizations.of(context)!.searched,
+            style: textTheme.labelLarge?.copyWith(
+              color: flux.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThinkingBadge({required FluxColorsExtension flux, required TextTheme textTheme}) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+      decoration: BoxDecoration(
+        color: flux.textPrimary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(100),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.psychology, size: 12, color: flux.textSecondary),
+          const SizedBox(width: 5),
+          Text(
+            AppLocalizations.of(context)!.reasoned,
+            style: textTheme.labelLarge?.copyWith(
+              color: flux.textSecondary,
+              fontWeight: FontWeight.w600,
+              fontSize: 11,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildThinkingPreview({required String content, required FluxColorsExtension flux, required TextTheme textTheme}) {
+    // Truncate thinking content to first 120 chars
+    final preview = content.length > 120 ? '${content.substring(0, 120)}...' : content;
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: flux.textSecondary.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: flux.border.withValues(alpha: 0.3)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.psychology_outlined, size: 12, color: flux.textSecondary),
+              const SizedBox(width: 5),
+              Text(
+                AppLocalizations.of(context)!.thinking,
+                style: textTheme.labelLarge?.copyWith(
+                  color: flux.textSecondary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            preview,
+            style: textTheme.bodySmall?.copyWith(
+              color: flux.textSecondary,
+              height: 1.4,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildStreamingBubble(bool isLast) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
     return RepaintBoundary(
       child: Padding(
         padding: EdgeInsets.only(bottom: isLast ? 0.0 : 12.0),
@@ -1045,9 +1504,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             if (streamingText.isEmpty) {
               return _ThinkingIndicator(flux: flux);
             }
-            return _buildBubble(
-              ChatMessage(text: streamingText, fromUser: false, time: DateTime.now()),
-              isLast: isLast,
+            // During streaming we render plain text only — markdown/think-block
+            // parsing is expensive and causes crashes on long outputs.
+            // The final bubble (once streaming ends) gets the full rich render.
+            return Text(
+              streamingText,
+              style: textTheme.bodyMedium?.copyWith(height: 1.4),
             );
           },
         ),
@@ -1110,6 +1572,40 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator>
             },
           );
         }),
+      ),
+    );
+  }
+}
+
+// Search toggle button
+class _SearchToggleButton extends StatelessWidget {
+  final bool isEnabled;
+  final VoidCallback onTap;
+
+  const _SearchToggleButton({required this.isEnabled, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    return AnimatedTapCard(
+      onTap: onTap,
+      scaleDown: 0.85,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          color: isEnabled ? flux.textPrimary : Colors.transparent,
+          shape: BoxShape.circle,
+          border: Border.all(
+            color: isEnabled ? flux.textPrimary : flux.border,
+            width: 1,
+          ),
+        ),
+        child: Icon(
+          Icons.language,
+          color: isEnabled ? flux.background : flux.textSecondary,
+          size: 18,
+        ),
       ),
     );
   }

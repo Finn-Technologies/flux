@@ -16,7 +16,7 @@ class InferenceService {
     String? localPath,
     String? systemPrompt,
     List<Map<String, String>> history = const [],
-    int maxTokens = 1000000,
+    int maxTokens = 262144,
   }) async* {
     if (localPath == null || !File(localPath).existsSync()) {
       yield "Error: Local model file not found at $localPath.";
@@ -59,7 +59,14 @@ class InferenceService {
         return;
       }
 
-      final systemMessage = systemPrompt ?? "You are Flux, an on-device AI. Answer concisely and accurately. Never hallucinate other conversations or users. Stop immediately after answering.";
+      final systemMessage = systemPrompt ??
+          "You are Flux, an on-device AI. "
+          "IMPORTANT: You have perfect memory of this conversation. "
+          "The full conversation history is provided to you with every message, "
+          "so you can reference anything said earlier. "
+          "Never claim you do not remember something from this chat — you do. "
+          "Answer concisely and accurately. Never hallucinate other conversations or users. "
+          "Stop immediately after answering.";
 
       // Build the full prompt with conversation history for memory.
       // We keep a rough token budget: system prompt (~60 tokens) + history + current prompt.

@@ -7,7 +7,7 @@ Your private AI assistant that runs entirely offline on your device. No accounts
 </p>
 
 <p align="center">
-  <a href="https://github.com/Finn-Technologies/flux/releases"><img src="https://img.shields.io/badge/version-0.1.4-blue.svg" alt="Version"></a>
+  <a href="https://github.com/Finn-Technologies/flux/releases"><img src="https://img.shields.io/badge/version-0.1.6-blue.svg" alt="Version"></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
 </p>
 
