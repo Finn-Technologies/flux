@@ -5,7 +5,6 @@
 
   <p align="center">
     <a href="https://github.com/Finn-Technologies/flux/releases"><img src="https://img.shields.io/badge/version-0.1.6-blue.svg" alt="Version"></a>
-    <a href="https://github.com/Finn-Technologies/flux/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Finn-Technologies/flux/ci.yml?label=CI" alt="CI"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
   </p>
 </div>
