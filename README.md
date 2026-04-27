@@ -1,149 +1,214 @@
-# Flux
+<div align="center">
+  <img src="assets/icon/app_icon.png" width="100" alt="Flux Logo">
+  <h1 align="center">Flux</h1>
+  <p align="center">Your private AI assistant — entirely on-device, entirely yours.</p>
 
-Your private AI assistant that runs entirely offline on your device. No accounts, no cloud, no data leaving your phone—ever.
+  <p align="center">
+    <a href="https://github.com/Finn-Technologies/flux/releases"><img src="https://img.shields.io/badge/version-0.1.6-blue.svg" alt="Version"></a>
+    <a href="https://github.com/Finn-Technologies/flux/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/Finn-Technologies/flux/ci.yml?label=CI" alt="CI"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
+  </p>
+</div>
 
-<p align="center">
-  <img src="assets/icon/app_icon.png" width="120" alt="Flux Logo">
-</p>
+---
 
-<p align="center">
-  <a href="https://github.com/Finn-Technologies/flux/releases"><img src="https://img.shields.io/badge/version-0.1.6-blue.svg" alt="Version"></a>
-  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
-</p>
+## Overview
 
-## What is Flux?
+Flux is a **fully offline AI assistant** for Android. It runs quantized LLMs directly on your device using `llamadart` (llama.cpp bindings). No accounts, no cloud, no data leaving your phone — ever.
 
-Flux is a fully offline AI chat assistant for Android. Unlike other AI apps that send your conversations to the cloud, Flux keeps everything on your device using local AI models powered by Qwen 3.5.
+But it can also **search the web** when you want it to, combining the privacy of local inference with the freshness of live search results.
 
-### Key Features
+---
 
-- **🤖 Three AI Models** — Choose the right balance for your device:
-  - **Flux Lite** (500MB) — Ultra-fast, works on 4GB RAM devices
-  - **Flux Steady** (1.3GB) — Balanced performance, requires 6GB RAM
-  - **Flux Smart** (2.6GB) — Maximum capability, requires 8GB+ RAM
+## Features
 
-- **💬 Beautiful Chat Interface** — Clean, minimalist design with smooth animations.
+### Offline AI Chat
 
-- **📚 Conversation History** — Automatically saves chats with easy access via slide-in sidebar
+| Model | Size | RAM | What it's good at |
+|-------|------|-----|-------------------|
+| **Flux Lite** | 533 MB | 4 GB+ | Quick answers, low-end devices |
+| **Flux Creative** | 890 MB | 4 GB+ | HTML/CSS/JS mini-app generation |
+| **Flux Steady** | 1.3 GB | 6 GB+ | Balanced reasoning and speed |
+| **Flux Smart** | 2.7 GB | 8 GB+ | Complex reasoning, deep analysis |
 
-- **🔒 100% Private** — No accounts, no tracking, no internet required for inference
+All models are GGUF quantizations of **Qwen 3.5**, downloaded directly from Hugging Face inside the app.
 
-## Download Models
+### Web Search
 
-Flux downloads AI models directly from Hugging Face. Models are optimized for your device's RAM:
+Toggle the globe icon in the chat bar and Flux will:
+1. Fetch live results from DuckDuckGo
+2. Inject them into the model's context as authoritative sources
+3. Show a **"Searched"** badge and the actual **source chips** you can tap
 
-| Model | Size | Required RAM | Best For |
-|-------|------|--------------|----------|
-| Flux Lite | 500 MB | 4 GB | Quick answers, older devices |
-| Flux Steady | 1.3 GB | 6 GB | Daily tasks, balanced use |
-| Flux Smart | 2.6 GB | 8 GB+ | Complex reasoning, maximum quality |
+When search is off, everything runs 100% offline.
+
+### App Builder ("Creations")
+
+Describe an HTML/CSS/JS mini-app in natural language and Flux Creative will build it. The app gets a live preview, auto-saves to your collection, and you can run, edit, or delete creations.
+
+### Conversation History
+
+Every chat auto-saves. The history sidebar lets you browse, rename, or delete past conversations. When you tap an old chat, the model used for that conversation is automatically restored.
+
+### Context Management
+
+Flux compacts its context window every 4 messages — older turns are summarized so the prompt stays lean. The model never claims it "doesn't remember" because its system prompt explicitly tells it: *"You have perfect memory of this conversation."*
+
+### Long Responses Without Crashing
+
+Streaming is throttled to ~6 UI updates per second instead of hundreds. Responses longer than 8,000 tokens automatically continue in the background (up to 3 continuations) so no output gets cut off.
+
+### Localized UI
+
+The entire interface is translated into **6 languages**:
+
+| Language | Locale |
+|----------|--------|
+| English | `en` |
+| Spanish | `es` |
+| French | `fr` |
+| German | `de` |
+| Italian | `it` |
+| Chinese | `zh` |
+
+---
+
+## Screenshots
+
+<details>
+<summary>Expand screenshots</summary>
+
+| Screen | Description |
+|--------|-------------|
+| `lib/features/onboarding/` | 5-slide onboarding: welcome, privacy, offline, model download, finish |
+| `lib/features/chat/` | Chat with model selector + history sidebar |
+| `lib/features/models/` | Model download manager with progress bars |
+| `lib/features/creations/` | Collection gallery + editor + live WebView preview |
+| `lib/features/settings/` | Clear cache, about, version info |
+
+</details>
+
+---
 
 ## Getting Started
 
 ### Prerequisites
-- Android device with 4GB+ RAM
-- Flutter SDK (for development)
-- Android Studio or VS Code
+
+- Android device with **4 GB+ RAM** (8 GB recommended for Flux Smart)
+- **Flutter SDK** (≥3.0) for development
+- Android Studio, VS Code, or IntelliJ
 
 ### Installation
 
 ```bash
-# Clone the repository
+# Clone
 git clone https://github.com/Finn-Technologies/flux.git
 cd flux
 
-# Install dependencies
+# Dependencies
 flutter pub get
 
-# Run on device or emulator
+# Run on a connected device
 flutter run
 
-# Build release APK
-flutter build apk --release
+# Build a release APK
+flutter build apk --release --split-per-abi
 ```
+
+---
 
 ## Architecture
 
 ```
 lib/
-├── main.dart                    # App entry, GoRouter navigation
+├── main.dart                    # Entry point, GoRouter, theming
 ├── core/
+│   ├── constants/               # AppVersion, etc.
 │   ├── models/
 │   │   ├── hf_model.dart        # AI model data structures
 │   │   └── chat_session.dart    # Conversation persistence
 │   ├── services/
-│   │   ├── model_service.dart   # Model management & RAM filtering
-│   │   └── inference_service.dart # On-device inference
+│   │   ├── inference_service.dart   # llama.cpp streaming inference
+│   │   ├── model_service.dart       # RAM-filtered model listing
+│   │   └── search_service.dart      # DuckDuckGo HTML scraping
 │   ├── providers/
-│   │   ├── download_provider.dart  # Download state management
-│   │   └── model_provider.dart     # Selected model state
-│   └── widgets/
-│       └── flux_shell.dart      # Bottom navigation shell
+│   │   ├── download_provider.dart   # Download state management
+│   │   └── model_provider.dart      # Selected model state
+│   ├── theme/                   # FluxColors, light/dark themes
+│   └── widgets/                 # Shared UI components
 ├── features/
-│   ├── onboarding/              # 5-step onboarding flow
-│   │   ├── onboarding_page.dart
-│   │   └── choose_model_screen.dart
-│   ├── chat/                  # Main chat interface
-│   │   └── chat_screen.dart
-│   ├── models/                # Model download & management
-│   │   └── models_screen.dart
-│   └── settings/              # App settings
-│       └── settings_screen.dart
+│   ├── onboarding/              # Welcome flow + model selection
+│   ├── chat/                    # Main chat + message list + streaming
+│   ├── models/                  # Download library + storage info
+│   ├── creations/               # App builder gallery, editor, preview
+│   └── settings/                # Cache, about, version
+├── l10n/                        # ARB + generated Dart (6 languages)
 └── assets/
-    ├── images/                # SVG icons
-    └── icon/                  # App icon
+    ├── images/                  # SVG icons
+    └── icon/                    # App icon (PNG)
 ```
 
-## Tech Stack
+### Tech Stack
 
-| Layer | Technology |
-|-------|------------|
+| Layer | Choice |
+|-------|--------|
 | Framework | Flutter 3.x |
-| State Management | Riverpod 2.x |
-| Navigation | go_router |
-| Local Storage | Hive + SharedPreferences |
-| Downloads | background_downloader |
-| AI Inference | llama.cpp (integrated) |
-| Styling | Material 3 with custom design |
-| Animations | Built-in Flutter (TweenAnimationBuilder, AnimatedScale) |
-
-## Design Philosophy
-
-Flux follows a **minimalist, Apple-inspired design**:
-
-- **Color palette**: Clean whites, soft grays, and deep blacks
-- **Typography**: Instrument Sans font throughout
-- **Animations**: Smooth 350ms transitions with easeOutCubic curves
-- **Navigation**: Simple 2-tab bottom bar (Home + Settings)
-- **Spacing**: Generous 20px margins, consistent 15px card radius
-
-## Privacy
-
-Flux is built with privacy as the foundation:
-
-- ✅ **No account required** — Start using immediately
-- ✅ **No internet needed** — Works completely offline
-- ✅ **No data collection** — Zero analytics or tracking
-- ✅ **Open source** — Audit the full source code
-- ✅ **Local storage only** — All data stays on your device
-
-## Roadmap
-
-- [x] Redesigned UI with smooth animations
-- [x] Three-tier model system (Lite/Steady/Smart)
-- [x] RAM-based model filtering
-- [x] Staggered entrance animations
-- [x] Performance optimizations (RepaintBoundary, cacheExtent)
-- [ ] Image/vision model support
-- [ ] Voice input integration
-- [ ] Export conversations
-- [ ] Multiple language support
-- [ ] iOS version
-
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
+| State | Riverpod 2.x |
+| Routing | go_router |
+| Local DB | Hive + SharedPreferences |
+| AI Engine | llama.cpp via `llamadart` |
+| Downloads | `background_downloader` |
+| Search | DuckDuckGo HTML (no API key needed) |
+| WebView | `webview_flutter` |
+| Fonts | Instrument Sans (Google Fonts) |
+| Icons | Custom SVGs + Material Symbols |
 
 ---
 
-**Made with ❤️ by Finn Technologies**
+## GitHub Actions
+
+| Workflow | Trigger | What it does |
+|----------|---------|--------------|
+| **CI** | Push / PR to `main` | `flutter analyze` + `flutter test` |
+| **Build APK** | Push to `main` | Debug APK → workflow artifact |
+| **Release** | Tag push `v*` | Release APK (all ABIs) → draft GitHub release |
+
+---
+
+## Privacy
+
+Flux is built with privacy as a hard requirement:
+
+- **No account** — download and start using immediately
+- **No cloud** — inference runs locally via llama.cpp
+- **No telemetry** — zero analytics, zero tracking
+- **No internet needed** — fully offline when search is toggled off
+- **Open source** — every line of code is auditable
+
+---
+
+## Roadmap
+
+- [x] Offline AI chat with 4 model sizes
+- [x] Web search with source display
+- [x] HTML/CSS/JS app builder (Creations)
+- [x] Conversation history with model restoration
+- [x] Context window compaction
+- [x] 6-language localization
+- [x] Performance: throttled streaming, continuations, debouncing
+- [ ] Image / vision model support
+- [ ] Voice input
+- [ ] Export conversations (JSON / text)
+- [ ] iOS version
+
+---
+
+## License
+
+MIT License — see [LICENSE](LICENSE).
+
+---
+
+<div align="center">
+  <strong>Made with ❤️ by Finn Technologies</strong>
+</div>
