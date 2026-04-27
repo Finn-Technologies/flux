@@ -73,22 +73,7 @@ The entire interface is translated into **6 languages**:
 
 ---
 
-## Screenshots
 
-<details>
-<summary>Expand screenshots</summary>
-
-| Screen | Description |
-|--------|-------------|
-| `lib/features/onboarding/` | 5-slide onboarding: welcome, privacy, offline, model download, finish |
-| `lib/features/chat/` | Chat with model selector + history sidebar |
-| `lib/features/models/` | Model download manager with progress bars |
-| `lib/features/creations/` | Collection gallery + editor + live WebView preview |
-| `lib/features/settings/` | Clear cache, about, version info |
-
-</details>
-
----
 
 ## Getting Started
 
