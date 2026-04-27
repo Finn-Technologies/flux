@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/services.dart';
 import '../models/hf_model.dart';
 
@@ -53,6 +54,10 @@ class ModelService {
   ];
 
   static Future<int> getDeviceRAM() async {
+    // Desktop platforms have ample RAM — no need for mobile method channel
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      return 16;
+    }
     try {
       final memoryBytes = await _channel.invokeMethod<int>('getDeviceRAM');
       if (memoryBytes == null || memoryBytes <= 0) return 4;

@@ -14,6 +14,7 @@ import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/rich_message_renderer.dart';
 import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
+import '../../core/constants/responsive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -92,15 +93,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Performance: local ValueNotifier for streaming text avoids rebuilding the entire message list on every token
   final _streamingTextNotifier = ValueNotifier<String>('');
 
-  // Batched token buffering: accumulate tokens here and flush to the notifier
-  // on a timer so the UI rebuilds at most ~6-7 times per second instead of
-  // hundreds of times per second during fast generation.
+  // Adaptive token buffering: flush to the notifier on a shorter timer
+  // (80ms vs previous 150ms) for significantly faster UI updates. The timer
+  // yields control back to the event loop so the UI can repaint smoothly even
+  // during fast generation.
   final StringBuffer _streamBuffer = StringBuffer();
   Timer? _flushTimer;
 
   void _startFlushTimer() {
     _flushTimer?.cancel();
-    _flushTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+    _flushTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
       if (_streamBuffer.isNotEmpty) {
         _streamingTextNotifier.value = _streamBuffer.toString();
       }
@@ -110,7 +112,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   void _stopFlushTimer() {
     _flushTimer?.cancel();
     _flushTimer = null;
-    // Final flush of any remaining buffered text
     if (_streamBuffer.isNotEmpty) {
       _streamingTextNotifier.value = _streamBuffer.toString();
     }
@@ -387,8 +388,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         if (smooth) {
           _scrollController.animateTo(
             maxExtent,
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
+            duration: const Duration(milliseconds: 300),
+            curve: Curves.easeInOutCubic,
           );
         } else {
           _scrollController.jumpTo(maxExtent);
@@ -520,14 +521,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       barrierColor: Colors.transparent,
       transitionDuration: const Duration(milliseconds: 350),
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curve = Curves.easeInOutCubic;
+        final smoothCurve = Curves.easeInOutCubic;
         
         final overlayAnimation = Tween<double>(
           begin: 0.0,
           end: 1.0,
         ).animate(CurvedAnimation(
           parent: animation,
-          curve: curve,
+          curve: smoothCurve,
         ));
         
         final menuAnimation = Tween<Offset>(
@@ -535,15 +536,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           end: Offset.zero,
         ).animate(CurvedAnimation(
           parent: animation,
-          curve: curve,
+          curve: smoothCurve,
         ));
         
         final scaleAnimation = Tween<double>(
-          begin: 0.98,
+          begin: 0.96,
           end: 1.0,
         ).animate(CurvedAnimation(
           parent: animation,
-          curve: curve,
+          curve: smoothCurve,
         ));
         
         return AnimatedBuilder(
@@ -583,7 +584,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             final conversations = ref.watch(conversationsProvider);
             
             return Container(
-              width: 340,
+              width: context.isDesktop ? 400 : 340,
               color: flux.surface,
               child: SafeArea(
                 child: GestureDetector(
@@ -856,7 +857,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
 
-    final inputBottom = keyboardHeight > 0 ? keyboardHeight + 20 : 108.0;
+    final inputBottom = keyboardHeight > 0
+        ? keyboardHeight + 20
+        : (context.isDesktop ? 24.0 : 108.0);
 
     return Scaffold(
       backgroundColor: flux.background,
@@ -974,12 +977,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     opacity: _isClearingChat ? 0.0 : 1.0,
                     duration: const Duration(milliseconds: 200),
                     curve: Curves.easeOutCubic,
-                    child: messages.isEmpty
-                        ? _buildEmptyState(context)
-                        : ListView.builder(
-                            controller: _scrollController,
-                            padding: EdgeInsets.zero,
-                            itemCount: messages.length + (_isStreaming ? 1 : 0) + (_isSearching ? 1 : 0),
+                child: messages.isEmpty
+                    ? _buildEmptyState(context)
+                    : ListView.builder(
+                        controller: _scrollController,
+                        padding: const EdgeInsets.only(top: 12),
+                        itemCount: messages.length + (_isStreaming ? 1 : 0) + (_isSearching ? 1 : 0),
                             cacheExtent: 300,
                             addAutomaticKeepAlives: false,
                             addRepaintBoundaries: true,
@@ -1080,28 +1083,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget _buildEmptyState(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
-    
+
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.auto_awesome_outlined,
-            size: 48,
-            color: flux.textSecondary.withValues(alpha: 0.4),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: flux.textPrimary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(
+              Icons.auto_awesome_outlined,
+              size: 28,
+              color: flux.textSecondary.withValues(alpha: 0.6),
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             AppLocalizations.of(context)!.howCanIHelp,
             style: textTheme.bodyLarge?.copyWith(
-              color: flux.textSecondary.withValues(alpha: 0.6),
+              color: flux.textSecondary.withValues(alpha: 0.8),
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 6),
           Text(
             AppLocalizations.of(context)!.startConversation,
             style: textTheme.bodySmall?.copyWith(
-              color: flux.textSecondary.withValues(alpha: 0.4),
+              color: flux.textSecondary.withValues(alpha: 0.5),
             ),
           ),
         ],
@@ -1250,13 +1261,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     return RepaintBoundary(
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOutCubic,
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
         builder: (context, value, child) {
+          final t = value.clamp(0.0, 1.0);
           return Opacity(
-            opacity: value.clamp(0.0, 1.0),
+            opacity: t,
             child: Transform.translate(
-              offset: Offset(0, 15 * (1.0 - value)),
+              offset: Offset(0, 15 * (1.0 - t)),
               child: child,
             ),
           );
@@ -1534,7 +1546,7 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 1200),
+      duration: const Duration(milliseconds: 1300),
       vsync: this,
     )..repeat();
   }
@@ -1555,17 +1567,27 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator>
           return AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
-              final double offset = (_controller.value * 3 - index) % 3;
-              final double opacity = (1.0 - (offset.abs() / 2)).clamp(0.2, 1.0);
+              final phase = (_controller.value * 3 - index).clamp(0.0, 3.0);
+              final t = (phase % 1.0);
+              final bounce = 1.0 - (2.0 * t - 1.0) * (2.0 * t - 1.0);
+              final opacity = 0.25 + 0.75 * bounce;
+              final scale = 0.5 + 0.5 * bounce;
+              final translateY = -10 * bounce;
               return Opacity(
                 opacity: opacity,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(
-                    color: widget.flux.textSecondary,
-                    shape: BoxShape.circle,
+                child: Transform.translate(
+                  offset: Offset(0, translateY),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(
+                        color: widget.flux.textSecondary,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
                   ),
                 ),
               );

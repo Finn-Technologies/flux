@@ -15,6 +15,7 @@ import '../../core/providers/model_provider.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
 import '../../l10n/app_localizations.dart';
+
 // ============================================================================
 // TYPOGRAPHY - Instrument Sans from Google Fonts
 // ============================================================================
@@ -37,16 +38,8 @@ class _AppTypography {
 
   static TextStyle button(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 15,
-        fontWeight: FontWeight.w400,
+        fontWeight: FontWeight.w500,
         color: Theme.of(context).extension<FluxColorsExtension>()!.background,
-        height: 1.22,
-        letterSpacing: 0,
-      );
-
-  static TextStyle backButton(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 15,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
         height: 1.22,
         letterSpacing: 0,
       );
@@ -77,7 +70,7 @@ class _AppAssets {
 // ANIMATION CONSTANTS
 // ============================================================================
 class _AnimDurations {
-  static const Duration fast = Duration(milliseconds: 350);
+  static const Duration fast = Duration(milliseconds: 400);
 }
 
 class _AnimCurves {
@@ -147,16 +140,6 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     setState(() => _isNavigating = false);
   }
 
-  Future<void> _onSkip() async {
-    if (_isNavigating) return;
-    setState(() => _isNavigating = true);
-
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('onboarded', true);
-
-    if (mounted) context.go('/home');
-  }
-
   Future<void> _onFinish() async {
     if (_isDownloading) return;
     
@@ -199,7 +182,7 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
             physics: const NeverScrollableScrollPhysics(),
             onPageChanged: (i) => setState(() => _page = i),
             children: [
-              _WelcomeSlide(onNext: _onNext, onSkip: _onSkip),
+              _WelcomeSlide(onNext: _onNext),
               _PrivacySlide(onNext: _onNext, onBack: _onBack),
               _OfflineSlide(onNext: _onNext, onBack: _onBack),
               _DownloadModelSlide(
@@ -225,25 +208,21 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 
 class _WelcomeSlide extends StatelessWidget {
   final VoidCallback onNext;
-  final VoidCallback onSkip;
 
-  const _WelcomeSlide({required this.onNext, required this.onSkip});
+  const _WelcomeSlide({required this.onNext});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        final spacing = 60.0;
-        final contentHeight = 31.0 + spacing + 44;
-        final topPadding = ((screenHeight - contentHeight) / 2) + 60;
-        final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+        final topPadding = ((screenHeight - 140) / 2) + 40;
 
         return Stack(
           children: [
             Positioned(
-              left: 0,
-              right: 0,
+              left: 20,
+              right: 20,
               top: topPadding,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -256,28 +235,14 @@ class _WelcomeSlide extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 60),
-                  
+
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 200),
                     child: _AnimatedButton(
                       text: AppLocalizations.of(context)!.start,
                       onPressed: onNext,
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _FadeInSlide(
-                    delay: const Duration(milliseconds: 250),
-                    child: AnimatedTapCard(
-                      onTap: onSkip,
-                      scaleDown: 0.95,
-                      child: Text(
-                        AppLocalizations.of(context)!.skipSetup,
-                        style: _AppTypography.backButton(context).copyWith(
-                          color: flux.textSecondary.withValues(alpha: 0.6),
-                        ),
-                      ),
                     ),
                   ),
                 ],
@@ -301,9 +266,7 @@ class _PrivacySlide extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        final spacing = 60.0;
-        final contentHeight = 31.0 + 20 + 76 + spacing + 44;
-        final topPadding = ((screenHeight - contentHeight) / 2) + 60;
+        final topPadding = ((screenHeight - 200) / 2) + 40;
 
         return Stack(
           children: [
@@ -331,9 +294,9 @@ class _PrivacySlide extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 150),
                     child: Text(
@@ -342,9 +305,9 @@ class _PrivacySlide extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  
-                  SizedBox(height: spacing),
-                  
+
+                  const SizedBox(height: 60),
+
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 200),
                     child: _AnimatedButton(
@@ -373,9 +336,7 @@ class _OfflineSlide extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        final spacing = 60.0;
-        final contentHeight = 31.0 + 20 + 76 + spacing + 44;
-        final topPadding = ((screenHeight - contentHeight) / 2) + 60;
+        final topPadding = ((screenHeight - 200) / 2) + 40;
 
         return Stack(
           children: [
@@ -403,9 +364,9 @@ class _OfflineSlide extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 20),
-                  
+
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 150),
                     child: Text(
@@ -414,9 +375,9 @@ class _OfflineSlide extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  
-                  SizedBox(height: spacing),
-                  
+
+                  const SizedBox(height: 60),
+
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 200),
                     child: _AnimatedButton(
@@ -600,9 +561,7 @@ class _FinishSlide extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        final spacing = 60.0;
-        final contentHeight = 31.0 + spacing + 44;
-        final topPadding = ((screenHeight - contentHeight) / 2) + 60;
+        final topPadding = ((screenHeight - 140) / 2) + 40;
 
         return Stack(
           children: [
@@ -621,9 +580,9 @@ class _FinishSlide extends StatelessWidget {
                       textAlign: TextAlign.center,
                     ),
                   ),
-                  
+
                   const SizedBox(height: 60),
-                  
+
                   _FadeInSlide(
                     delay: const Duration(milliseconds: 200),
                     child: _AnimatedButton(
@@ -658,30 +617,14 @@ class _FadeInSlide extends StatefulWidget {
 class _FadeInSlideState extends State<_FadeInSlide>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-  late Animation<double> _opacity;
-  late Animation<double> _slide;
   Timer? _startTimer;
 
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 500),
+      duration: const Duration(milliseconds: 400),
       vsync: this,
-    );
-
-    _opacity = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 1.0, curve: Curves.easeInOutCubic),
-      ),
-    );
-
-    _slide = Tween<double>(begin: 20.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _controller,
-        curve: const Interval(0.0, 1.0, curve: Curves.easeInOutCubic),
-      ),
     );
 
     _startTimer = Timer(widget.delay, () {
@@ -701,10 +644,12 @@ class _FadeInSlideState extends State<_FadeInSlide>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
+        final raw = _controller.value;
+        final t = Curves.easeOutCubic.transform(raw).clamp(0.0, 1.0);
         return Opacity(
-          opacity: _opacity.value,
+          opacity: t,
           child: Transform.translate(
-            offset: Offset(0, _slide.value),
+            offset: Offset(0, 20 * (1.0 - t)),
             child: child,
           ),
         );
@@ -769,7 +714,9 @@ class _BackButton extends StatelessWidget {
             const SizedBox(width: 13),
             Text(
               AppLocalizations.of(context)!.back,
-              style: _AppTypography.backButton(context),
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                color: flux.textSecondary,
+              ),
             ),
           ],
         ),

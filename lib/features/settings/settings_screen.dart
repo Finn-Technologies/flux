@@ -7,6 +7,7 @@ import '../../core/constants/app_version.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
+import '../../core/constants/responsive.dart';
 import '../../l10n/app_localizations.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -17,6 +18,9 @@ class SettingsScreen extends StatelessWidget {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
     final brightness = Theme.of(context).brightness;
+    final isDesktop = context.isDesktop;
+    final top = context.topPadding + (isDesktop ? 40 : 60);
+    final bottomPad = isDesktop ? 24.0 : 108.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -30,15 +34,15 @@ class SettingsScreen extends StatelessWidget {
           children: [
             Positioned(
               left: 20,
-              top: 60,
+              top: top,
               child: FluxTitle(title: AppLocalizations.of(context)!.settings),
             ),
 
             Positioned(
               left: 20,
               right: 20,
-              top: 120,
-              bottom: 108,
+              top: top + 60,
+              bottom: bottomPad,
               child: ListView(
                 padding: EdgeInsets.zero,
                 cacheExtent: 500,
@@ -97,6 +101,17 @@ class SettingsScreen extends StatelessWidget {
 
                   StaggeredEntrance(
                     index: 2,
+                    child: _buildSettingsItem(
+                      context: context,
+                      title: 'Licenses',
+                      subtitle: 'Flux MIT \u2022 Qwen 3.5 Apache 2.0',
+                      onTap: () => context.push('/settings/licenses'),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+
+                  StaggeredEntrance(
+                    index: 3,
                     child: _buildSettingsItem(
                       context: context,
                       title: AppLocalizations.of(context)!.aboutFlux,

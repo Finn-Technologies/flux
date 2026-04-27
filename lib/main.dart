@@ -1,3 +1,4 @@
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +12,7 @@ import 'features/creations/creation_editor_screen.dart';
 import 'features/creations/creation_app_screen.dart';
 import 'features/models/models_screen.dart';
 import 'features/settings/settings_screen.dart';
+import 'features/settings/licenses_screen.dart';
 import 'core/widgets/flux_shell.dart';
 import 'core/theme/flux_theme.dart';
 
@@ -28,20 +30,22 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final onboarded = prefs.getBool('onboarded') ?? false;
 
-  SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(
-      statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.dark,
-      statusBarBrightness: Brightness.light,
-    ),
-  );
+  // Desktop-aware system UI overlay
+  final isDesktop = Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+  if (!isDesktop) {
+    SystemChrome.setSystemUIOverlayStyle(
+      const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.dark,
+        statusBarBrightness: Brightness.light,
+      ),
+    );
+  }
 
   runApp(ProviderScope(child: FluxApp(onboarded: onboarded)));
 }
 
-// Helper for consistent tab-style slide transitions across the app
-// Each tab has a spatial position and slides from/to that position
-// Unified smooth animation for all transitions
+// Unified smooth, non-bouncy page transition for all routes
 CustomTransitionPage buildSlidePage({
   required GoRouterState state,
   required Widget child,
@@ -51,12 +55,10 @@ CustomTransitionPage buildSlidePage({
   return CustomTransitionPage(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 350),
-    reverseTransitionDuration: const Duration(milliseconds: 300),
+    transitionDuration: const Duration(milliseconds: 300),
+    reverseTransitionDuration: const Duration(milliseconds: 250),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      // Use smooth spring-like curve
-      final curve = Curves.easeInOutCubicEmphasized;
-
+      final curve = Curves.easeInOutCubic;
       return AnimatedBuilder(
         animation: Listenable.merge([animation, secondaryAnimation]),
         builder: (context, child) {
@@ -64,21 +66,14 @@ CustomTransitionPage buildSlidePage({
           final thisProgress = curve.transform(animation.value);
           final secondaryProgress = curve.transform(secondaryAnimation.value);
 
-          // Calculate offset with smooth interpolation
           final thisOffset = effectivePosition * (1.0 - thisProgress);
-          final combinedOffset = thisOffset - (0.08 * secondaryProgress * (effectivePosition > 0 ? -1 : 1));
+          final combinedOffset = thisOffset - (0.05 * secondaryProgress * (effectivePosition > 0 ? -1 : 1));
 
-          // Add subtle scale for depth
-          final scale = 0.98 + (0.02 * thisProgress);
-
-          return Transform.scale(
-            scale: scale.clamp(0.98, 1.0),
-            child: Transform.translate(
-              offset: Offset(combinedOffset * MediaQuery.of(context).size.width, 0),
-              child: Opacity(
-                opacity: 0.5 + (0.5 * thisProgress.clamp(0.0, 1.0)),
-                child: child,
-              ),
+          return Transform.translate(
+            offset: Offset(combinedOffset * MediaQuery.of(context).size.width, 0),
+            child: Opacity(
+              opacity: 0.4 + (0.6 * thisProgress.clamp(0.0, 1.0)),
+              child: child,
             ),
           );
         },
@@ -158,6 +153,14 @@ class _FluxAppState extends State<FluxApp> {
           pageBuilder: (context, state) => buildSlidePage(
             state: state,
             child: const ModelsScreen(),
+            position: 0.24,
+          ),
+        ),
+        GoRoute(
+          path: '/settings/licenses',
+          pageBuilder: (context, state) => buildSlidePage(
+            state: state,
+            child: const LicensesScreen(),
             position: 0.24,
           ),
         ),

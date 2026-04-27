@@ -5,10 +5,13 @@ import 'package:llamadart/llamadart.dart';
 class InferenceService {
   static final InferenceService _instance = InferenceService._internal();
   factory InferenceService() => _instance;
-  InferenceService._internal();
+  InferenceService._internal() {
+    LlamaEngine.configureLogging(level: LlamaLogLevel.none);
+  }
 
   LlamaEngine? _engine;
   String? _loadedModelPath;
+  final int _cpuCount = Platform.numberOfProcessors;
 
   Stream<String> streamChat({
     required String modelId,
@@ -30,15 +33,10 @@ class InferenceService {
           _engine = null;
         }
 
-        // Use up to 6 threads for batch processing, but cap interactive at 4
-        // to leave headroom for UI and system tasks.
-        final cpuCount = Platform.numberOfProcessors;
-        final threads = cpuCount > 4 ? 4 : (cpuCount > 1 ? cpuCount : 2);
-        final batchThreads = cpuCount > 6 ? 6 : (cpuCount > 2 ? cpuCount : 2);
+        final threads = _cpuCount > 1 ? _cpuCount - 1 : 1;
+        final batchThreads = _cpuCount;
 
         _engine = LlamaEngine(LlamaBackend());
-        // Disable noisy logs for production stability
-        LlamaEngine.configureLogging(level: LlamaLogLevel.none);
 
         await _engine!.loadModel(
           localPath,
@@ -46,9 +44,9 @@ class InferenceService {
             numberOfThreads: threads,
             numberOfThreadsBatch: batchThreads,
             contextSize: 16384,
-            gpuLayers: 0,
-            batchSize: 1024,
-            microBatchSize: 512,
+            gpuLayers: 99,
+            batchSize: 2048,
+            microBatchSize: 1024,
           ),
         );
         _loadedModelPath = localPath;
@@ -68,12 +66,10 @@ class InferenceService {
           "Answer concisely and accurately. Never hallucinate other conversations or users. "
           "Stop immediately after answering.";
 
-      // Build the full prompt with conversation history for memory.
-      // We keep a rough token budget: system prompt (~60 tokens) + history + current prompt.
-      // With 16k context, we can afford a generous history and still have room for long responses.
-      const int maxHistoryChars = 18000;
-      final buffer = StringBuffer();
-      buffer.write("<|im_start|>system\n$systemMessage\n<|im_end|>\n");
+      // Build prompt efficiently with fewer allocations
+      const int maxHistoryChars = 12000;
+      final parts = <String>[];
+      parts.add("<|im_start|>system\n$systemMessage\n<|im_end|>\n");
 
       if (history.isNotEmpty) {
         int historyChars = 0;
@@ -83,55 +79,63 @@ class InferenceService {
           final segment = "<|im_start|>$role\n$content\n<|im_end|>\n";
           historyChars += segment.length;
           if (historyChars > maxHistoryChars) break;
-          buffer.write(segment);
+          parts.add(segment);
         }
       }
 
-      buffer.write("<|im_start|>user\n$prompt\n<|im_end|>\n<|im_start|>assistant\n");
-      final fullPrompt = buffer.toString();
+      parts.add("<|im_start|>user\n$prompt\n<|im_end|>\n<|im_start|>assistant\n");
+      final fullPrompt = parts.join();
 
-      // Aggressive stop sequences to prevent continuation
-      final stopSequences = [
+      // Pre-compute stop markers for faster matching
+      const stopSequences = [
         "<|im_end|>",
         "<|endoftext|>",
-        "<|end_of_text|>",
-        "<|eot_id|>",
         "\nuser",
         "\nUser",
-        "\n### User:",
       ];
 
       final stream = _engine!.generate(
         fullPrompt,
         params: GenerationParams(
-          temp: 0.1, // Near-deterministic but avoids backend issues with exact 0.0
+          temp: 0.1,
           maxTokens: maxTokens,
           penalty: 1.1,
           stopSequences: stopSequences,
         ),
       );
 
+      // Batch tokens to reduce async yield overhead
       String accumulated = "";
+      String batch = "";
+      int batchCount = 0;
+      const int batchSize = 4;
+
       await for (final token in stream) {
         accumulated += token;
+        batch += token;
+        batchCount++;
 
-        // Manual backup stop check (some backends might not handle stopSequences perfectly)
-        // We only check the end of the string to avoid cutting off if the AI mentions 
-        // these sequences in the middle of a valid response.
-        bool shouldStop = false;
-        final tail = accumulated.length > 20 
-            ? accumulated.substring(accumulated.length - 20) 
-            : accumulated;
-
-        for (final marker in stopSequences) {
-          if (tail.contains(marker)) {
-            shouldStop = true;
-            break;
+        if (batchCount >= batchSize) {
+          // Check stop sequences only at tail of accumulated text
+          final tailLen = accumulated.length < 20 ? accumulated.length : 20;
+          bool shouldStop = false;
+          for (final marker in stopSequences) {
+            if (accumulated.indexOf(marker, accumulated.length - tailLen) != -1) {
+              shouldStop = true;
+              break;
+            }
           }
-        }
 
-        if (shouldStop) break;
-        yield token;
+          if (shouldStop) break;
+          yield batch;
+          batch = "";
+          batchCount = 0;
+        }
+      }
+
+      // Yield remaining batched tokens
+      if (batch.isNotEmpty) {
+        yield batch;
       }
 
     } catch (e) {

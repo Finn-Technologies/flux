@@ -8,6 +8,7 @@ import '../../core/providers/download_provider.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
+import '../../core/constants/responsive.dart';
 import '../../l10n/app_localizations.dart';
 
 // ============================================================================
@@ -261,6 +262,8 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final topPadding = mediaPadding(context).top;
     final brightness = Theme.of(context).brightness;
+    final isDesktop = context.isDesktop;
+    final bottomPad = isDesktop ? 24.0 : 108.0;
 
     final downloaded = ref.watch(downloadProvider);
     final creativeModels = downloaded.where(
@@ -289,18 +292,16 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
               left: 20,
               right: 20,
               top: topPadding + 110,
-              bottom: 108,
+              bottom: bottomPad,
               child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Creative install prompt (only shown when Creative is not installed)
                     if (creativeModel == null)
                       _buildCreativePrompt(context, flux),
 
                     if (creativeModel == null)
                       const SizedBox(height: 20),
 
-                    // Collection grid or empty state
                     Expanded(
                       child: creations.isEmpty
                           ? _buildEmptyState(context, flux)
@@ -310,11 +311,10 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                 ),
               ),
 
-            // FAB - New Creation
             if (creativeModel != null)
               Positioned(
                 right: 20,
-                bottom: 130,
+                bottom: bottomPad + 22,
                 child: Semantics(
                   label: AppLocalizations.of(context)!.newCreation,
                   button: true,
@@ -437,16 +437,24 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.extension_outlined,
-            size: 48,
-            color: flux.textSecondary.withValues(alpha: 0.35),
+          Container(
+            width: 64,
+            height: 64,
+            decoration: BoxDecoration(
+              color: flux.textPrimary.withValues(alpha: 0.06),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Icon(
+              Icons.extension_outlined,
+              size: 28,
+              color: flux.textSecondary.withValues(alpha: 0.6),
+            ),
           ),
           const SizedBox(height: 16),
           Text(
             AppLocalizations.of(context)!.noCreations,
             style: textTheme.bodyLarge?.copyWith(
-              color: flux.textSecondary.withValues(alpha: 0.7),
+              color: flux.textSecondary.withValues(alpha: 0.8),
             ),
           ),
           const SizedBox(height: 6),
@@ -462,18 +470,19 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
   }
 
   Widget _buildGrid(BuildContext context, List<Creation> creations, FluxColorsExtension flux) {
-    final isWide = MediaQuery.of(context).size.width > 400;
+    final width = MediaQuery.of(context).size.width;
+    final columns = width > 900 ? 4 : (width > 600 ? 3 : (width > 400 ? 2 : 1));
 
     return GridView.builder(
       padding: const EdgeInsets.only(bottom: 20),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: isWide ? 2 : 1,
+        crossAxisCount: columns,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
-        childAspectRatio: isWide ? 3.2 : 4.0,
+        childAspectRatio: columns > 2 ? 2.8 : (columns > 1 ? 3.2 : 4.0),
       ),
       itemCount: creations.length,
-      cacheExtent: 300,
+      cacheExtent: 500,
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       itemBuilder: (context, index) {

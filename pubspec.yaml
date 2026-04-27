@@ -1,9 +1,16 @@
 name: flux
-description: Flux Flutter app scaffold (offline-first, mock data)
-version: 0.1.6
+description: On-device AI assistant for mobile, tablet, and desktop
+version: 0.1.7
 publish_to: 'none'
 environment:
   sdk: ">=3.0.0 <4.0.0"
+
+platforms:
+  android:
+  ios:
+  macos:
+  windows:
+  linux:
 
 dependencies:
   flutter:

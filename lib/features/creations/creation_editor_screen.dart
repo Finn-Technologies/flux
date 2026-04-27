@@ -11,6 +11,7 @@ import '../../core/models/hf_model.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
+import '../../core/constants/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import 'creations_screen.dart';
 
@@ -40,13 +41,14 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
   final _streamingTextNotifier = ValueNotifier<String>('');
   WebViewController? _webViewController;
 
-  // Batched token buffering for throttled UI updates during streaming
+  // Adaptive token buffering: flush to the notifier on a shorter timer
+  // (80ms vs previous 150ms) for significantly faster UI updates.
   final StringBuffer _streamBuffer = StringBuffer();
   Timer? _flushTimer;
 
   void _startFlushTimer() {
     _flushTimer?.cancel();
-    _flushTimer = Timer.periodic(const Duration(milliseconds: 150), (_) {
+    _flushTimer = Timer.periodic(const Duration(milliseconds: 80), (_) {
       if (_streamBuffer.isNotEmpty) {
         _streamingTextNotifier.value = _streamBuffer.toString();
       }
@@ -337,7 +339,9 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
     final brightness = Theme.of(context).brightness;
-    final inputBottom = keyboardHeight > 0 ? keyboardHeight + 20 : 108.0;
+    final inputBottom = keyboardHeight > 0
+        ? keyboardHeight + 20
+        : (context.isDesktop ? 24.0 : 108.0);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -634,12 +638,18 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     return RepaintBoundary(
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 300),
-        curve: Curves.easeInOutCubic,
-        builder: (context, value, child) => Opacity(
-          opacity: value.clamp(0.0, 1.0),
-          child: Transform.translate(offset: Offset(0, 15 * (1.0 - value)), child: child),
-        ),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeOutCubic,
+        builder: (context, value, child) {
+          final t = value.clamp(0.0, 1.0);
+          return Opacity(
+            opacity: t,
+            child: Transform.translate(
+              offset: Offset(0, 15 * (1.0 - t)),
+              child: child,
+            ),
+          );
+        },
         child: GestureDetector(
           onLongPress: msg.text.isNotEmpty
               ? () {
@@ -801,7 +811,7 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTicke
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(duration: const Duration(milliseconds: 1200), vsync: this)..repeat();
+    _controller = AnimationController(duration: const Duration(milliseconds: 1300), vsync: this)..repeat();
   }
 
   @override
@@ -820,15 +830,25 @@ class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTicke
           return AnimatedBuilder(
             animation: _controller,
             builder: (context, child) {
-              final double offset = (_controller.value * 3 - index) % 3;
-              final double opacity = (1.0 - (offset.abs() / 2)).clamp(0.2, 1.0);
+              final phase = (_controller.value * 3 - index).clamp(0.0, 3.0);
+              final t = (phase % 1.0);
+              final bounce = 1.0 - (2.0 * t - 1.0) * (2.0 * t - 1.0);
+              final opacity = 0.25 + 0.75 * bounce;
+              final scale = 0.5 + 0.5 * bounce;
+              final translateY = -10 * bounce;
               return Opacity(
                 opacity: opacity,
-                child: Container(
-                  margin: const EdgeInsets.symmetric(horizontal: 3),
-                  width: 6,
-                  height: 6,
-                  decoration: BoxDecoration(color: widget.flux.textSecondary, shape: BoxShape.circle),
+                child: Transform.translate(
+                  offset: Offset(0, translateY),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      margin: const EdgeInsets.symmetric(horizontal: 3),
+                      width: 6,
+                      height: 6,
+                      decoration: BoxDecoration(color: widget.flux.textSecondary, shape: BoxShape.circle),
+                    ),
+                  ),
                 ),
               );
             },

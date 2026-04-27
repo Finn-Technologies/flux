@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import '../../core/providers/download_provider.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
+import '../../core/constants/responsive.dart';
 import '../../l10n/app_localizations.dart';
 
 class ModelsScreen extends ConsumerStatefulWidget {
@@ -50,20 +52,31 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
   }
 
   Future<void> _loadStorageInfo() async {
+    // Desktop: use reasonable defaults since no method channel is registered
+    if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+      if (mounted) {
+        setState(() {
+          _totalStorageGB = 256;
+          _usedStorageGB = 64;
+        });
+      }
+      return;
+    }
+
     const platform = MethodChannel('com.example.flux/storage');
     try {
       final Map<dynamic, dynamic> result = await platform.invokeMethod('getStorageSpace');
       final total = (result['total'] as int) / (1024 * 1024 * 1024);
       final free = (result['free'] as int) / (1024 * 1024 * 1024);
-      
+
       if (mounted) {
         setState(() {
           _totalStorageGB = total;
           _usedStorageGB = total - free;
         });
       }
-    } catch (e) {
-      debugPrint('Error getting storage info: $e');
+    } catch (_) {
+      // Silently fall back to defaults on unsupported platforms
     }
   }
 
@@ -76,6 +89,9 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
     final brightness = Theme.of(context).brightness;
+    final isDesktop = context.isDesktop;
+    final topPad = isDesktop ? 20.0 : 0.0;
+    final bottomPad = isDesktop ? 24.0 : 108.0;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -89,21 +105,21 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
           children: [
             Positioned(
               left: 20,
-              top: 48,
+              top: 48 + topPad,
               child: FluxBackButton(onTap: () => context.pop()),
             ),
 
             Positioned(
               left: 20,
-              top: 100,
+              top: 100 + topPad,
               child: FluxTitle(title: AppLocalizations.of(context)!.models),
             ),
 
             Positioned(
               left: 20,
               right: 20,
-              top: 160,
-              bottom: 108,
+              top: 160 + topPad,
+              bottom: bottomPad,
               child: RefreshIndicator(
                 onRefresh: () async {
                   await _loadModels();
@@ -460,22 +476,20 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
   }) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
-    
+
     showGeneralDialog(
       context: context,
       pageBuilder: (context, animation, secondaryAnimation) {
         return Container();
       },
       transitionBuilder: (context, animation, secondaryAnimation, child) {
-        final curve = Curves.easeInOutCubic;
-        final tween = Tween<double>(begin: 0.0, end: 1.0);
-        final fadeAnimation = tween.animate(CurvedAnimation(
+        final fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(CurvedAnimation(
           parent: animation,
-          curve: curve,
+          curve: Curves.easeInOutCubic,
         ));
         final scaleAnimation = Tween<double>(begin: 0.9, end: 1.0).animate(CurvedAnimation(
           parent: animation,
-          curve: curve,
+          curve: Curves.easeInOutCubic,
         ));
 
         return Opacity(
@@ -516,7 +530,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
           ),
         );
       },
-      transitionDuration: const Duration(milliseconds: 250),
+      transitionDuration: const Duration(milliseconds: 300),
       barrierDismissible: true,
       barrierLabel: '',
       barrierColor: flux.textPrimary.withValues(alpha: 0.3),

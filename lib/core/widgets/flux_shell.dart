@@ -5,6 +5,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/flux_theme.dart';
 import 'animated_tap_card.dart';
 import '../../l10n/app_localizations.dart';
+import '../constants/responsive.dart';
 
 class TabNavigationInfo extends InheritedWidget {
   final int previousIndex;
@@ -55,26 +56,84 @@ class _FluxShellState extends State<FluxShell> {
 
   void _onDestinationSelected(int index) {
     if (index == _currentIndex) return;
-
     _previousIndex = _currentIndex;
     HapticFeedback.selectionClick();
-
     switch (index) {
-      case 0:
-        context.go('/home');
-        break;
-      case 1:
-        context.go('/creations');
-        break;
-      case 2:
-        context.go('/settings');
-        break;
+      case 0: context.go('/home'); break;
+      case 1: context.go('/creations'); break;
+      case 2: context.go('/settings'); break;
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = context.isDesktop;
+    final body = isDesktop
+        ? _buildDesktopLayout(context)
+        : _buildMobileLayout(context);
+    return body;
+  }
+
+  Widget _buildDesktopLayout(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+
+    return Scaffold(
+      backgroundColor: flux.background,
+      resizeToAvoidBottomInset: false,
+      body: Row(
+        children: [
+          const SizedBox(width: 12),
+          Column(
+            mainAxisSize: MainAxisSize.max,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              _buildNavItem(
+                index: 0,
+                tooltip: AppLocalizations.of(context)!.home,
+                child: (isSelected) => SvgPicture.asset(
+                  'assets/images/home-01.svg', width: 28, height: 28,
+                  colorFilter: ColorFilter.mode(
+                    isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildNavItem(
+                index: 1,
+                tooltip: AppLocalizations.of(context)!.creations,
+                child: (isSelected) => SvgPicture.asset(
+                  'assets/images/union.svg', width: 26, height: 26,
+                  colorFilter: ColorFilter.mode(
+                    isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+                ),
+              ),
+              const SizedBox(height: 8),
+              _buildNavItem(
+                index: 2,
+                tooltip: AppLocalizations.of(context)!.settings,
+                child: (isSelected) => SvgPicture.asset(
+                  'assets/images/settings-03.svg', width: 28, height: 28,
+                  colorFilter: ColorFilter.mode(
+                    isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: TabNavigationInfo(
+              previousIndex: _previousIndex,
+              currentIndex: _currentIndex,
+              child: ResponsiveCenter(child: widget.child),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobileLayout(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+
     return Scaffold(
       backgroundColor: flux.background,
       resizeToAvoidBottomInset: false,
@@ -87,58 +146,39 @@ class _FluxShellState extends State<FluxShell> {
               child: widget.child,
             ),
           ),
-
           Positioned(
-            left: 20,
-            right: 20,
-            bottom: 40,
+            left: 16,
+            right: 16,
+            bottom: 32,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
                 _buildNavItem(
                   index: 0,
                   tooltip: AppLocalizations.of(context)!.home,
-                  child: (isSelected) {
-                    return SvgPicture.asset(
-                      'assets/images/home-01.svg',
-                      width: 28,
-                      height: 28,
-                      colorFilter: ColorFilter.mode(
-                        isSelected ? flux.textPrimary : flux.textSecondary,
-                        BlendMode.srcIn,
-                      ),
-                    );
-                  },
+                  child: (isSelected) => SvgPicture.asset(
+                    'assets/images/home-01.svg', width: 28, height: 28,
+                    colorFilter: ColorFilter.mode(
+                      isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+                  ),
                 ),
                 _buildNavItem(
                   index: 1,
                   tooltip: AppLocalizations.of(context)!.creations,
-                  child: (isSelected) {
-                    return SvgPicture.asset(
-                      'assets/images/union.svg',
-                      width: 26,
-                      height: 26,
-                      colorFilter: ColorFilter.mode(
-                        isSelected ? flux.textPrimary : flux.textSecondary,
-                        BlendMode.srcIn,
-                      ),
-                    );
-                  },
+                  child: (isSelected) => SvgPicture.asset(
+                    'assets/images/union.svg', width: 26, height: 26,
+                    colorFilter: ColorFilter.mode(
+                      isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+                  ),
                 ),
                 _buildNavItem(
                   index: 2,
                   tooltip: AppLocalizations.of(context)!.settings,
-                  child: (isSelected) {
-                    return SvgPicture.asset(
-                      'assets/images/settings-03.svg',
-                      width: 28,
-                      height: 28,
-                      colorFilter: ColorFilter.mode(
-                        isSelected ? flux.textPrimary : flux.textSecondary,
-                        BlendMode.srcIn,
-                      ),
-                    );
-                  },
+                  child: (isSelected) => SvgPicture.asset(
+                    'assets/images/settings-03.svg', width: 28, height: 28,
+                    colorFilter: ColorFilter.mode(
+                      isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+                  ),
                 ),
               ],
             ),
@@ -167,9 +207,7 @@ class _FluxShellState extends State<FluxShell> {
           child: SizedBox(
             width: 48,
             height: 48,
-            child: Center(
-              child: child(isSelected),
-            ),
+            child: Center(child: child(isSelected)),
           ),
         ),
       ),

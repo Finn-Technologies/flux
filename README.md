@@ -4,7 +4,7 @@
   <p align="center">Your private AI assistant — entirely on-device, entirely yours.</p>
 
   <p align="center">
-    <a href="https://github.com/Finn-Technologies/flux/releases"><img src="https://img.shields.io/badge/version-0.1.6-blue.svg" alt="Version"></a>
+    <a href="https://github.com/Finn-Technologies/flux/releases"><img src="https://img.shields.io/badge/version-0.1.7-blue.svg" alt="Version"></a>
     <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green.svg" alt="License"></a>
   </p>
 </div>
@@ -181,7 +181,10 @@ Flux is built with privacy as a hard requirement:
 
 ## License
 
-MIT License — see [LICENSE](LICENSE).
+Flux itself is MIT licensed — see [LICENSE](LICENSE).
+
+The AI models used by Flux are **Qwen 3.5** by Alibaba Cloud, distributed under the **Apache 2.0 license**.  
+See [MODEL-LICENSE](MODEL-LICENSE) for the full license text.
 
 ---
 

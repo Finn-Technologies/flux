@@ -127,8 +127,8 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
             onTap: () => setState(() => _selectedModel = model),
             scaleDown: 0.95,
             child: AnimatedContainer(
-            duration: const Duration(milliseconds: 250),
-            curve: Curves.easeOutCubic,
+            duration: const Duration(milliseconds: 300),
+            curve: const Cubic(0.34, 1.56, 0.64, 1),
             margin: const EdgeInsets.only(bottom: 16),
             padding: const EdgeInsets.all(20),
             decoration: BoxDecoration(

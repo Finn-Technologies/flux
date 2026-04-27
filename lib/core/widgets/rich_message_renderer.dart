@@ -3,6 +3,11 @@ import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/animated_tap_card.dart';
 
+// Pre-compiled regex patterns for performance (library-private top-level)
+final _thinkRegex = RegExp(r'<think>(.*?)</think>', dotAll: true);
+final _inlineRegex = RegExp(r'(\*\*(.*?)\*\*)|(`(.*?)`)|(\$(.*?)\$)');
+final _separatorCheck = RegExp(r'^[\s\-:]+$');
+
 /// A rich message renderer that supports:
 /// - Bold text via **markdown**
 /// - Markdown tables
@@ -17,18 +22,34 @@ class RichMessageRenderer extends StatelessWidget {
     required this.isUser,
   });
 
+  // Simple parsed text cache (keyed by text content)
+  static final Map<int, List<MessageSegment>> _parseCache = {};
+  static const int _maxCacheEntries = 20;
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final flux = theme.extension<FluxColorsExtension>()!;
 
-    final segments = _parseSegments(text.trim());
+    final segments = _getOrParseSegments(text.trim());
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: segments.map((s) => _buildSegment(context, s, flux)).toList(),
     );
+  }
+
+  List<MessageSegment> _getOrParseSegments(String text) {
+    final hash = text.hashCode;
+    final cached = _parseCache[hash];
+    if (cached != null) return cached;
+    final segments = _parseSegments(text);
+    if (_parseCache.length >= _maxCacheEntries) {
+      _parseCache.remove(_parseCache.keys.first);
+    }
+    _parseCache[hash] = segments;
+    return segments;
   }
 
   Widget _buildSegment(BuildContext context, MessageSegment segment, FluxColorsExtension flux) {
@@ -52,12 +73,11 @@ class RichMessageRenderer extends StatelessWidget {
 
   List<MessageSegment> _parseSegments(String text) {
     final segments = <MessageSegment>[];
-    
-    // First, extract think blocks
-    final thinkRegex = RegExp(r'<think>(.*?)</think>', dotAll: true);
+
+    // First, extract think blocks using pre-compiled regex
     int lastEnd = 0;
 
-    for (final match in thinkRegex.allMatches(text)) {
+    for (final match in _thinkRegex.allMatches(text)) {
       if (match.start > lastEnd) {
         final sub = text.substring(lastEnd, match.start).trim();
         if (sub.isNotEmpty) {
@@ -89,8 +109,8 @@ class RichMessageRenderer extends StatelessWidget {
     while (i < lines.length) {
       final String rawLine = lines[i];
       final String trimmedLine = rawLine.trim();
-      
-      // Header check (using startsWith with literal strings)
+
+      // Header check (using startsWith with literal strings - fastest check)
       if (trimmedLine.startsWith('#### ')) {
         segments.add(HeaderSegment(text: trimmedLine.substring(5).trim(), level: 4));
         i++;
@@ -102,11 +122,10 @@ class RichMessageRenderer extends StatelessWidget {
       else if (trimmedLine.startsWith('\$\$')) {
         final mathLines = <String>[];
         if (trimmedLine.length > 2 && trimmedLine.endsWith('\$\$')) {
-           // Single line $$ ... $$
            segments.add(MathSegment(text: trimmedLine.substring(2, trimmedLine.length - 2).trim()));
            i++;
         } else {
-          i++; // Skip starting $$
+          i++;
           while (i < lines.length && !lines[i].trim().startsWith('\$\$')) {
             mathLines.add(lines[i]);
             i++;
@@ -114,7 +133,7 @@ class RichMessageRenderer extends StatelessWidget {
           if (mathLines.isNotEmpty) {
             segments.add(MathSegment(text: mathLines.join('\n').trim()));
           }
-          if (i < lines.length) i++; // Skip ending $$
+          if (i < lines.length) i++;
         }
       }
       // Table check
@@ -129,14 +148,13 @@ class RichMessageRenderer extends StatelessWidget {
         } else {
           segments.add(TextSegment(text: tableLines.join('\n')));
         }
-      } 
+      }
       // Regular text
       else {
         final textLines = <String>[];
         while (i < lines.length) {
           final l = lines[i];
           final tl = l.trim();
-          // Stop if we hit any special block start
           if (_isTableRow(l) || tl.startsWith('###') || tl.startsWith('\$\$')) {
             break;
           }
@@ -274,24 +292,19 @@ class _RichTextBlock extends StatelessWidget {
 
   List<InlineSpan> _parseSpans(String text, FluxColorsExtension flux) {
     final spans = <InlineSpan>[];
-    // Combined regex for bold (**), inline code (`), and inline math ($)
-    // Matches: 1:Bold, 3:Code, 5:Math
-    final regex = RegExp(r'(\*\*(.*?)\*\*)|(`(.*?)`)|(\$(.*?)\$)');
     int lastEnd = 0;
 
-    for (final match in regex.allMatches(text)) {
+    for (final match in _inlineRegex.allMatches(text)) {
       if (match.start > lastEnd) {
         spans.add(TextSpan(text: text.substring(lastEnd, match.start)));
       }
 
       if (match.group(1) != null) {
-        // Bold match
         spans.add(TextSpan(
           text: match.group(2),
           style: const TextStyle(fontWeight: FontWeight.w700),
         ));
       } else if (match.group(3) != null) {
-        // Code match
         spans.add(TextSpan(
           text: match.group(4),
           style: GoogleFonts.firaCode(
@@ -302,7 +315,6 @@ class _RichTextBlock extends StatelessWidget {
           ),
         ));
       } else if (match.group(5) != null) {
-        // Math match
         spans.add(TextSpan(
           text: match.group(6),
           style: GoogleFonts.firaCode(
@@ -368,8 +380,8 @@ class _ThinkBlockState extends State<_ThinkBlock>
                     children: [
                       AnimatedRotation(
                         turns: _expanded ? 0.25 : 0,
-                        duration: const Duration(milliseconds: 200),
-                        curve: Curves.easeInOut,
+                        duration: const Duration(milliseconds: 300),
+                        curve: const Cubic(0.34, 1.56, 0.64, 1),
                         child: Icon(
                           Icons.chevron_right,
                           size: 18,
@@ -391,8 +403,9 @@ class _ThinkBlockState extends State<_ThinkBlock>
               ),
               // Expandable content
               AnimatedSize(
-                duration: const Duration(milliseconds: 200),
-                curve: Curves.easeInOut,
+                duration: const Duration(milliseconds: 300),
+                curve: const Cubic(0.34, 1.56, 0.64, 1),
+                alignment: Alignment.topCenter,
                 child: _expanded
                     ? Padding(
                         padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -426,7 +439,7 @@ class _TableBlock extends StatelessWidget {
 
     // Detect and remove the separator row (contains only dashes and pipes)
     final separatorIndex = parsedRows.indexWhere((cells) {
-      return cells.every((c) => RegExp(r'^[\s\-:]+$').hasMatch(c));
+      return cells.every((c) => _separatorCheck.hasMatch(c));
     });
 
     final headerRows = separatorIndex > 0 ? parsedRows.sublist(0, separatorIndex) : <List<String>>[];
