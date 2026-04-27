@@ -165,14 +165,6 @@ lib/
 
 ---
 
-## GitHub Actions
-
-| Workflow | Trigger | What it does |
-|----------|---------|--------------|
-| **CI** | Push / PR to `main` | `flutter analyze` + `flutter test` |
-| **Build APK** | Push to `main` | Debug APK → workflow artifact |
-| **Release** | Tag push `v*` | Release APK (all ABIs) → draft GitHub release |
-
 ---
 
 ## Privacy
