@@ -1,17 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/flux_theme.dart';
-import '../../core/widgets/animated_tap_card.dart';
+import '../../core/widgets/flux_animations.dart';
 
 // Pre-compiled regex patterns for performance (library-private top-level)
 final _thinkRegex = RegExp(r'<think>(.*?)</think>', dotAll: true);
 final _inlineRegex = RegExp(r'(\*\*(.*?)\*\*)|(`(.*?)`)|(\$(.*?)\$)');
 final _separatorCheck = RegExp(r'^[\s\-:]+$');
 
-/// A rich message renderer that supports:
-/// - Bold text via **markdown**
-/// - Markdown tables
-/// - Collapsible think blocks (\<think>...\</think>)
 class RichMessageRenderer extends StatelessWidget {
   final String text;
   final bool isUser;
@@ -22,7 +18,6 @@ class RichMessageRenderer extends StatelessWidget {
     required this.isUser,
   });
 
-  // Simple parsed text cache (keyed by text content)
   static final Map<int, List<MessageSegment>> _parseCache = {};
   static const int _maxCacheEntries = 20;
 
@@ -74,7 +69,6 @@ class RichMessageRenderer extends StatelessWidget {
   List<MessageSegment> _parseSegments(String text) {
     final segments = <MessageSegment>[];
 
-    // First, extract think blocks using pre-compiled regex
     int lastEnd = 0;
 
     for (final match in _thinkRegex.allMatches(text)) {
@@ -110,7 +104,6 @@ class RichMessageRenderer extends StatelessWidget {
       final String rawLine = lines[i];
       final String trimmedLine = rawLine.trim();
 
-      // Header check (using startsWith with literal strings - fastest check)
       if (trimmedLine.startsWith('#### ')) {
         segments.add(HeaderSegment(text: trimmedLine.substring(5).trim(), level: 4));
         i++;
@@ -118,7 +111,6 @@ class RichMessageRenderer extends StatelessWidget {
         segments.add(HeaderSegment(text: trimmedLine.substring(4).trim(), level: 3));
         i++;
       }
-      // Math block check
       else if (trimmedLine.startsWith('\$\$')) {
         final mathLines = <String>[];
         if (trimmedLine.length > 2 && trimmedLine.endsWith('\$\$')) {
@@ -136,7 +128,6 @@ class RichMessageRenderer extends StatelessWidget {
           if (i < lines.length) i++;
         }
       }
-      // Table check
       else if (_isTableRow(rawLine)) {
         final tableLines = <String>[];
         while (i < lines.length && _isTableRow(lines[i])) {
@@ -149,7 +140,6 @@ class RichMessageRenderer extends StatelessWidget {
           segments.add(TextSegment(text: tableLines.join('\n')));
         }
       }
-      // Regular text
       else {
         final textLines = <String>[];
         while (i < lines.length) {
@@ -207,7 +197,6 @@ class MathSegment extends MessageSegment {
   MathSegment({required this.text});
 }
 
-/// Renders headers (###, ####)
 class _HeaderBlock extends StatelessWidget {
   final String text;
   final int level;
@@ -219,19 +208,17 @@ class _HeaderBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     
-    // Choose style based on level
     final style = level == 3 
-        ? textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700)
+        ? textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w700, letterSpacing: -0.2)
         : textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700);
 
     return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 8),
+      padding: const EdgeInsets.only(top: 18, bottom: 10),
       child: Text(text, style: style),
     );
   }
 }
 
-/// Renders math blocks ($$)
 class _MathBlock extends StatelessWidget {
   final String text;
   final FluxColorsExtension flux;
@@ -246,7 +233,7 @@ class _MathBlock extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: flux.textPrimary.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: flux.border, width: 0.5),
       ),
       child: SingleChildScrollView(
@@ -264,7 +251,6 @@ class _MathBlock extends StatelessWidget {
   }
 }
 
-/// Renders inline bold text via **markdown**
 class _RichTextBlock extends StatelessWidget {
   final String text;
   final FluxColorsExtension flux;
@@ -282,10 +268,10 @@ class _RichTextBlock extends StatelessWidget {
     return Text.rich(
       TextSpan(children: spans),
       style: GoogleFonts.instrumentSans(
-        fontSize: 16,
+        fontSize: 15,
         fontWeight: FontWeight.w400,
         color: isUser ? Colors.white : flux.textPrimary,
-        height: 1.5,
+        height: 1.55,
       ),
     );
   }
@@ -308,8 +294,8 @@ class _RichTextBlock extends StatelessWidget {
         spans.add(TextSpan(
           text: match.group(4),
           style: GoogleFonts.firaCode(
-            backgroundColor: flux.textPrimary.withValues(alpha: 0.06),
-            fontSize: 14,
+            backgroundColor: flux.textPrimary.withValues(alpha: 0.07),
+            fontSize: 13,
             fontWeight: FontWeight.w500,
             color: flux.textPrimary,
           ),
@@ -318,7 +304,7 @@ class _RichTextBlock extends StatelessWidget {
         spans.add(TextSpan(
           text: match.group(6),
           style: GoogleFonts.firaCode(
-            fontSize: 14,
+            fontSize: 13,
             fontWeight: FontWeight.w400,
             fontStyle: FontStyle.italic,
             color: flux.textPrimary,
@@ -336,7 +322,6 @@ class _RichTextBlock extends StatelessWidget {
   }
 }
 
-/// Collapsible think block with smooth animation
 class _ThinkBlock extends StatefulWidget {
   final String content;
   final FluxColorsExtension flux;
@@ -353,34 +338,34 @@ class _ThinkBlockState extends State<_ThinkBlock>
 
   @override
   Widget build(BuildContext context) {
-    final bgColor = widget.flux.textSecondary.withValues(alpha: 0.08);
+    final bgColor = widget.flux.textSecondary.withValues(alpha: 0.06);
     final borderColor = widget.flux.border;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.only(bottom: 8),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
+        borderRadius: BorderRadius.circular(14),
+        child: AnimatedContainer(
+          duration: FluxDurations.fast,
           decoration: BoxDecoration(
             color: bgColor,
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
             border: Border.all(color: borderColor, width: 0.5),
           ),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header with tap to expand/collapse
-              AnimatedTapCard(
+              BouncyTap(
                 onTap: () => setState(() => _expanded = !_expanded),
                 scaleDown: 0.98,
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                   child: Row(
                     children: [
                       AnimatedRotation(
                         turns: _expanded ? 0.25 : 0,
-                        duration: const Duration(milliseconds: 300),
+                        duration: FluxDurations.normal,
                         curve: const Cubic(0.34, 1.56, 0.64, 1),
                         child: Icon(
                           Icons.chevron_right,
@@ -388,7 +373,7 @@ class _ThinkBlockState extends State<_ThinkBlock>
                           color: widget.flux.textSecondary,
                         ),
                       ),
-                      const SizedBox(width: 6),
+                      const SizedBox(width: 8),
                       Text(
                         _expanded ? 'Hide reasoning' : 'Thinking...',
                         style: GoogleFonts.instrumentSans(
@@ -401,14 +386,13 @@ class _ThinkBlockState extends State<_ThinkBlock>
                   ),
                 ),
               ),
-              // Expandable content
               AnimatedSize(
-                duration: const Duration(milliseconds: 300),
+                duration: FluxDurations.normal,
                 curve: const Cubic(0.34, 1.56, 0.64, 1),
                 alignment: Alignment.topCenter,
                 child: _expanded
                     ? Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+                        padding: const EdgeInsets.fromLTRB(14, 0, 14, 14),
                         child: _RichTextBlock(
                           text: widget.content,
                           flux: widget.flux,
@@ -425,7 +409,6 @@ class _ThinkBlockState extends State<_ThinkBlock>
   }
 }
 
-/// Renders a markdown table with aligned columns
 class _TableBlock extends StatelessWidget {
   final List<String> rows;
   final FluxColorsExtension flux;
@@ -437,7 +420,6 @@ class _TableBlock extends StatelessWidget {
     final parsedRows = rows.map((r) => _parseRow(r)).toList();
     if (parsedRows.isEmpty) return const SizedBox.shrink();
 
-    // Detect and remove the separator row (contains only dashes and pipes)
     final separatorIndex = parsedRows.indexWhere((cells) {
       return cells.every((c) => _separatorCheck.hasMatch(c));
     });
@@ -453,13 +435,13 @@ class _TableBlock extends StatelessWidget {
     final columnCount = allRows.map((r) => r.length).reduce((a, b) => a > b ? a : b);
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
+      padding: const EdgeInsets.only(bottom: 10),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
           decoration: BoxDecoration(
             border: Border.all(color: flux.border, width: 0.5),
-            borderRadius: BorderRadius.circular(12),
+            borderRadius: BorderRadius.circular(14),
           ),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,
@@ -477,17 +459,17 @@ class _TableBlock extends StatelessWidget {
                 return TableRow(
                   decoration: BoxDecoration(
                     color: isHeader
-                        ? flux.textPrimary.withValues(alpha: 0.06)
+                        ? flux.textPrimary.withValues(alpha: 0.05)
                         : (rowIndex % 2 == 0 ? flux.surface : null),
                   ),
                   children: List.generate(columnCount, (colIndex) {
                     final cellText = colIndex < cells.length ? cells[colIndex] : '';
                     return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       child: Text(
                         cellText,
                         style: GoogleFonts.instrumentSans(
-                          fontSize: 14,
+                          fontSize: 13,
                           fontWeight: isHeader ? FontWeight.w600 : FontWeight.w400,
                           color: flux.textPrimary,
                           height: 1.4,

@@ -3,7 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../../core/theme/flux_theme.dart';
-import 'animated_tap_card.dart';
+import '../../core/widgets/flux_animations.dart';
 import '../../l10n/app_localizations.dart';
 import '../constants/responsive.dart';
 
@@ -82,43 +82,64 @@ class _FluxShellState extends State<FluxShell> {
       resizeToAvoidBottomInset: false,
       body: Row(
         children: [
-          const SizedBox(width: 12),
-          Column(
-            mainAxisSize: MainAxisSize.max,
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              _buildNavItem(
-                index: 0,
-                tooltip: AppLocalizations.of(context)!.home,
-                child: (isSelected) => SvgPicture.asset(
-                  'assets/images/home-01.svg', width: 28, height: 28,
-                  colorFilter: ColorFilter.mode(
-                    isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+          const SizedBox(width: 16),
+          Container(
+            width: 64,
+            margin: const EdgeInsets.symmetric(vertical: 24),
+            decoration: BoxDecoration(
+              color: flux.surface,
+              borderRadius: BorderRadius.circular(24),
+              border: Border.all(color: flux.border.withValues(alpha: 0.5)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.max,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                _buildNavItem(
+                  index: 0,
+                  tooltip: AppLocalizations.of(context)!.home,
+                  child: (isSelected) => SvgPicture.asset(
+                    'assets/images/home-01.svg',
+                    width: 24,
+                    height: 24,
+                    colorFilter: ColorFilter.mode(
+                      isSelected ? flux.textPrimary : flux.textSecondary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              _buildNavItem(
-                index: 1,
-                tooltip: AppLocalizations.of(context)!.creations,
-                child: (isSelected) => SvgPicture.asset(
-                  'assets/images/union.svg', width: 26, height: 26,
-                  colorFilter: ColorFilter.mode(
-                    isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+                const SizedBox(height: 12),
+                _buildNavItem(
+                  index: 1,
+                  tooltip: AppLocalizations.of(context)!.creations,
+                  child: (isSelected) => SvgPicture.asset(
+                    'assets/images/union.svg',
+                    width: 22,
+                    height: 22,
+                    colorFilter: ColorFilter.mode(
+                      isSelected ? flux.textPrimary : flux.textSecondary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                 ),
-              ),
-              const SizedBox(height: 8),
-              _buildNavItem(
-                index: 2,
-                tooltip: AppLocalizations.of(context)!.settings,
-                child: (isSelected) => SvgPicture.asset(
-                  'assets/images/settings-03.svg', width: 28, height: 28,
-                  colorFilter: ColorFilter.mode(
-                    isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+                const SizedBox(height: 12),
+                _buildNavItem(
+                  index: 2,
+                  tooltip: AppLocalizations.of(context)!.settings,
+                  child: (isSelected) => SvgPicture.asset(
+                    'assets/images/settings-03.svg',
+                    width: 24,
+                    height: 24,
+                    colorFilter: ColorFilter.mode(
+                      isSelected ? flux.textPrimary : flux.textSecondary,
+                      BlendMode.srcIn,
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 16),
           Expanded(
             child: TabNavigationInfo(
               previousIndex: _previousIndex,
@@ -147,45 +168,63 @@ class _FluxShellState extends State<FluxShell> {
             ),
           ),
           Positioned(
-            left: 16,
-            right: 16,
-            bottom: 32,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-              children: [
-                _buildNavItem(
-                  index: 0,
-                  tooltip: AppLocalizations.of(context)!.home,
-                  child: (isSelected) => SvgPicture.asset(
-                    'assets/images/home-01.svg', width: 28, height: 28,
-                    colorFilter: ColorFilter.mode(
-                      isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
+            left: 20,
+            right: 20,
+            bottom: 10 + MediaQuery.of(context).padding.bottom,
+            child: Container(
+              height: 64,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(24),
+              ),
+              child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                    children: [
+                      _buildNavItem(
+                        index: 0,
+                        tooltip: AppLocalizations.of(context)!.home,
+                        child: (isSelected) => SvgPicture.asset(
+                          'assets/images/home-01.svg',
+                          width: 24,
+                          height: 24,
+                          colorFilter: ColorFilter.mode(
+                            isSelected ? flux.textPrimary : flux.textSecondary,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                      _buildNavItem(
+                        index: 1,
+                        tooltip: AppLocalizations.of(context)!.creations,
+                        child: (isSelected) => SvgPicture.asset(
+                          'assets/images/union.svg',
+                          width: 22,
+                          height: 22,
+                          colorFilter: ColorFilter.mode(
+                            isSelected ? flux.textPrimary : flux.textSecondary,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                      _buildNavItem(
+                        index: 2,
+                        tooltip: AppLocalizations.of(context)!.settings,
+                        child: (isSelected) => SvgPicture.asset(
+                          'assets/images/settings-03.svg',
+                          width: 24,
+                          height: 24,
+                          colorFilter: ColorFilter.mode(
+                            isSelected ? flux.textPrimary : flux.textSecondary,
+                            BlendMode.srcIn,
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                _buildNavItem(
-                  index: 1,
-                  tooltip: AppLocalizations.of(context)!.creations,
-                  child: (isSelected) => SvgPicture.asset(
-                    'assets/images/union.svg', width: 26, height: 26,
-                    colorFilter: ColorFilter.mode(
-                      isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
-                  ),
-                ),
-                _buildNavItem(
-                  index: 2,
-                  tooltip: AppLocalizations.of(context)!.settings,
-                  child: (isSelected) => SvgPicture.asset(
-                    'assets/images/settings-03.svg', width: 28, height: 28,
-                    colorFilter: ColorFilter.mode(
-                      isSelected ? flux.textPrimary : flux.textSecondary, BlendMode.srcIn),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        );
   }
 
   Widget _buildNavItem({
@@ -201,16 +240,22 @@ class _FluxShellState extends State<FluxShell> {
       button: true,
       child: Tooltip(
         message: tooltip,
-        child: AnimatedTapCard(
+          child: BouncyTap(
           onTap: () => _onDestinationSelected(index),
           scaleDown: 0.85,
           child: SizedBox(
             width: 48,
             height: 48,
-            child: Center(child: child(isSelected)),
+            child: Center(
+              child: child(isSelected),
+            ),
           ),
         ),
       ),
     );
+  }
+
+  FluxColorsExtension get flux {
+    return Theme.of(context).extension<FluxColorsExtension>()!;
   }
 }

@@ -19,17 +19,6 @@ class ModelService {
       capabilities: ['chat', 'speed', 'low-ram'],
     ),
     HFModel(
-      id: 'flux-creative-qwen-3.5-0.8b',
-      name: 'Flux Creative',
-      baseModel: 'Qwen 3.5 0.8B',
-      description: 'Optimized for creations and coding tasks. SOTA performance for HTML/CSS/JS in the sub-1B class.',
-      sizeMB: 890,
-      requiredRAM: 4,
-      speed: 4.8,
-      quality: 4.5,
-      capabilities: ['code', 'creative', 'low-ram'],
-    ),
-    HFModel(
       id: 'flux-steady-qwen-3.5-2b',
       name: 'Flux Steady',
       baseModel: 'Qwen 3.5 2B',
@@ -90,8 +79,6 @@ class ModelService {
     switch (modelId) {
       case 'flux-lite-qwen-3.5-0.8b':
         return 'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q4_K_M.gguf';
-      case 'flux-creative-qwen-3.5-0.8b':
-        return 'https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF/resolve/main/Qwen3.5-0.8B-Q8_0.gguf';
       case 'flux-steady-qwen-3.5-2b':
         return 'https://huggingface.co/unsloth/Qwen3.5-2B-GGUF/resolve/main/Qwen3.5-2B-Q4_K_M.gguf';
       case 'flux-smart-qwen-3.5-4b':

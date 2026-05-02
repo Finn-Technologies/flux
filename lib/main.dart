@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'dart:ui' show ImageFilter;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -12,9 +13,10 @@ import 'features/creations/creation_editor_screen.dart';
 import 'features/creations/creation_app_screen.dart';
 import 'features/models/models_screen.dart';
 import 'features/settings/settings_screen.dart';
-import 'features/settings/licenses_screen.dart';
+import 'features/settings/about_screen.dart';
 import 'core/widgets/flux_shell.dart';
 import 'core/theme/flux_theme.dart';
+import 'core/widgets/flux_animations.dart';
 
 import 'package:hive_flutter/hive_flutter.dart';
 
@@ -45,7 +47,7 @@ void main() async {
   runApp(ProviderScope(child: FluxApp(onboarded: onboarded)));
 }
 
-// Unified smooth, non-bouncy page transition for all routes
+// Smooth, balanced page transition with parallax and delayed reveal
 CustomTransitionPage buildSlidePage({
   required GoRouterState state,
   required Widget child,
@@ -55,28 +57,24 @@ CustomTransitionPage buildSlidePage({
   return CustomTransitionPage(
     key: state.pageKey,
     child: child,
-    transitionDuration: const Duration(milliseconds: 300),
-    reverseTransitionDuration: const Duration(milliseconds: 250),
+    transitionDuration: const Duration(milliseconds: 450),
+    reverseTransitionDuration: const Duration(milliseconds: 450),
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
-      final curve = Curves.easeInOutCubic;
-      return AnimatedBuilder(
-        animation: Listenable.merge([animation, secondaryAnimation]),
-        builder: (context, child) {
-          final effectivePosition = resolvePosition?.call(context) ?? position;
-          final thisProgress = curve.transform(animation.value);
-          final secondaryProgress = curve.transform(secondaryAnimation.value);
+      final tabInfo = TabNavigationInfo.of(context);
+      final isTabSwitch = tabInfo != null && tabInfo.previousIndex != tabInfo.currentIndex;
+      
+      // Spatial Layout:
+      // true = foreground route lives on the right, background lives on the left.
+      // false = foreground route lives on the left, background lives on the right.
+      bool isForwardLayout = true;
+      if (isTabSwitch) {
+        isForwardLayout = tabInfo.currentIndex > tabInfo.previousIndex;
+      }
 
-          final thisOffset = effectivePosition * (1.0 - thisProgress);
-          final combinedOffset = thisOffset - (0.05 * secondaryProgress * (effectivePosition > 0 ? -1 : 1));
-
-          return Transform.translate(
-            offset: Offset(combinedOffset * MediaQuery.of(context).size.width, 0),
-            child: Opacity(
-              opacity: 0.4 + (0.6 * thisProgress.clamp(0.0, 1.0)),
-              child: child,
-            ),
-          );
-        },
+      return FluxPageTransition(
+        primaryAnimation: animation,
+        secondaryAnimation: secondaryAnimation,
+        isForwardLayout: isForwardLayout,
         child: child,
       );
     },
@@ -105,7 +103,7 @@ class _FluxAppState extends State<FluxApp> {
           pageBuilder: (context, state) => buildSlidePage(
             state: state,
             child: const OnboardingScreen(),
-            position: 0, // Root
+            position: 0,
           ),
         ),
         ShellRoute(
@@ -116,7 +114,7 @@ class _FluxAppState extends State<FluxApp> {
               pageBuilder: (context, state) => buildSlidePage(
                 state: state,
                 child: const ChatScreen(),
-                position: -0.12, // Home is on the LEFT
+                position: -0.08,
               ),
             ),
             GoRoute(
@@ -124,16 +122,14 @@ class _FluxAppState extends State<FluxApp> {
               pageBuilder: (context, state) => buildSlidePage(
                 state: state,
                 child: const CreationsScreen(),
-                position: 0.06, // Default: slides from right
+                position: 0.04,
                 resolvePosition: (context) {
                   final tabInfo = TabNavigationInfo.of(context);
-                  if (tabInfo == null) return 0.06;
-                  // Navigating from right (Settings) -> slide from left
+                  if (tabInfo == null) return 0.04;
                   if (tabInfo.previousIndex > tabInfo.currentIndex) {
-                    return -0.06;
+                    return -0.04;
                   }
-                  // Navigating from left (Home) -> slide from right
-                  return 0.06;
+                  return 0.04;
                 },
               ),
             ),
@@ -142,26 +138,25 @@ class _FluxAppState extends State<FluxApp> {
               pageBuilder: (context, state) => buildSlidePage(
                 state: state,
                 child: const SettingsScreen(),
-                position: 0.12, // Settings is on the RIGHT
+                position: 0.08,
               ),
             ),
           ],
         ),
-        // Hierarchical routes use the same slide animation as tabs for consistency
         GoRoute(
           path: '/settings/models',
           pageBuilder: (context, state) => buildSlidePage(
             state: state,
             child: const ModelsScreen(),
-            position: 0.24,
+            position: 0.16,
           ),
         ),
         GoRoute(
-          path: '/settings/licenses',
+          path: '/settings/about',
           pageBuilder: (context, state) => buildSlidePage(
             state: state,
-            child: const LicensesScreen(),
-            position: 0.24,
+            child: const AboutScreen(),
+            position: 0.16,
           ),
         ),
         GoRoute(
@@ -169,7 +164,7 @@ class _FluxAppState extends State<FluxApp> {
           pageBuilder: (context, state) => buildSlidePage(
             state: state,
             child: ChatScreen(modelId: state.params['id']),
-            position: 0.12,
+            position: 0.08,
           ),
         ),
         GoRoute(
@@ -190,7 +185,7 @@ class _FluxAppState extends State<FluxApp> {
             return buildSlidePage(
               state: state,
               child: CreationAppScreen(creationId: id),
-              position: 0.2,
+              position: 0.16,
             );
           },
         ),

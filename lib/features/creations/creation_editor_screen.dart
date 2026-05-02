@@ -9,8 +9,8 @@ import '../../core/services/inference_service.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/theme/flux_theme.dart';
-import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
+import '../../core/widgets/flux_animations.dart';
 import '../../core/constants/responsive.dart';
 import '../../l10n/app_localizations.dart';
 import 'creations_screen.dart';
@@ -30,6 +30,8 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
+  double _topFadeOpacity = 0.0;
+  double _bottomFadeOpacity = 0.0;
   bool _isStreaming = false;
   bool _hasText = false;
   String? _latestHtml;
@@ -71,6 +73,31 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
       if (hasText != _hasText) setState(() => _hasText = hasText);
     });
     _loadCreation();
+    _scrollController.addListener(_onEditorScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _checkEditorBottomFade();
+    });
+  }
+
+  void _onEditorScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final top = offset > 0 ? 1.0 : 0.0;
+    final bottom = maxExtent > 0 && offset < maxExtent ? 1.0 : 0.0;
+    if (top != _topFadeOpacity || bottom != _bottomFadeOpacity) {
+      setState(() {
+        _topFadeOpacity = top;
+        _bottomFadeOpacity = bottom;
+      });
+    }
+  }
+
+  void _checkEditorBottomFade() {
+    if (_scrollController.hasClients && _scrollController.position.maxScrollExtent > 0) {
+      setState(() => _bottomFadeOpacity = 1.0);
+    }
   }
 
   void _loadCreation() {
@@ -155,14 +182,14 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     // Creative model only
     final downloaded = ref.read(downloadProvider);
     final creativeModels = downloaded.where(
-      (m) => m.id == 'flux-creative-qwen-3.5-0.8b' && m.downloaded,
+      (m) => m.id == 'flux-lite-qwen-3.5-0.8b' && m.downloaded,
     );
     final creativeModel = creativeModels.isNotEmpty ? creativeModels.first : null;
 
     if (creativeModel == null || creativeModel.localPath == null) {
       setState(() {
         _messages.add(_EditorMessage(
-          text: '${AppLocalizations.of(context)!.fluxCreativeNotInstalled} ${AppLocalizations.of(context)!.installCreativeToUseCreations}',
+          text: 'Flux Lite is not installed. Please download it from Models to use Creations.',
           fromUser: false,
           time: DateTime.now(),
         ));
@@ -326,6 +353,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     _flushTimer?.cancel();
     _controller.dispose();
     _focusNode.dispose();
+    _scrollController.removeListener(_onEditorScroll);
     _scrollController.dispose();
     _streamingTextNotifier.dispose();
     super.dispose();
@@ -340,8 +368,8 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
     final textTheme = Theme.of(context).textTheme;
     final brightness = Theme.of(context).brightness;
     final inputBottom = keyboardHeight > 0
-        ? keyboardHeight + 20
-        : (context.isDesktop ? 24.0 : 108.0);
+        ? keyboardHeight + 16
+        : (context.isDesktop ? 24.0 : MediaQuery.of(context).padding.bottom + 84.0);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -381,33 +409,96 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                 child: Column(
                   children: [
                     Expanded(
-                      child: _messages.isEmpty
-                          ? _buildEmptyState(context, flux)
-                          : ListView.builder(
-                              controller: _scrollController,
-                              padding: EdgeInsets.zero,
-                              itemCount: _messages.length + (_isStreaming ? 1 : 0),
-                              cacheExtent: 300,
-                              addAutomaticKeepAlives: false,
-                              addRepaintBoundaries: true,
-                              itemBuilder: (context, index) {
-                                if (index == _messages.length) {
-                                  return _buildStreamingBubble(flux, true);
-                                }
-                                final msg = _messages[index];
-                                final isLast = index == _messages.length - 1 && !_isStreaming;
-                                return _buildBubble(msg, flux, isLast: isLast);
-                              },
+                    child: Stack(
+                      clipBehavior: Clip.none,
+                      children: [
+                          Positioned.fill(
+                            child: _messages.isEmpty
+                                ? _buildEmptyState(context, flux)
+                                : ListView.builder(
+                                    controller: _scrollController,
+                                    padding: EdgeInsets.zero,
+                                    itemCount: _messages.length + (_isStreaming ? 1 : 0),
+                                    cacheExtent: 300,
+                                    addAutomaticKeepAlives: false,
+                                    addRepaintBoundaries: true,
+                                    itemBuilder: (context, index) {
+                                      if (index == _messages.length) {
+                                        return _buildStreamingBubble(flux, true);
+                                      }
+                                      final msg = _messages[index];
+                                      final isLast = index == _messages.length - 1 && !_isStreaming;
+                                      return _buildBubble(msg, flux, isLast: isLast);
+                                    },
+                                  ),
+                          ),
+                          if (_topFadeOpacity > 0)
+                            Positioned(
+                              top: 0,
+                              left: 0,
+                              right: 0,
+                              height: 30,
+                              child: IgnorePointer(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: [
+                                        flux.background,
+                                        flux.background,
+                                        flux.background.withValues(alpha: 0),
+                                      ],
+                                      stops: const [0.0, 0.3, 1.0],
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
+                          if (_bottomFadeOpacity > 0)
+                            Positioned(
+                              bottom: -5,
+                              left: 0,
+                              right: 0,
+                              height: 30,
+                              child: IgnorePointer(
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    gradient: LinearGradient(
+                                      begin: Alignment.bottomCenter,
+                                      end: Alignment.topCenter,
+                                      colors: [
+                                        flux.background,
+                                        flux.background,
+                                        flux.background.withValues(alpha: 0),
+                                      ],
+                                      stops: const [0.0, 0.3, 1.0],
+                                    ),
+                                  ),
+                                ),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 15),
                     Container(
                       constraints: const BoxConstraints(minHeight: 52, maxHeight: 140),
-                      padding: const EdgeInsets.only(left: 20, right: 6, top: 6, bottom: 6),
+                      padding: const EdgeInsets.only(left: 16, right: 6, top: 6, bottom: 6),
                       decoration: BoxDecoration(
                         color: flux.surface,
                         borderRadius: BorderRadius.circular(100),
-                        border: Border.all(color: flux.border, width: 1),
+                        border: Border.all(
+                          color: flux.border,
+                          width: 1,
+                        ),
+                        boxShadow: [
+                          BoxShadow(
+                            color: flux.textPrimary.withValues(alpha: 0.03),
+                            blurRadius: 16,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
                       ),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
@@ -444,7 +535,8 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                               ),
                             ),
                           ),
-                          _AnimatedSendButton(onTap: _sendMessage, isEnabled: _hasText),
+                          const SizedBox(width: 6),
+                          FluxSendButton(onTap: _sendMessage, isEnabled: _hasText),
                         ],
                       ),
                     ),
@@ -459,25 +551,10 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
   }
 
   Widget _buildEmptyState(BuildContext context, FluxColorsExtension flux) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.code_rounded, size: 48, color: flux.textSecondary.withValues(alpha: 0.4)),
-          const SizedBox(height: 16),
-          Text(
-            AppLocalizations.of(context)!.buildSomethingAmazing,
-            style: textTheme.bodyLarge?.copyWith(color: flux.textSecondary.withValues(alpha: 0.6)),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            AppLocalizations.of(context)!.describeAppIdea,
-            style: textTheme.bodySmall?.copyWith(color: flux.textSecondary.withValues(alpha: 0.4)),
-          ),
-        ],
-      ),
+    return FluxEmptyState(
+      icon: Icons.code_rounded,
+      title: AppLocalizations.of(context)!.buildSomethingAmazing,
+      subtitle: AppLocalizations.of(context)!.describeAppIdea,
     );
   }
 
@@ -515,14 +592,15 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
               ),
             ),
           // Preview card
-          AnimatedTapCard(
+          BouncyTap(
             onTap: () => _showPreview(context),
+            scaleDown: 0.97,
             child: Container(
               width: double.infinity,
               padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
-                color: flux.textPrimary.withValues(alpha: 0.06),
-                borderRadius: BorderRadius.circular(16),
+                color: flux.textPrimary.withValues(alpha: 0.05),
+                borderRadius: BorderRadius.circular(18),
                 border: Border.all(color: flux.border),
               ),
               child: Row(
@@ -567,7 +645,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
           if (isError)
             Padding(
               padding: const EdgeInsets.only(top: 8),
-              child: AnimatedTapCard(
+              child: BouncyTap(
                 onTap: () {
                   final lastUserMsg = _messages.lastWhere((m) => m.fromUser);
                   _controller.text = lastUserMsg.text;
@@ -576,7 +654,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                 },
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                  decoration: BoxDecoration(color: flux.textPrimary.withValues(alpha: 0.06), borderRadius: BorderRadius.circular(100)),
+                  decoration: BoxDecoration(color: flux.textPrimary.withValues(alpha: 0.05), borderRadius: BorderRadius.circular(100)),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -611,13 +689,13 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                 children: [
                   Flexible(
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+                      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
                       decoration: BoxDecoration(
-                        color: isDark ? flux.surface : flux.textPrimary,
+                        color: isDark ? flux.surfaceSecondary : flux.textPrimary,
                         borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(24),
-                          topRight: Radius.circular(24),
-                          bottomLeft: Radius.circular(24),
+                          topLeft: Radius.circular(20),
+                          topRight: Radius.circular(20),
+                          bottomLeft: Radius.circular(20),
                           bottomRight: Radius.circular(4),
                         ),
                       ),
@@ -636,20 +714,9 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
           );
 
     return RepaintBoundary(
-      child: TweenAnimationBuilder<double>(
-        tween: Tween(begin: 0.0, end: 1.0),
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeOutCubic,
-        builder: (context, value, child) {
-          final t = value.clamp(0.0, 1.0);
-          return Opacity(
-            opacity: t,
-            child: Transform.translate(
-              offset: Offset(0, 15 * (1.0 - t)),
-              child: child,
-            ),
-          );
-        },
+      child: BouncyFadeSlide(
+        duration: FluxDurations.normal,
+        slideOffset: 12,
         child: GestureDetector(
           onLongPress: msg.text.isNotEmpty
               ? () {
@@ -660,7 +727,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
                       content: Text(AppLocalizations.of(context)!.copiedToClipboard, style: textTheme.bodySmall),
                       duration: const Duration(seconds: 2),
                       behavior: SnackBarBehavior.floating,
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                       margin: const EdgeInsets.all(20),
                     ),
                   );
@@ -682,7 +749,7 @@ class _CreationEditorScreenState extends ConsumerState<CreationEditorScreen> {
           builder: (context, streamingText, _) {
             final stripped = _stripThinkTags(streamingText);
             if (streamingText.isEmpty || (stripped.isEmpty && streamingText.isNotEmpty)) {
-              return _ThinkingIndicator(flux: flux);
+              return const FluxThinkingIndicator();
             }
             // Plain text during streaming — rich markdown parsing is too
             // expensive for long outputs and causes crashes.
@@ -730,7 +797,7 @@ class _PreviewScreen extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
               child: Row(
                 children: [
-                  AnimatedTapCard(
+                  BouncyTap(
                     onTap: onClose,
                     scaleDown: 0.85,
                     child: Container(
@@ -764,96 +831,6 @@ class _PreviewScreen extends StatelessWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-// ============================================================================
-// ANIMATED COMPONENTS
-// ============================================================================
-class _AnimatedSendButton extends StatelessWidget {
-  final VoidCallback onTap;
-  final bool isEnabled;
-
-  const _AnimatedSendButton({required this.onTap, required this.isEnabled});
-
-  @override
-  Widget build(BuildContext context) {
-    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    return AnimatedTapCard(
-      onTap: isEnabled ? onTap : null,
-      scaleDown: 0.85,
-      child: Opacity(
-        opacity: isEnabled ? 1.0 : 0.3,
-        child: Container(
-          width: 40,
-          height: 40,
-          decoration: BoxDecoration(color: flux.textPrimary, shape: BoxShape.circle),
-          child: Icon(Icons.arrow_upward, color: flux.background, size: 22),
-        ),
-      ),
-    );
-  }
-}
-
-class _ThinkingIndicator extends StatefulWidget {
-  final FluxColorsExtension flux;
-  const _ThinkingIndicator({required this.flux});
-
-  @override
-  State<_ThinkingIndicator> createState() => _ThinkingIndicatorState();
-}
-
-class _ThinkingIndicatorState extends State<_ThinkingIndicator> with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(duration: const Duration(milliseconds: 1300), vsync: this)..repeat();
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: List.generate(3, (index) {
-          return AnimatedBuilder(
-            animation: _controller,
-            builder: (context, child) {
-              final phase = (_controller.value * 3 - index).clamp(0.0, 3.0);
-              final t = (phase % 1.0);
-              final bounce = 1.0 - (2.0 * t - 1.0) * (2.0 * t - 1.0);
-              final opacity = 0.25 + 0.75 * bounce;
-              final scale = 0.5 + 0.5 * bounce;
-              final translateY = -10 * bounce;
-              return Opacity(
-                opacity: opacity,
-                child: Transform.translate(
-                  offset: Offset(0, translateY),
-                  child: Transform.scale(
-                    scale: scale,
-                    child: Container(
-                      margin: const EdgeInsets.symmetric(horizontal: 3),
-                      width: 6,
-                      height: 6,
-                      decoration: BoxDecoration(color: widget.flux.textSecondary, shape: BoxShape.circle),
-                    ),
-                  ),
-                ),
-              );
-            },
-          );
-        }),
       ),
     );
   }

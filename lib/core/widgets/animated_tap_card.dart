@@ -1,5 +1,10 @@
 import 'package:flutter/material.dart';
+import 'flux_animations.dart';
 
+/// A reusable press-down scale animation wrapper with bouncy spring physics.
+///
+/// Prefer [BouncyTap] from flux_animations.dart for new code.
+/// This widget is kept for backward compatibility.
 class AnimatedTapCard extends StatefulWidget {
   final VoidCallback? onTap;
   final VoidCallback? onLongPress;
@@ -11,7 +16,7 @@ class AnimatedTapCard extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     required this.child,
-    this.scaleDown = 0.95,
+    this.scaleDown = 0.88,
   });
 
   @override
@@ -27,11 +32,11 @@ class _AnimatedTapCardState extends State<AnimatedTapCard>
   void initState() {
     super.initState();
     _controller = AnimationController(
-      duration: const Duration(milliseconds: 150),
+      duration: FluxDurations.bouncy,
       vsync: this,
     );
     _animation = Tween<double>(begin: 1.0, end: widget.scaleDown).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      CurvedAnimation(parent: _controller, curve: FluxCurves.bouncy),
     );
   }
 

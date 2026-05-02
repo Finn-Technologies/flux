@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -6,8 +7,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/theme/flux_theme.dart';
-import '../../core/widgets/animated_tap_card.dart';
 import '../../core/widgets/flux_widgets.dart';
+import '../../core/widgets/flux_animations.dart';
 import '../../core/constants/responsive.dart';
 import '../../l10n/app_localizations.dart';
 
@@ -150,91 +151,210 @@ class CreationsScreen extends ConsumerStatefulWidget {
 }
 
 class _CreationsScreenState extends ConsumerState<CreationsScreen> {
-  void _showOptionsSheet(BuildContext context, Creation creation) {
-    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    final textTheme = Theme.of(context).textTheme;
+  final _scrollController = ScrollController();
+  double _topFadeOpacity = 0.0;
+  double _bottomFadeOpacity = 0.0;
 
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: flux.surface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      useRootNavigator: true,
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 30),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 15),
-                child: Text(
-                  creation.title.isNotEmpty ? creation.title : AppLocalizations.of(context)!.untitledCreation,
-                  style: textTheme.titleLarge,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  textAlign: TextAlign.center,
-                ),
-              ),
-              const Divider(height: 25),
-              ListTile(
-                leading: const Icon(Icons.delete_outline, color: Colors.red),
-                title: Text(
-                  AppLocalizations.of(context)!.delete,
-                  style: textTheme.bodyLarge?.copyWith(color: Colors.red),
-                ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showDeleteConfirmDialog(context, creation);
-                },
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onCreationsScroll);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _checkBottomFade();
+    });
   }
 
-  void _showDeleteConfirmDialog(BuildContext context, Creation creation) {
+  void _onCreationsScroll() {
+    if (!_scrollController.hasClients) return;
+    final offset = _scrollController.offset;
+    final maxExtent = _scrollController.position.maxScrollExtent;
+    final top = offset > 0 ? 1.0 : 0.0;
+    final bottom = maxExtent > 0 && offset < maxExtent ? 1.0 : 0.0;
+    if (top != _topFadeOpacity || bottom != _bottomFadeOpacity) {
+      setState(() {
+        _topFadeOpacity = top;
+        _bottomFadeOpacity = bottom;
+      });
+    }
+  }
+
+  void _checkBottomFade() {
+    if (_scrollController.hasClients && _scrollController.position.maxScrollExtent > 0) {
+      setState(() => _bottomFadeOpacity = 1.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _scrollController.removeListener(_onCreationsScroll);
+    _scrollController.dispose();
+    super.dispose();
+  }
+  void _showCreationOptions(GlobalKey cardKey, Creation creation) {
+    final renderBox = cardKey.currentContext?.findRenderObject() as RenderBox?;
+    if (renderBox == null || !mounted) return;
+
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+    final offset = renderBox.localToGlobal(Offset.zero);
+    final itemSize = renderBox.size;
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: flux.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        title: Text(
-          '${AppLocalizations.of(context)!.delete} ${AppLocalizations.of(context)!.creations}?',
-          style: textTheme.headlineMedium,
-        ),
-        content: Text(
-          '"${creation.title}" ${AppLocalizations.of(context)!.delete}',
-          style: textTheme.bodySmall,
-        ),
-        actions: [
-          TextButton(
+    if (isIOS) {
+      showCupertinoModalPopup<String>(
+        context: context,
+        builder: (ctx) => CupertinoActionSheet(
+          title: Text(
+            creation.title.isNotEmpty
+                ? creation.title
+                : AppLocalizations.of(context)!.untitledCreation,
+            style: textTheme.titleMedium,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          actions: [
+            CupertinoActionSheetAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                Navigator.pop(ctx);
+                _showCreationDeleteConfirm(context, creation);
+              },
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(CupertinoIcons.delete, color: CupertinoColors.destructiveRed, size: 20),
+                  const SizedBox(width: 10),
+                  Text(
+                    AppLocalizations.of(context)!.delete,
+                    style: textTheme.bodyLarge?.copyWith(color: CupertinoColors.destructiveRed),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          cancelButton: CupertinoActionSheetAction(
             onPressed: () => Navigator.pop(ctx),
             child: Text(
               AppLocalizations.of(context)!.cancel,
-              style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
+              style: textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
-          TextButton(
-            onPressed: () {
-              ref.read(creationsProvider.notifier).deleteCreation(creation.id);
-              Navigator.pop(ctx);
-              HapticFeedback.lightImpact();
-            },
-            child: Text(
-              AppLocalizations.of(context)!.delete,
-              style: textTheme.bodyMedium?.copyWith(color: Colors.red),
+        ),
+      );
+    } else {
+      final position = RelativeRect.fromLTRB(
+        offset.dx,
+        offset.dy + itemSize.height + 10,
+        offset.dx + itemSize.width,
+        offset.dy + itemSize.height + 10,
+      );
+      showMenu<String>(
+        context: context,
+        position: position,
+        color: flux.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        items: [
+          PopupMenuItem<String>(
+            value: 'delete',
+            child: Row(
+              children: [
+                const Icon(Icons.delete_outline, color: Colors.red, size: 22),
+                const SizedBox(width: 12),
+                Text(
+                  AppLocalizations.of(context)!.delete,
+                  style: textTheme.bodyLarge?.copyWith(color: Colors.red),
+                ),
+              ],
             ),
           ),
         ],
-      ),
-    );
+      ).then((value) {
+        if (!mounted) return;
+        if (value == 'delete') {
+          _showCreationDeleteConfirm(context, creation);
+        }
+      });
+    }
+  }
+
+  void _showCreationDeleteConfirm(BuildContext context, Creation creation) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+    final isIOS = Theme.of(context).platform == TargetPlatform.iOS;
+
+    if (isIOS) {
+      showCupertinoDialog(
+        context: context,
+        builder: (ctx) => CupertinoAlertDialog(
+          title: Text(
+            '${AppLocalizations.of(context)!.delete} ${AppLocalizations.of(context)!.creations}?',
+            style: textTheme.headlineMedium,
+          ),
+          content: Text(
+            '"${creation.title}" ${AppLocalizations.of(context)!.delete}',
+            style: textTheme.bodySmall,
+          ),
+          actions: [
+            CupertinoDialogAction(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                AppLocalizations.of(context)!.cancel,
+                style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
+              ),
+            ),
+            CupertinoDialogAction(
+              isDestructiveAction: true,
+              onPressed: () {
+                ref.read(creationsProvider.notifier).deleteCreation(creation.id);
+                Navigator.pop(ctx);
+                HapticFeedback.lightImpact();
+              },
+              child: Text(
+                AppLocalizations.of(context)!.delete,
+                style: textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    } else {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: flux.surface,
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          title: Text(
+            '${AppLocalizations.of(context)!.delete} ${AppLocalizations.of(context)!.creations}?',
+            style: textTheme.headlineMedium,
+          ),
+          content: Text(
+            '"${creation.title}" ${AppLocalizations.of(context)!.delete}',
+            style: textTheme.bodySmall,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(
+                AppLocalizations.of(context)!.cancel,
+                style: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
+              ),
+            ),
+            TextButton(
+              onPressed: () {
+                ref.read(creationsProvider.notifier).deleteCreation(creation.id);
+                Navigator.pop(ctx);
+                HapticFeedback.lightImpact();
+              },
+              child: Text(
+                AppLocalizations.of(context)!.delete,
+                style: textTheme.bodyMedium?.copyWith(color: Colors.red, fontWeight: FontWeight.w600),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
   }
 
   void _showPreview(BuildContext context, Creation creation) {
@@ -263,11 +383,11 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
     final topPadding = mediaPadding(context).top;
     final brightness = Theme.of(context).brightness;
     final isDesktop = context.isDesktop;
-    final bottomPad = isDesktop ? 24.0 : 108.0;
+    final bottomPad = isDesktop ? 24.0 : MediaQuery.of(context).padding.bottom + 84.0;
 
     final downloaded = ref.watch(downloadProvider);
     final creativeModels = downloaded.where(
-      (m) => m.id == 'flux-creative-qwen-3.5-0.8b' && m.downloaded,
+      (m) => m.id == 'flux-lite-qwen-3.5-0.8b' && m.downloaded,
     );
     final creativeModel = creativeModels.isNotEmpty ? creativeModels.first : null;
 
@@ -280,36 +400,86 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         backgroundColor: flux.background,
         body: Stack(
           children: [
-            // Title
             Positioned(
               left: 20,
-              top: topPadding + 58,
+              top: topPadding + 52,
               child: FluxTitle(title: AppLocalizations.of(context)!.creations),
             ),
 
-            // Content area
             Positioned(
               left: 20,
               right: 20,
               top: topPadding + 110,
               bottom: bottomPad,
               child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    if (creativeModel == null)
-                      _buildCreativePrompt(context, flux),
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (creativeModel == null)
+                    _buildCreativePrompt(context, flux),
 
-                    if (creativeModel == null)
-                      const SizedBox(height: 20),
+                  if (creativeModel == null)
+                    const SizedBox(height: 20),
 
-                    Expanded(
-                      child: creations.isEmpty
-                          ? _buildEmptyState(context, flux)
-                          : _buildGrid(context, creations, flux),
+                  Expanded(
+                    child: Stack(
+                      children: [
+                        Positioned.fill(
+                          child: creations.isEmpty
+                              ? _buildEmptyState(context, flux)
+                              : _buildGrid(context, creations, flux),
+                        ),
+                        if (_topFadeOpacity > 0)
+                          Positioned(
+                            top: 0,
+                            left: 0,
+                            right: 0,
+                            height: 30,
+                            child: IgnorePointer(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: [
+                                      flux.background,
+                                      flux.background,
+                                      flux.background.withValues(alpha: 0),
+                                    ],
+                                    stops: const [0.0, 0.3, 1.0],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        if (_bottomFadeOpacity > 0)
+                          Positioned(
+                            bottom: 0,
+                            left: 0,
+                            right: 0,
+                            height: 30,
+                            child: IgnorePointer(
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  gradient: LinearGradient(
+                                    begin: Alignment.bottomCenter,
+                                    end: Alignment.topCenter,
+                                    colors: [
+                                      flux.background,
+                                      flux.background,
+                                      flux.background.withValues(alpha: 0),
+                                    ],
+                                    stops: const [0.0, 0.3, 1.0],
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
+            ),
 
             if (creativeModel != null)
               Positioned(
@@ -320,7 +490,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                   button: true,
                   child: Tooltip(
                     message: AppLocalizations.of(context)!.newCreation,
-                    child: AnimatedTapCard(
+                    child: BouncyTap(
                       onTap: () {
                         HapticFeedback.lightImpact();
                         context.push('/creations/editor');
@@ -332,6 +502,13 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                         decoration: BoxDecoration(
                           color: flux.textPrimary,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: flux.textPrimary.withValues(alpha: 0.2),
+                              blurRadius: 16,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
                         ),
                         child: Icon(Icons.add, color: flux.background, size: 28),
                       ),
@@ -339,9 +516,9 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                   ),
                 ),
               ),
-            ],
-          ),
+          ],
         ),
+      ),
     );
   }
 
@@ -350,122 +527,93 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
   Widget _buildCreativePrompt(BuildContext context, FluxColorsExtension flux) {
     final textTheme = Theme.of(context).textTheme;
 
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: flux.surface,
-        borderRadius: BorderRadius.circular(15),
-        border: Border.all(color: flux.border, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 40,
-                height: 40,
+    return BouncyFadeSlide(
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: flux.surface,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: flux.border, width: 1),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: flux.textPrimary.withValues(alpha: 0.06),
+                    borderRadius: BorderRadius.circular(14),
+                  ),
+                  child: Icon(
+                    Icons.memory,
+                    color: flux.textPrimary,
+                    size: 22,
+                  ),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Flux Lite Required',
+                        style: textTheme.titleLarge,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Install Flux Lite to start creating.',
+                        style: textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            BouncyTap(
+              onTap: () => context.push('/settings/models'),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
-                  color: flux.textPrimary.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(
-                  Icons.memory,
                   color: flux.textPrimary,
-                  size: 20,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      AppLocalizations.of(context)!.fluxCreativeRequired,
-                      style: textTheme.titleLarge,
+                child: Center(
+                  child: Text(
+                    'Install Flux Lite',
+                    style: textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w600,
+                      color: flux.background,
                     ),
-                    const SizedBox(height: 2),
-                    Text(
-                      AppLocalizations.of(context)!.installCreativeModel,
-                      style: textTheme.bodySmall,
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          AnimatedTapCard(
-            onTap: () => context.push('/settings/models'),
-            child: Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              decoration: BoxDecoration(
-                color: flux.textPrimary,
-                borderRadius: BorderRadius.circular(100),
-              ),
-              child: Center(
-                child: Text(
-                  AppLocalizations.of(context)!.installFluxCreative,
-                  style: textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w500,
-                    color: flux.background,
                   ),
                 ),
               ),
             ),
-          ),
-          const SizedBox(height: 8),
-          Center(
-            child: Text(
-              AppLocalizations.of(context)!.creativeDownloadSize,
-              style: textTheme.labelLarge?.copyWith(
-                color: flux.textSecondary.withValues(alpha: 0.7),
+            const SizedBox(height: 8),
+            Center(
+              child: Text(
+                '533 MB',
+                style: textTheme.labelLarge?.copyWith(
+                  color: flux.textSecondary.withValues(alpha: 0.7),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildEmptyState(BuildContext context, FluxColorsExtension flux) {
-    final textTheme = Theme.of(context).textTheme;
-
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Container(
-            width: 64,
-            height: 64,
-            decoration: BoxDecoration(
-              color: flux.textPrimary.withValues(alpha: 0.06),
-              borderRadius: BorderRadius.circular(20),
-            ),
-            child: Icon(
-              Icons.extension_outlined,
-              size: 28,
-              color: flux.textSecondary.withValues(alpha: 0.6),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            AppLocalizations.of(context)!.noCreations,
-            style: textTheme.bodyLarge?.copyWith(
-              color: flux.textSecondary.withValues(alpha: 0.8),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            AppLocalizations.of(context)!.buildFirstApp,
-            style: textTheme.bodySmall?.copyWith(
-              color: flux.textSecondary.withValues(alpha: 0.5),
-            ),
-          ),
-        ],
-      ),
+    return FluxEmptyState(
+      icon: Icons.extension_outlined,
+      title: AppLocalizations.of(context)!.noCreations,
+      subtitle: AppLocalizations.of(context)!.buildFirstApp,
     );
   }
 
@@ -474,29 +622,34 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
     final columns = width > 900 ? 4 : (width > 600 ? 3 : (width > 400 ? 2 : 1));
 
     return GridView.builder(
+      controller: _scrollController,
       padding: const EdgeInsets.only(bottom: 20),
       gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: columns,
-        crossAxisSpacing: 10,
-        mainAxisSpacing: 10,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
         childAspectRatio: columns > 2 ? 2.8 : (columns > 1 ? 3.2 : 4.0),
       ),
       itemCount: creations.length,
       cacheExtent: 500,
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
+      physics: const BouncingScrollPhysics(),
       itemBuilder: (context, index) {
         final creation = creations[index];
+        final cardKey = GlobalKey();
         return StaggeredEntrance(
           index: index,
+          delayStep: const Duration(milliseconds: 30),
           child: _CreationCard(
+            key: cardKey,
             creation: creation,
             flux: flux,
             onTap: () {
               HapticFeedback.lightImpact();
               context.push('/creations/editor', extra: creation.id);
             },
-            onLongPress: () => _showOptionsSheet(context, creation),
+            onLongPress: () => _showCreationOptions(cardKey, creation),
             onPlayPreview: () => _showPreview(context, creation),
           ),
         );
@@ -516,6 +669,7 @@ class _CreationCard extends StatelessWidget {
   final VoidCallback onPlayPreview;
 
   const _CreationCard({
+    super.key,
     required this.creation,
     required this.flux,
     required this.onTap,
@@ -537,19 +691,26 @@ class _CreationCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
 
-    return AnimatedTapCard(
+    return BouncyTap(
       onTap: onTap,
       onLongPress: onLongPress,
+      scaleDown: 0.97,
       child: Container(
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           border: Border.all(color: flux.border, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: flux.textPrimary.withValues(alpha: 0.02),
+              blurRadius: 8,
+              offset: const Offset(0, 2),
+            ),
+          ],
         ),
         clipBehavior: Clip.antiAlias,
         child: Row(
           children: [
-            // Visual preview area (Compact Square)
             Container(
               width: 60,
               height: double.infinity,
@@ -557,16 +718,15 @@ class _CreationCard extends StatelessWidget {
               child: Center(
                 child: Icon(
                   Icons.code_rounded,
-                  size: 20,
-                  color: flux.textSecondary.withValues(alpha: 0.2),
+                  size: 22,
+                  color: flux.textSecondary.withValues(alpha: 0.3),
                 ),
               ),
             ),
 
-            // Text info (Compact)
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -590,11 +750,10 @@ class _CreationCard extends StatelessWidget {
               ),
             ),
 
-            // Play button or pin icon
             if (creation.html.isNotEmpty)
               Padding(
                 padding: const EdgeInsets.only(right: 12),
-                child: AnimatedTapCard(
+                child: BouncyTap(
                   onTap: () {
                     HapticFeedback.lightImpact();
                     onPlayPreview();
@@ -645,12 +804,11 @@ class _CreationPreviewScreen extends StatelessWidget {
       body: SafeArea(
         child: Column(
           children: [
-            // Header
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
               child: Row(
                 children: [
-                  AnimatedTapCard(
+                  BouncyTap(
                     onTap: onClose,
                     scaleDown: 0.85,
                     child: Container(
@@ -676,7 +834,6 @@ class _CreationPreviewScreen extends StatelessWidget {
               ),
             ),
             Divider(color: flux.border, height: 1, thickness: 0.5),
-            // WebView
             Expanded(
               child: RepaintBoundary(
                 child: WebViewWidget(controller: webViewController),

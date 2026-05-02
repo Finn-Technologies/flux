@@ -6,7 +6,7 @@ import '../../core/services/model_service.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/providers/model_provider.dart';
-import '../../core/widgets/animated_tap_card.dart';
+import '../../core/widgets/flux_animations.dart';
 import '../../l10n/app_localizations.dart';
 
 class ChooseModelScreen extends ConsumerStatefulWidget {
@@ -123,7 +123,7 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
               ),
             );
           },
-          child: AnimatedTapCard(
+          child: BouncyTap(
             onTap: () => setState(() => _selectedModel = model),
             scaleDown: 0.95,
             child: AnimatedContainer(

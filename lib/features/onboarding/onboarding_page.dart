@@ -13,49 +13,46 @@ import '../../core/models/hf_model.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/providers/model_provider.dart';
 import '../../core/theme/flux_theme.dart';
-import '../../core/widgets/animated_tap_card.dart';
+import '../../core/widgets/flux_animations.dart';
 import '../../l10n/app_localizations.dart';
 
 // ============================================================================
-// TYPOGRAPHY - Instrument Sans from Google Fonts
+// TYPOGRAPHY
 // ============================================================================
 class _AppTypography {
   static TextStyle heading(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 25,
-        fontWeight: FontWeight.w400,
+        fontSize: 28,
+        fontWeight: FontWeight.w700,
         color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        height: 1.22,
-        letterSpacing: 0,
+        height: 1.2,
+        letterSpacing: -0.5,
       );
 
   static TextStyle description(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 20,
+        fontSize: 18,
         fontWeight: FontWeight.w400,
         color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
-        height: 1.22,
-        letterSpacing: 0,
+        height: 1.4,
+        letterSpacing: -0.2,
       );
 
   static TextStyle button(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 15,
-        fontWeight: FontWeight.w500,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
         color: Theme.of(context).extension<FluxColorsExtension>()!.background,
-        height: 1.22,
-        letterSpacing: 0,
+        height: 1.25,
       );
 
   static TextStyle modelTitle(BuildContext context) => GoogleFonts.instrumentSans(
-        fontSize: 17,
-        fontWeight: FontWeight.w400,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
         color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        letterSpacing: 0,
       );
 
   static TextStyle modelSubtitle(BuildContext context) => GoogleFonts.instrumentSans(
         fontSize: 13,
         fontWeight: FontWeight.w400,
         color: Theme.of(context).extension<FluxColorsExtension>()!.textSecondary,
-        letterSpacing: 0,
       );
 }
 
@@ -64,17 +61,6 @@ class _AppTypography {
 // ============================================================================
 class _AppAssets {
   static const String backArrow = 'assets/images/back_arrow.svg';
-}
-
-// ============================================================================
-// ANIMATION CONSTANTS
-// ============================================================================
-class _AnimDurations {
-  static const Duration fast = Duration(milliseconds: 400);
-}
-
-class _AnimCurves {
-  static const Curve smooth = Curves.easeInOutCubic;
 }
 
 // ============================================================================
@@ -88,10 +74,10 @@ class OnboardingScreen extends ConsumerStatefulWidget {
 }
 
 class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
-  final PageController _controller = PageController();
   int _page = 0;
   bool _isNavigating = false;
   bool _isDownloading = false;
+  bool _isForward = true;
 
   List<HFModel> _models = [];
   bool _isLoadingModels = true;
@@ -117,27 +103,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   void _onNext() async {
     if (_isNavigating || _page >= 4) return;
     
-    setState(() => _isNavigating = true);
+    setState(() {
+      _isNavigating = true;
+      _isForward = true;
+      _page++;
+    });
     
-    await _controller.nextPage(
-      duration: _AnimDurations.fast,
-      curve: _AnimCurves.smooth,
-    );
-    
-    setState(() => _isNavigating = false);
+    await Future.delayed(const Duration(milliseconds: 450));
+    if (mounted) setState(() => _isNavigating = false);
   }
 
   void _onBack() async {
     if (_isNavigating || _page <= 0) return;
     
-    setState(() => _isNavigating = true);
+    setState(() {
+      _isNavigating = true;
+      _isForward = false;
+      _page--;
+    });
     
-    await _controller.previousPage(
-      duration: _AnimDurations.fast,
-      curve: _AnimCurves.smooth,
-    );
-    
-    setState(() => _isNavigating = false);
+    await Future.delayed(const Duration(milliseconds: 450));
+    if (mounted) setState(() => _isNavigating = false);
   }
 
   Future<void> _onFinish() async {
@@ -158,15 +144,37 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
   }
 
   @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final brightness = Theme.of(context).brightness;
+
+    Widget currentSlide;
+    switch (_page) {
+      case 0:
+        currentSlide = _WelcomeSlide(key: const ValueKey(0), onNext: _onNext);
+        break;
+      case 1:
+        currentSlide = _PrivacySlide(key: const ValueKey(1), onNext: _onNext, onBack: _onBack);
+        break;
+      case 2:
+        currentSlide = _OfflineSlide(key: const ValueKey(2), onNext: _onNext, onBack: _onBack);
+        break;
+      case 3:
+        currentSlide = _DownloadModelSlide(
+          key: const ValueKey(3),
+          models: _models,
+          isLoading: _isLoadingModels,
+          selectedModel: _selectedModel,
+          onSelect: (model) => setState(() => _selectedModel = model),
+          onNext: _onNext,
+          onBack: _onBack,
+        );
+        break;
+      case 4:
+      default:
+        currentSlide = _FinishSlide(key: const ValueKey(4), onFinish: _onFinish);
+        break;
+    }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
@@ -177,24 +185,27 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       child: Scaffold(
         backgroundColor: flux.background,
         body: SafeArea(
-          child: PageView(
-            controller: _controller,
-            physics: const NeverScrollableScrollPhysics(),
-            onPageChanged: (i) => setState(() => _page = i),
-            children: [
-              _WelcomeSlide(onNext: _onNext),
-              _PrivacySlide(onNext: _onNext, onBack: _onBack),
-              _OfflineSlide(onNext: _onNext, onBack: _onBack),
-              _DownloadModelSlide(
-                models: _models,
-                isLoading: _isLoadingModels,
-                selectedModel: _selectedModel,
-                onSelect: (model) => setState(() => _selectedModel = model),
-                onNext: _onNext,
-                onBack: _onBack,
-              ),
-              _FinishSlide(onFinish: _onFinish),
-            ],
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 450),
+            reverseDuration: const Duration(milliseconds: 450),
+            switchInCurve: Curves.linear,
+            switchOutCurve: Curves.linear,
+            layoutBuilder: (currentChild, previousChildren) {
+              return Stack(
+                children: <Widget>[
+                  ...previousChildren,
+                  if (currentChild != null) currentChild,
+                ],
+              );
+            },
+            transitionBuilder: (child, animation) {
+              return FluxPageTransition(
+                primaryAnimation: animation,
+                isForwardLayout: _isForward,
+                child: child,
+              );
+            },
+            child: currentSlide,
           ),
         ),
       ),
@@ -209,14 +220,14 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
 class _WelcomeSlide extends StatelessWidget {
   final VoidCallback onNext;
 
-  const _WelcomeSlide({required this.onNext});
+  const _WelcomeSlide({super.key, required this.onNext});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        final topPadding = ((screenHeight - 140) / 2) + 40;
+        final topPadding = ((screenHeight - 180) / 2) + 20;
 
         return Stack(
           children: [
@@ -227,8 +238,31 @@ class _WelcomeSlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _FadeInSlide(
+                  BouncyFadeSlide(
                     delay: const Duration(milliseconds: 100),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 30,
+                    child: Container(
+                      width: 80,
+                      height: 80,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(24),
+                      ),
+                      child: Icon(
+                        Icons.auto_awesome,
+                        size: 36,
+                        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 40),
+
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 200),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 20,
                     child: Text(
                       AppLocalizations.of(context)!.welcomeToFlux,
                       style: _AppTypography.heading(context),
@@ -238,8 +272,10 @@ class _WelcomeSlide extends StatelessWidget {
 
                   const SizedBox(height: 60),
 
-                  _FadeInSlide(
-                    delay: const Duration(milliseconds: 200),
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 400),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 20,
                     child: _AnimatedButton(
                       text: AppLocalizations.of(context)!.start,
                       onPressed: onNext,
@@ -259,22 +295,23 @@ class _PrivacySlide extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onBack;
 
-  const _PrivacySlide({required this.onNext, required this.onBack});
+  const _PrivacySlide({super.key, required this.onNext, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        final topPadding = ((screenHeight - 200) / 2) + 40;
+        final topPadding = ((screenHeight - 220) / 2) + 20;
 
         return Stack(
           children: [
             Positioned(
               left: 20,
-              top: 74,
-              child: _FadeInSlide(
+              top: 60,
+              child: BouncyFadeSlide(
                 delay: Duration.zero,
+                duration: const Duration(milliseconds: 400),
                 child: _BackButton(onPressed: onBack),
               ),
             ),
@@ -286,8 +323,31 @@ class _PrivacySlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _FadeInSlide(
+                  BouncyFadeSlide(
                     delay: const Duration(milliseconds: 100),
+                    duration: const Duration(milliseconds: 500),
+                    slideOffset: 24,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        Icons.lock_outline,
+                        size: 28,
+                        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 150),
+                    duration: const Duration(milliseconds: 500),
+                    slideOffset: 20,
                     child: Text(
                       AppLocalizations.of(context)!.weValuePrivacy,
                       style: _AppTypography.heading(context),
@@ -295,10 +355,12 @@ class _PrivacySlide extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  _FadeInSlide(
-                    delay: const Duration(milliseconds: 150),
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 250),
+                    duration: const Duration(milliseconds: 500),
+                    slideOffset: 16,
                     child: Text(
                       AppLocalizations.of(context)!.privacyDescription,
                       style: _AppTypography.description(context),
@@ -306,10 +368,12 @@ class _PrivacySlide extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 48),
 
-                  _FadeInSlide(
-                    delay: const Duration(milliseconds: 200),
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 350),
+                    duration: const Duration(milliseconds: 500),
+                    slideOffset: 16,
                     child: _AnimatedButton(
                       text: AppLocalizations.of(context)!.next,
                       onPressed: onNext,
@@ -329,22 +393,23 @@ class _OfflineSlide extends StatelessWidget {
   final VoidCallback onNext;
   final VoidCallback onBack;
 
-  const _OfflineSlide({required this.onNext, required this.onBack});
+  const _OfflineSlide({super.key, required this.onNext, required this.onBack});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        final topPadding = ((screenHeight - 200) / 2) + 40;
+        final topPadding = ((screenHeight - 220) / 2) + 20;
 
         return Stack(
           children: [
             Positioned(
               left: 20,
-              top: 74,
-              child: _FadeInSlide(
+              top: 60,
+              child: BouncyFadeSlide(
                 delay: Duration.zero,
+                duration: const Duration(milliseconds: 400),
                 child: _BackButton(onPressed: onBack),
               ),
             ),
@@ -356,8 +421,31 @@ class _OfflineSlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _FadeInSlide(
+                  BouncyFadeSlide(
                     delay: const Duration(milliseconds: 100),
+                    duration: const Duration(milliseconds: 500),
+                    slideOffset: 24,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        Icons.cloud_off_outlined,
+                        size: 28,
+                        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 150),
+                    duration: const Duration(milliseconds: 500),
+                    slideOffset: 20,
                     child: Text(
                       AppLocalizations.of(context)!.fullyOffline,
                       style: _AppTypography.heading(context),
@@ -365,10 +453,12 @@ class _OfflineSlide extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 16),
 
-                  _FadeInSlide(
-                    delay: const Duration(milliseconds: 150),
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 250),
+                    duration: const Duration(milliseconds: 500),
+                    slideOffset: 16,
                     child: Text(
                       AppLocalizations.of(context)!.offlineDescription,
                       style: _AppTypography.description(context),
@@ -376,10 +466,12 @@ class _OfflineSlide extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 48),
 
-                  _FadeInSlide(
-                    delay: const Duration(milliseconds: 200),
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 350),
+                    duration: const Duration(milliseconds: 500),
+                    slideOffset: 16,
                     child: _AnimatedButton(
                       text: AppLocalizations.of(context)!.next,
                       onPressed: onNext,
@@ -404,6 +496,7 @@ class _DownloadModelSlide extends StatelessWidget {
   final VoidCallback onBack;
 
   const _DownloadModelSlide({
+    super.key,
     required this.models,
     required this.isLoading,
     required this.selectedModel,
@@ -419,42 +512,47 @@ class _DownloadModelSlide extends StatelessWidget {
       children: [
         Positioned(
           left: 20,
-          top: 74,
-          child: _FadeInSlide(
+          top: 60,
+          child: BouncyFadeSlide(
             delay: Duration.zero,
+            duration: const Duration(milliseconds: 400),
             child: _BackButton(onPressed: onBack),
           ),
         ),
 
-          Positioned(
-            left: 20,
-            top: 122,
-            right: 20,
-            child: _FadeInSlide(
-              delay: const Duration(milliseconds: 100),
-              child: Text(
-                AppLocalizations.of(context)!.chooseModel,
-                style: _AppTypography.heading(context),
-              ),
+        Positioned(
+          left: 20,
+          top: 110,
+          right: 20,
+          child: BouncyFadeSlide(
+            delay: const Duration(milliseconds: 100),
+            duration: const Duration(milliseconds: 500),
+            slideOffset: 20,
+            child: Text(
+              AppLocalizations.of(context)!.chooseModel,
+              style: _AppTypography.heading(context),
             ),
           ),
-
-          Positioned(
-            left: 20,
-            top: 173,
-            right: 20,
-            child: _FadeInSlide(
-              delay: const Duration(milliseconds: 150),
-              child: Text(
-                AppLocalizations.of(context)!.chooseModelDescription,
-                style: _AppTypography.description(context),
-              ),
-            ),
-          ),
+        ),
 
         Positioned(
           left: 20,
-          top: 265,
+          top: 158,
+          right: 20,
+          child: BouncyFadeSlide(
+            delay: const Duration(milliseconds: 200),
+            duration: const Duration(milliseconds: 500),
+            slideOffset: 16,
+            child: Text(
+              AppLocalizations.of(context)!.chooseModelDescription,
+              style: _AppTypography.description(context),
+            ),
+          ),
+        ),
+
+        Positioned(
+          left: 20,
+          top: 240,
           right: 20,
           bottom: 100,
           child: isLoading
@@ -470,63 +568,73 @@ class _DownloadModelSlide extends StatelessWidget {
                   cacheExtent: 150,
                   addAutomaticKeepAlives: false,
                   addRepaintBoundaries: true,
+                  physics: const BouncingScrollPhysics(),
                   itemBuilder: (context, index) {
                     final model = models[index];
                     final isSelected = selectedModel?.id == model.id;
 
-                    return Padding(
-                      padding: const EdgeInsets.only(bottom: 12),
-                      child: AnimatedTapCard(
-                        onTap: () => onSelect(model),
-                        scaleDown: 0.95,
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 10),
-                          decoration: BoxDecoration(
-                            color: flux.surface,
-                            borderRadius: BorderRadius.circular(15),
-                            border: Border.all(
-                              color: isSelected ? flux.textPrimary : flux.border,
-                              width: isSelected ? 2 : 1,
+                    return BouncyFadeSlide(
+                      delay: Duration(milliseconds: 100 + index * 60),
+                      duration: const Duration(milliseconds: 400),
+                      slideOffset: 16,
+                      child: Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: BouncyTap(
+                          onTap: () {
+                            HapticFeedback.lightImpact();
+                            onSelect(model);
+                          },
+                          scaleDown: 0.97,
+                          child: AnimatedContainer(
+                            duration: FluxDurations.fast,
+                            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                            decoration: BoxDecoration(
+                              color: flux.surface,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: isSelected ? flux.textPrimary : flux.border,
+                                width: isSelected ? 1.5 : 1,
+                              ),
                             ),
-                          ),
-                          child: Row(
-                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                            crossAxisAlignment: CrossAxisAlignment.center,
-                            children: [
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      model.name,
-                                      style: _AppTypography.modelTitle(context),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      'Powered by ${model.baseModel ?? model.name} (${model.sizeMB >= 1024 ? '${(model.sizeMB / 1024).toStringAsFixed(1)} GB' : '${model.sizeMB} MB'})',
-                                      style: _AppTypography.modelSubtitle(context),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  border: Border.all(
-                                    color: isSelected ? flux.textPrimary : flux.border,
-                                    width: 1,
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        model.name,
+                                        style: _AppTypography.modelTitle(context),
+                                      ),
+                                      const SizedBox(height: 4),
+                                      Text(
+                                        'Powered by ${model.baseModel ?? model.name} (${model.sizeMB >= 1024 ? '${(model.sizeMB / 1024).toStringAsFixed(1)} GB' : '${model.sizeMB} MB'})',
+                                        style: _AppTypography.modelSubtitle(context),
+                                      ),
+                                    ],
                                   ),
-                                  color: isSelected ? flux.textPrimary : flux.surface,
                                 ),
-                                child: Center(
-                                  child: isSelected
-                                      ? Icon(Icons.check, size: 16, color: flux.background)
-                                      : Icon(Icons.add, size: 16, color: flux.textPrimary),
+                                Container(
+                                  width: 28,
+                                  height: 28,
+                                  decoration: BoxDecoration(
+                                    shape: BoxShape.circle,
+                                    border: Border.all(
+                                      color: isSelected ? flux.textPrimary : flux.border,
+                                      width: 1.5,
+                                    ),
+                                    color: isSelected ? flux.textPrimary : flux.surface,
+                                  ),
+                                  child: Center(
+                                    child: isSelected
+                                        ? Icon(Icons.check, size: 14, color: flux.background)
+                                        : Icon(Icons.add, size: 14, color: flux.textSecondary),
+                                  ),
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -538,8 +646,10 @@ class _DownloadModelSlide extends StatelessWidget {
         Positioned(
           right: 20,
           bottom: 40,
-          child: _FadeInSlide(
-            delay: const Duration(milliseconds: 200),
+          child: BouncyFadeSlide(
+            delay: const Duration(milliseconds: 300),
+            duration: const Duration(milliseconds: 500),
+            slideOffset: 16,
             child: _AnimatedButton(
               text: 'Next',
               onPressed: selectedModel != null ? onNext : null,
@@ -554,14 +664,14 @@ class _DownloadModelSlide extends StatelessWidget {
 class _FinishSlide extends StatelessWidget {
   final VoidCallback onFinish;
 
-  const _FinishSlide({required this.onFinish});
+  const _FinishSlide({super.key, required this.onFinish});
 
   @override
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        final topPadding = ((screenHeight - 140) / 2) + 40;
+        final topPadding = ((screenHeight - 180) / 2) + 20;
 
         return Stack(
           children: [
@@ -572,8 +682,31 @@ class _FinishSlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _FadeInSlide(
+                  BouncyFadeSlide(
                     delay: const Duration(milliseconds: 100),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 24,
+                    child: Container(
+                      width: 64,
+                      height: 64,
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: Icon(
+                        Icons.check,
+                        size: 28,
+                        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+
+                  const SizedBox(height: 32),
+
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 200),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 20,
                     child: Text(
                       AppLocalizations.of(context)!.thatsIt,
                       style: _AppTypography.heading(context),
@@ -581,10 +714,12 @@ class _FinishSlide extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 60),
+                  const SizedBox(height: 48),
 
-                  _FadeInSlide(
-                    delay: const Duration(milliseconds: 200),
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 400),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 16,
                     child: _AnimatedButton(
                       text: AppLocalizations.of(context)!.finish,
                       onPressed: onFinish,
@@ -604,61 +739,6 @@ class _FinishSlide extends StatelessWidget {
 // COMPONENTS
 // ============================================================================
 
-class _FadeInSlide extends StatefulWidget {
-  final Widget child;
-  final Duration delay;
-
-  const _FadeInSlide({required this.child, required this.delay});
-
-  @override
-  State<_FadeInSlide> createState() => _FadeInSlideState();
-}
-
-class _FadeInSlideState extends State<_FadeInSlide>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  Timer? _startTimer;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      duration: const Duration(milliseconds: 400),
-      vsync: this,
-    );
-
-    _startTimer = Timer(widget.delay, () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _startTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _controller,
-      builder: (context, child) {
-        final raw = _controller.value;
-        final t = Curves.easeOutCubic.transform(raw).clamp(0.0, 1.0);
-        return Opacity(
-          opacity: t,
-          child: Transform.translate(
-            offset: Offset(0, 20 * (1.0 - t)),
-            child: child,
-          ),
-        );
-      },
-      child: widget.child,
-    );
-  }
-}
-
 class _AnimatedButton extends StatelessWidget {
   final String text;
   final VoidCallback? onPressed;
@@ -668,16 +748,17 @@ class _AnimatedButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    return AnimatedTapCard(
+    return BouncyTap(
       onTap: onPressed,
       scaleDown: 0.95,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 15, vertical: 8),
+      child: AnimatedContainer(
+        duration: FluxDurations.fast,
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 14),
         decoration: BoxDecoration(
           color: onPressed != null
               ? flux.textPrimary
               : flux.textPrimary.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(100),
+          borderRadius: BorderRadius.circular(16),
         ),
         child: Text(
           text,
@@ -696,11 +777,16 @@ class _BackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
-    return AnimatedTapCard(
+    return BouncyTap(
       onTap: onPressed,
       scaleDown: 0.9,
       child: Container(
-        padding: const EdgeInsets.only(right: 12, top: 12, bottom: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: flux.surface,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: flux.border.withValues(alpha: 0.5)),
+        ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.center,
@@ -711,11 +797,12 @@ class _BackButton extends StatelessWidget {
               height: 18,
               colorFilter: ColorFilter.mode(flux.textSecondary, BlendMode.srcIn),
             ),
-            const SizedBox(width: 13),
+            const SizedBox(width: 10),
             Text(
               AppLocalizations.of(context)!.back,
               style: Theme.of(context).textTheme.bodyMedium?.copyWith(
                 color: flux.textSecondary,
+                fontWeight: FontWeight.w500,
               ),
             ),
           ],
