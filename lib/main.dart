@@ -178,8 +178,26 @@ class _FluxAppState extends State<FluxApp> {
               pageBuilder: (context, state) => buildSlidePageInverse(
                 state: state,
                 child: const SettingsScreen(),
-                exitToRight: true, // Forces Settings to slide right when covered so it returns from right-to-left
+                exitToRight: false, // Forces Settings to slide left when covered so it returns from left-to-right
               ),
+              routes: [
+                GoRoute(
+                  path: 'about',
+                  pageBuilder: (context, state) => buildSlidePageInverse(
+                    state: state,
+                    child: const AboutScreen(),
+                  ),
+                  routes: [
+                    GoRoute(
+                      path: 'license/:id',
+                      pageBuilder: (context, state) => buildSlidePageInverse(
+                        state: state,
+                        child: LicenseScreen(id: state.params['id']!),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
             ),
             GoRoute(
               path: '/you',
@@ -212,20 +230,7 @@ class _FluxAppState extends State<FluxApp> {
             child: const ModelsScreen(),
           ),
         ),
-        GoRoute(
-          path: '/settings/about',
-          pageBuilder: (context, state) => buildSlidePageInverse(
-            state: state,
-            child: const AboutScreen(),
-          ),
-        ),
-        GoRoute(
-          path: '/settings/about/license/:id',
-          pageBuilder: (context, state) => buildSlidePageInverse(
-            state: state,
-            child: LicenseScreen(id: state.params['id']!),
-          ),
-        ),
+
         GoRoute(
           path: '/voice',
           pageBuilder: (context, state) => buildSlidePage(

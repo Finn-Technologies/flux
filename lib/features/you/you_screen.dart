@@ -349,14 +349,11 @@ class _OrbitingNode extends StatelessWidget {
             shape: BoxShape.circle,
           ),
           child: ClipOval(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 5, sigmaY: 5),
-              child: Center(
-                child: Icon(
-                  _getCategoryIcon(memory.category),
-                  color: flux.textSecondary,
-                  size: 22,
-                ),
+            child: Center(
+              child: Icon(
+                _getCategoryIcon(memory.category),
+                color: flux.textSecondary,
+                size: 22,
               ),
             ),
           ),

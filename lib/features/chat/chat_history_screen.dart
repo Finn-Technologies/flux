@@ -338,9 +338,12 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
               ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(25, 0, 25, 20),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    runSpacing: 15,
+                  children: [
                   _SidebarAction(
                     svgAsset: 'assets/images/canvas.svg',
                     label: AppLocalizations.of(context)!.creations,
@@ -370,7 +373,8 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
                     },
                   ),
                 ],
-              ),
+                  ),
+                ),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(25, 30, 25, 12),

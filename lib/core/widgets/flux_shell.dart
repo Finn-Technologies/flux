@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
-import '../providers/app_mode_provider.dart';
 import '../constants/responsive.dart';
 import '../theme/flux_theme.dart';
-import 'flux_animations.dart';
+import '../providers/sidebar_provider.dart';
+import '../../features/chat/chat_history_screen.dart';
 
 class TabNavigationInfo extends InheritedWidget {
   final int previousIndex;
@@ -41,6 +41,9 @@ class FluxShell extends ConsumerStatefulWidget {
 class _FluxShellState extends ConsumerState<FluxShell> {
   int _currentIndex = 0;
   int _previousIndex = 0;
+  double _sidebarWidth = 400.0;
+  static const double _minSidebarWidth = 200.0;
+  static const double _maxSidebarWidth = 400.0;
 
   @override
   void didChangeDependencies() {
@@ -67,9 +70,9 @@ class _FluxShellState extends ConsumerState<FluxShell> {
 
   @override
   Widget build(BuildContext context) {
-    final appMode = ref.watch(appModeProvider);
     final isDesktop = context.isDesktop;
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final isSidebarOpen = ref.watch(sidebarOpenProvider);
 
     final body = TabNavigationInfo(
       previousIndex: _previousIndex,
@@ -82,100 +85,40 @@ class _FluxShellState extends ConsumerState<FluxShell> {
       resizeToAvoidBottomInset: false,
       body: Row(
         children: [
-          if (isDesktop)
-            _DesktopSidebar(
-              currentMode: appMode,
-              onModeChanged: (mode) {
-                ref.read(appModeProvider.notifier).state = mode;
-              },
-              flux: flux,
+          if (isDesktop && isSidebarOpen)
+            SizedBox(
+              width: _sidebarWidth,
+              child: const RepaintBoundary(child: ChatHistoryScreen()),
+            ),
+          if (isDesktop && isSidebarOpen)
+            MouseRegion(
+              cursor: SystemMouseCursors.resizeColumn,
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onPanUpdate: (details) {
+                  setState(() {
+                    _sidebarWidth += details.delta.dx;
+                    if (_sidebarWidth < _minSidebarWidth) {
+                      _sidebarWidth = _minSidebarWidth;
+                    } else if (_sidebarWidth > _maxSidebarWidth) {
+                      _sidebarWidth = _maxSidebarWidth;
+                    }
+                  });
+                },
+                child: Container(
+                  width: 8,
+                  alignment: Alignment.center,
+                  child: Container(
+                    width: 1,
+                    color: Colors.transparent,
+                  ),
+                ),
+              ),
             ),
           Expanded(
             child: RepaintBoundary(child: body),
           ),
         ],
-      ),
-    );
-  }
-}
-
-class _DesktopSidebar extends StatelessWidget {
-  final AppMode currentMode;
-  final ValueChanged<AppMode> onModeChanged;
-  final FluxColorsExtension flux;
-
-  const _DesktopSidebar({
-    required this.currentMode,
-    required this.onModeChanged,
-    required this.flux,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 72,
-      decoration: BoxDecoration(
-        color: flux.background,
-        border: Border(right: BorderSide(color: flux.border, width: 1)),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _SidebarItem(
-            icon: Icons.bubble_chart_rounded,
-            isSelected: currentMode == AppMode.flux,
-            onTap: () => onModeChanged(AppMode.flux),
-            flux: flux,
-            tooltip: 'Flux',
-          ),
-          const SizedBox(height: 20),
-          _SidebarItem(
-            icon: Icons.code_rounded,
-            isSelected: currentMode == AppMode.fluxCode,
-            onTap: () => onModeChanged(AppMode.fluxCode),
-            flux: flux,
-            tooltip: 'Flux Code',
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SidebarItem extends StatelessWidget {
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final FluxColorsExtension flux;
-  final String tooltip;
-
-  const _SidebarItem({
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-    required this.flux,
-    required this.tooltip,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Tooltip(
-      message: tooltip,
-      child: BouncyTap(
-        onTap: onTap,
-        child: Container(
-          width: 48,
-          height: 48,
-          decoration: BoxDecoration(
-            color: isSelected ? flux.textPrimary : Colors.transparent,
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Icon(
-            icon,
-            color: isSelected ? flux.background : flux.textSecondary,
-            size: 24,
-          ),
-        ),
       ),
     );
   }

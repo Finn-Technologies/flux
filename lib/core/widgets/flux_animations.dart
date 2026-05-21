@@ -87,11 +87,7 @@ class _BouncyTapState extends State<BouncyTap>
           final blur = t * 2.5;
           return Transform.scale(
             scale: scale,
-            child: ImageFiltered(
-              imageFilter:
-                  ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-              child: child,
-            ),
+            child: child,
           );
         },
         child: widget.child,
@@ -156,11 +152,7 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
           opacity: t,
           child: Transform.translate(
             offset: Offset(0, widget.slideOffset * (1 - t)),
-            child: ImageFiltered(
-              imageFilter:
-                  ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-              child: child,
-            ),
+            child: child,
           ),
         );
       },
@@ -226,11 +218,7 @@ class _BouncyFadeSlideState extends State<BouncyFadeSlide>
             offset: isVertical
                 ? Offset(0, widget.slideOffset * (1 - t))
                 : Offset(widget.slideOffset * (1 - t), 0),
-            child: ImageFiltered(
-              imageFilter:
-                  ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-              child: child,
-            ),
+            child: child,
           ),
         );
       },
@@ -297,23 +285,11 @@ class FluxPageTransition extends StatelessWidget {
           position: outSlide,
           child: FadeTransition(
             opacity: outFade,
-            child: ImageFiltered(
-              imageFilter: ImageFilter.blur(
-                sigmaX: outBlur.value,
-                sigmaY: outBlur.value,
-              ),
-              child: SlideTransition(
-                position: inSlide,
-                child: FadeTransition(
-                  opacity: inFade,
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(
-                      sigmaX: inBlur.value,
-                      sigmaY: inBlur.value,
-                    ),
-                    child: child,
-                  ),
-                ),
+            child: SlideTransition(
+              position: inSlide,
+              child: FadeTransition(
+                opacity: inFade,
+                child: child,
               ),
             ),
           ),
@@ -699,10 +675,7 @@ class _FluxBlurRevealState extends State<FluxBlurReveal>
         final sigma = (1 - t) * widget.maxBlur;
         return Opacity(
           opacity: t,
-          child: ImageFiltered(
-            imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-            child: child,
-          ),
+          child: child,
         );
       },
       child: widget.child,

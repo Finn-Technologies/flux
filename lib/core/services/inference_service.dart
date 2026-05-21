@@ -18,7 +18,6 @@ class InferenceService {
   double _lastOutputTokPerSec = 0;
   int _lastPromptTokens = 0;
   int _lastOutputTokens = 0;
-  int _lastEmittedLen = 0;
 
   double get lastPromptTokPerSec => _lastPromptTokPerSec;
   double get lastOutputTokPerSec => _lastOutputTokPerSec;
@@ -103,6 +102,38 @@ class InferenceService {
       _engine = null;
     }
     _loadedModelPath = null;
+  }
+
+  /// Create a completion stream from pre-built messages and tools.
+  /// Used by FluxCodeAgent which manages its own conversation context.
+  Stream<LlamaCompletionChunk>? createStream({
+    required List<LlamaChatMessage> messages,
+    List<ToolDefinition>? tools,
+    required String localPath,
+    double temp = 0.0,
+  }) {
+    try {
+      if (_loadedModelPath != localPath || _engine == null) return null;
+
+      const stopSequences = [
+        "<|im_end|>",
+        "<|endoftext|>",
+      ];
+
+      final params = GenerationParams(
+        temp: temp,
+        maxTokens: 8192,
+        stopSequences: stopSequences,
+        streamBatchTokenThreshold: 4,
+        streamBatchByteThreshold: 256,
+        reusePromptPrefix: true,
+        penalty: 1.0,
+      );
+
+      return _engine!.create(messages, params: params, tools: tools);
+    } catch (e) {
+      return null;
+    }
   }
 
   Stream<String> streamChat({
@@ -193,6 +224,7 @@ class InferenceService {
       bool firstTokenEmitted = false;
 
       const maxToolRounds = 20;
+      int consecutiveFailures = 0;
 
       for (int round = 0; round < maxToolRounds; round++) {
         final stream = _engine!.create(
@@ -203,8 +235,6 @@ class InferenceService {
 
         List<LlamaCompletionChunkToolCall>? lastToolCalls;
         final contentBuf = StringBuffer();
-        bool hasEmittedText = false;
-        _lastEmittedLen = 0;
 
         await for (final chunk in stream) {
           for (final choice in chunk.choices) {
@@ -216,58 +246,35 @@ class InferenceService {
               lastToolCalls = choice.delta.toolCalls;
             }
           }
-
-          // Only yield buffered text when we're confident
-          // the model isn't about to emit a tool call. Wait until
-          // we have enough buffer to detect tool-call patterns.
-          if (!hasEmittedText || contentBuf.length > 80) {
-            final cleaned = _stripToolCallText(contentBuf.toString());
-            if (cleaned.isNotEmpty && !_looksLikeToolCallPrefix(cleaned)) {
-              final start = _lastEmittedLen.clamp(0, cleaned.length);
-              final toEmit =
-                  hasEmittedText ? cleaned.substring(start) : cleaned;
-              if (toEmit.isNotEmpty) {
-                if (!firstTokenEmitted) {
-                  final ttftMs = stopwatch.elapsedMilliseconds;
-                  if (ttftMs > 0) {
-                    _lastPromptTokPerSec =
-                        estimatedPromptTokens / (ttftMs / 1000.0);
-                  }
-                  _lastPromptTokens = estimatedPromptTokens;
-                  firstTokenEmitted = true;
-                }
-                tokenCount += (toEmit.length / 3.5).round();
-                yield toEmit;
-                hasEmittedText = true;
-                _lastEmittedLen = cleaned.length;
-              }
-            }
-          }
         }
 
-        // Flush any remaining buffered text that isn't a tool call
-        if (lastToolCalls == null || lastToolCalls.isEmpty) {
-          final remaining =
-              _stripToolCallText(contentBuf.toString());
-          if (remaining.isNotEmpty) {
-            if (hasEmittedText) {
-              final start = _lastEmittedLen.clamp(0, remaining.length);
-              final tail = remaining.substring(start);
-              if (tail.isNotEmpty) {
-                yield tail;
-                tokenCount += (tail.length / 3.5).round();
-              }
-            } else {
-              yield remaining;
-              tokenCount += (remaining.length / 3.5).round();
+        // Yield cleaned text content (strip tool-call JSON)
+        final cleaned = _stripToolCallText(contentBuf.toString());
+        if (cleaned.isNotEmpty) {
+          if (!firstTokenEmitted) {
+            final ttftMs = stopwatch.elapsedMilliseconds;
+            if (ttftMs > 0) {
+              _lastPromptTokPerSec =
+                  estimatedPromptTokens / (ttftMs / 1000.0);
             }
+            _lastPromptTokens = estimatedPromptTokens;
+            firstTokenEmitted = true;
           }
+          tokenCount += (cleaned.length / 3.5).round();
+          yield cleaned;
         }
 
+        // No tool calls — done
         if (lastToolCalls == null ||
             lastToolCalls.isEmpty ||
             tools == null ||
             tools.isEmpty) {
+          break;
+        }
+
+        // Too many consecutive failures — give up
+        if (consecutiveFailures >= 5) {
+          yield '\n\n(Too many tool errors. Stopping.)';
           break;
         }
 
@@ -288,43 +295,47 @@ class InferenceService {
           ],
         ));
 
-        // Execute each tool call and add results
+        // Execute each tool call
+        var anySuccess = false;
         for (final tc in lastToolCalls) {
-          final toolName = tc.function?.name;
-          final toolArgs = tc.function?.arguments;
-          if (toolName == null || toolArgs == null) continue;
+          final toolName = tc.function?.name ?? 'unknown';
+          final toolArgs = tc.function?.arguments ?? '{}';
 
-          final def = tools.firstWhere(
-            (t) => t.name == toolName,
-            orElse: () => throw Exception('Unknown tool: $toolName'),
-          );
+          yield '\n> *Running $toolName...*\n';
 
+          String result;
           try {
+            final def = tools.firstWhere(
+              (t) => t.name == toolName,
+              orElse: () => throw Exception('Unknown tool: $toolName'),
+            );
             final args = jsonDecode(toolArgs) as Map<String, dynamic>;
-            final result = await def.invoke(args);
-            messages.add(LlamaChatMessage.withContent(
-              role: LlamaChatRole.tool,
-              content: [
-                LlamaToolResultContent(
-                  id: tc.id,
-                  name: toolName,
-                  result: result,
-                ),
-              ],
-            ));
+            final raw = await def.invoke(args);
+            result = raw?.toString() ?? '(no output)';
+            anySuccess = true;
           } catch (e) {
-            messages.add(LlamaChatMessage.withContent(
-              role: LlamaChatRole.tool,
-              content: [
-                LlamaToolResultContent(
-                  id: tc.id,
-                  name: toolName,
-                  result: 'Error: $e',
-                ),
-              ],
-            ));
+            result = 'Error: $e';
           }
+
+          // Show truncated result
+          final short = result.length > 400
+              ? '${result.substring(0, 400)}\n... (truncated)'
+              : result;
+          yield '$short\n';
+
+          messages.add(LlamaChatMessage.withContent(
+            role: LlamaChatRole.tool,
+            content: [
+              LlamaToolResultContent(
+                id: tc.id,
+                name: toolName,
+                result: result,
+              ),
+            ],
+          ));
         }
+
+        consecutiveFailures = anySuccess ? 0 : consecutiveFailures + 1;
       }
 
       final elapsedMs = stopwatch.elapsedMilliseconds;
@@ -348,12 +359,5 @@ class InferenceService {
                 r'\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*\}'),
             '')
         .trim();
-  }
-
-  /// Whether the text looks like it could be the start of a tool-call JSON
-  /// that hasn't fully streamed yet.
-  static bool _looksLikeToolCallPrefix(String text) {
-    final trimmed = text.trim();
-    return trimmed == '<tool_call>';
   }
 }
