@@ -24,30 +24,56 @@ class InferenceService {
   int get lastPromptTokens => _lastPromptTokens;
   int get lastOutputTokens => _lastOutputTokens;
 
-  /// Whether a model is currently loaded and ready.
   bool get isLoaded => _engine != null && _loadedModelPath != null;
 
-  /// The name of the currently loaded model (e.g. "flux-lite-qwen-3.5-0.8b").
   String? get modelName =>
       _loadedModelPath?.split('/').last.replaceAll('.gguf', '');
 
-  /// The full file path to the currently loaded model.
   String? get modelPath => _loadedModelPath;
 
-  /// Context size of the currently loaded model (estimated, fallback 2048).
   int get contextSize => _contextSize ?? 2048;
   int? _contextSize;
 
-  /// Load a model into the engine. If a different model is already loaded,
-  /// the old one is disposed first. Returns the path on success, or throws
-  /// on failure. Safe to call multiple times with the same path (no-op).
+  static int _detectOptimalGpuLayers() {
+    if (Platform.isAndroid || Platform.isIOS) return 0;
+    try {
+      final totalMem = _deviceTotalMemoryMB();
+      if (totalMem > 0 && totalMem < 6000) return 0;
+    } catch (_) {}
+    return 0;
+  }
+
+  static int _deviceTotalMemoryMB() {
+    try {
+      if (Platform.isMacOS) {
+        final result = Process.runSync('sysctl', ['hw.memsize']);
+        if (result.exitCode == 0) {
+          final memBytes = int.tryParse(result.stdout.toString().trim().split(' ').last) ?? 0;
+          return memBytes ~/ (1024 * 1024);
+        }
+      } else if (Platform.isLinux) {
+        final result = Process.runSync('free', ['-b']);
+        if (result.exitCode == 0) {
+          final lines = result.stdout.toString().trim().split('\n');
+          if (lines.length > 1) {
+            final parts = lines[1].split(RegExp(r'\s+'));
+            if (parts.length > 1) {
+              return (int.tryParse(parts[1]) ?? 0) ~/ (1024 * 1024);
+            }
+          }
+        }
+      }
+    } catch (_) {}
+    return 0;
+  }
+
   Future<String> loadModel(String localPath) async {
     if (!File(localPath).existsSync()) {
       throw Exception('Model file not found: $localPath');
     }
 
     if (_loadedModelPath == localPath && _engine != null) {
-      return localPath; // already loaded
+      return localPath;
     }
 
     if (_engine != null) {
@@ -59,17 +85,21 @@ class InferenceService {
     final mmProjPath = localPath.replaceAll('.gguf', '.mmproj');
     final hasVision = File(mmProjPath).existsSync();
 
-    final ctx = fileSizeMB < 1000 ? 8192 : 16384;
+    final ctx = fileSizeMB < 300
+        ? 4096
+        : (fileSizeMB < 1000 ? 6144 : 8192);
 
-      _engine = LlamaEngine(LlamaBackend());
+    final gpuLayers = _detectOptimalGpuLayers();
+
+    _engine = LlamaEngine(LlamaBackend());
 
     await _engine!.loadModel(
       localPath,
       modelParams: ModelParams(
         contextSize: ctx,
-        gpuLayers: 99,
-        batchSize: 4096,
-        microBatchSize: 2048,
+        gpuLayers: gpuLayers,
+        batchSize: 1024,
+        microBatchSize: 512,
       ),
     );
 
@@ -122,10 +152,10 @@ class InferenceService {
 
       final params = GenerationParams(
         temp: temp,
-        maxTokens: 8192,
+        maxTokens: 4096,
         stopSequences: stopSequences,
-        streamBatchTokenThreshold: 4,
-        streamBatchByteThreshold: 256,
+        streamBatchTokenThreshold: 8,
+        streamBatchByteThreshold: 512,
         reusePromptPrefix: true,
         penalty: 1.0,
       );
@@ -142,7 +172,7 @@ class InferenceService {
     String? localPath,
     String? systemPrompt,
     List<Map<String, String>> history = const [],
-    int maxTokens = 8192,
+    int maxTokens = 4096,
     List<String>? imagePaths,
     List<ToolDefinition>? tools,
   }) async* {
@@ -213,8 +243,8 @@ class InferenceService {
         temp: 0.0,
         maxTokens: maxTokens,
         stopSequences: stopSequences,
-        streamBatchTokenThreshold: 4,
-        streamBatchByteThreshold: 256,
+        streamBatchTokenThreshold: 1,
+        streamBatchByteThreshold: 1,
         reusePromptPrefix: true,
         penalty: 1.0,
       );
@@ -223,7 +253,7 @@ class InferenceService {
       int tokenCount = 0;
       bool firstTokenEmitted = false;
 
-      const maxToolRounds = 20;
+      const maxToolRounds = 5;
       int consecutiveFailures = 0;
 
       for (int round = 0; round < maxToolRounds; round++) {
@@ -234,12 +264,24 @@ class InferenceService {
         );
 
         List<LlamaCompletionChunkToolCall>? lastToolCalls;
-        final contentBuf = StringBuffer();
+        bool hasEmittedContent = false;
 
         await for (final chunk in stream) {
           for (final choice in chunk.choices) {
             if (choice.delta.content != null) {
-              contentBuf.write(choice.delta.content!);
+              final text = choice.delta.content!;
+              if (!firstTokenEmitted) {
+                final ttftMs = stopwatch.elapsedMilliseconds;
+                if (ttftMs > 0) {
+                  _lastPromptTokPerSec =
+                      estimatedPromptTokens / (ttftMs / 1000.0);
+                }
+                _lastPromptTokens = estimatedPromptTokens;
+                firstTokenEmitted = true;
+              }
+              tokenCount += (text.length / 3.5).round();
+              yield text;
+              hasEmittedContent = true;
             }
             if (choice.delta.toolCalls != null &&
                 choice.delta.toolCalls!.isNotEmpty) {
@@ -248,20 +290,14 @@ class InferenceService {
           }
         }
 
-        // Yield cleaned text content (strip tool-call JSON)
-        final cleaned = _stripToolCallText(contentBuf.toString());
-        if (cleaned.isNotEmpty) {
-          if (!firstTokenEmitted) {
-            final ttftMs = stopwatch.elapsedMilliseconds;
-            if (ttftMs > 0) {
-              _lastPromptTokPerSec =
-                  estimatedPromptTokens / (ttftMs / 1000.0);
-            }
-            _lastPromptTokens = estimatedPromptTokens;
-            firstTokenEmitted = true;
+        if (!hasEmittedContent && !firstTokenEmitted) {
+          final ttftMs = stopwatch.elapsedMilliseconds;
+          if (ttftMs > 0) {
+            _lastPromptTokPerSec =
+                estimatedPromptTokens / (ttftMs / 1000.0);
           }
-          tokenCount += (cleaned.length / 3.5).round();
-          yield cleaned;
+          _lastPromptTokens = estimatedPromptTokens;
+          firstTokenEmitted = true;
         }
 
         // No tool calls — done
@@ -348,16 +384,4 @@ class InferenceService {
     }
   }
 
-  /// Remove raw tool-call JSON and markup that some models leak as text content.
-  static String _stripToolCallText(String text) {
-    return text
-        .replaceAll(RegExp(r'<\s*/?\s*tool_call\s*>', caseSensitive: false),
-            '')
-        .replaceAll(
-            RegExp(
-                r'\{\s*"name"\s*:\s*"[^"]+"\s*,\s*"arguments"\s*:'
-                r'\s*\{[^{}]*(?:\{[^{}]*\}[^{}]*)*\}\s*\}'),
-            '')
-        .trim();
-  }
 }

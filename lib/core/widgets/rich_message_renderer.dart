@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:google_fonts/google_fonts.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/flux_animations.dart';
 
@@ -30,7 +29,7 @@ class RichMessageRenderer extends StatelessWidget {
   }
 
   static final Map<String, List<MessageSegment>> _parseCache = {};
-  static const int _maxCacheEntries = 10;
+  static const int _maxCacheEntries = 50;
 
   @override
   Widget build(BuildContext context) {
@@ -302,10 +301,11 @@ class _MathBlock extends StatelessWidget {
         scrollDirection: Axis.horizontal,
         child: Text(
           text,
-          style: GoogleFonts.firaCode(
+          style: TextStyle(
+            fontFamily: 'monospace',
             fontSize: 14,
-            color: flux.textPrimary,
             fontStyle: FontStyle.italic,
+            color: flux.textPrimary,
           ),
         ),
       ),
@@ -369,7 +369,8 @@ class _CodeBlock extends StatelessWidget {
                   children: [
                     Text(
                       code,
-                      style: GoogleFonts.firaCode(
+                      style: TextStyle(
+                        fontFamily: 'monospace',
                         fontSize: 13,
                         fontWeight: FontWeight.w400,
                         color: flux.textPrimary,
@@ -447,7 +448,7 @@ class _RichTextBlock extends StatelessWidget {
     final spans = _parseSpans(text, flux);
     return Text.rich(
       TextSpan(children: spans),
-      style: GoogleFonts.instrumentSans(
+      style: TextStyle(
         fontSize: 15,
         fontWeight: FontWeight.w400,
         color: isUser ? Colors.white : flux.textPrimary,
@@ -473,7 +474,8 @@ class _RichTextBlock extends StatelessWidget {
       } else if (match.group(3) != null) {
         spans.add(TextSpan(
           text: match.group(4),
-          style: GoogleFonts.firaCode(
+          style: TextStyle(
+            fontFamily: 'monospace',
             backgroundColor: flux.textPrimary.withValues(alpha: 0.07),
             fontSize: 13,
             fontWeight: FontWeight.w400,
@@ -483,7 +485,8 @@ class _RichTextBlock extends StatelessWidget {
       } else if (match.group(5) != null) {
         spans.add(TextSpan(
           text: match.group(6),
-          style: GoogleFonts.firaCode(
+          style: TextStyle(
+            fontFamily: 'monospace',
             fontSize: 13,
             fontWeight: FontWeight.w400,
             fontStyle: FontStyle.italic,
@@ -547,7 +550,7 @@ class _ThinkBlockState extends State<_ThinkBlock> {
                       const SizedBox(width: 8),
                       Text(
                         _expanded ? 'Hide reasoning' : 'Thinking...',
-                        style: GoogleFonts.instrumentSans(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: FontWeight.w400,
                           color: widget.flux.textSecondary,
@@ -630,7 +633,7 @@ class _TableBlock extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       child: Text(
                         cellText,
-                        style: GoogleFonts.instrumentSans(
+                        style: TextStyle(
                           fontSize: 13,
                           fontWeight: isHeader ? FontWeight.w400 : FontWeight.w400,
                           color: flux.textPrimary,

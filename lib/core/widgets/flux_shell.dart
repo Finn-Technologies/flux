@@ -44,6 +44,7 @@ class _FluxShellState extends ConsumerState<FluxShell> {
   double _sidebarWidth = 400.0;
   static const double _minSidebarWidth = 200.0;
   static const double _maxSidebarWidth = 400.0;
+  bool _isDragging = false;
 
   @override
   void didChangeDependencies() {
@@ -85,32 +86,50 @@ class _FluxShellState extends ConsumerState<FluxShell> {
       resizeToAvoidBottomInset: false,
       body: Row(
         children: [
-          if (isDesktop && isSidebarOpen)
-            SizedBox(
-              width: _sidebarWidth,
-              child: const RepaintBoundary(child: ChatHistoryScreen()),
-            ),
-          if (isDesktop && isSidebarOpen)
-            MouseRegion(
-              cursor: SystemMouseCursors.resizeColumn,
-              child: GestureDetector(
-                behavior: HitTestBehavior.translucent,
-                onPanUpdate: (details) {
-                  setState(() {
-                    _sidebarWidth += details.delta.dx;
-                    if (_sidebarWidth < _minSidebarWidth) {
-                      _sidebarWidth = _minSidebarWidth;
-                    } else if (_sidebarWidth > _maxSidebarWidth) {
-                      _sidebarWidth = _maxSidebarWidth;
-                    }
-                  });
-                },
-                child: Container(
-                  width: 8,
-                  alignment: Alignment.center,
-                  child: Container(
-                    width: 1,
-                    color: Colors.transparent,
+          if (isDesktop)
+            AnimatedContainer(
+              duration: _isDragging ? Duration.zero : const Duration(milliseconds: 300),
+              curve: Curves.easeOutCubic,
+              width: isSidebarOpen ? _sidebarWidth + 8.0 : 0.0,
+              child: ClipRect(
+                child: OverflowBox(
+                  alignment: Alignment.centerRight,
+                  minWidth: _sidebarWidth + 8.0,
+                  maxWidth: _sidebarWidth + 8.0,
+                  child: Row(
+                    children: [
+                      SizedBox(
+                        width: _sidebarWidth,
+                        child: const RepaintBoundary(child: ChatHistoryScreen()),
+                      ),
+                      MouseRegion(
+                        cursor: SystemMouseCursors.resizeColumn,
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.translucent,
+                          onPanStart: (_) => setState(() => _isDragging = true),
+                          onPanUpdate: (details) {
+                            setState(() {
+                              _sidebarWidth += details.delta.dx;
+                              if (_sidebarWidth < _minSidebarWidth) {
+                                _sidebarWidth = _minSidebarWidth;
+                              } else if (_sidebarWidth > _maxSidebarWidth) {
+                                _sidebarWidth = _maxSidebarWidth;
+                              }
+                            });
+                          },
+                          onPanEnd: (_) => setState(() => _isDragging = false),
+                          onPanCancel: () => setState(() => _isDragging = false),
+                          child: Container(
+                            width: 8,
+                            alignment: Alignment.center,
+                            child: Container(
+                              width: 1,
+                              color: Colors.transparent,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),

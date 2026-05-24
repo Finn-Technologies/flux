@@ -3,15 +3,10 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
-import 'package:file_selector_macos/file_selector_macos.dart';
-import 'package:file_selector_platform_interface/file_selector_platform_interface.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path/path.dart' as p;
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:go_router/go_router.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:llamadart/llamadart.dart' hide ChatSession;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -22,7 +17,6 @@ import '../creations/creations_screen.dart';
 import '../../core/services/inference_service.dart';
 import '../../core/services/memory_service.dart';
 import '../../core/services/search_service.dart';
-import '../../core/services/flux_agent_service.dart';
 import '../../core/providers/model_provider.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/providers/sidebar_provider.dart';
@@ -129,6 +123,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final SpeechToText _stt = SpeechToText();
   final TtsService _tts = TtsService();
   String _liveTranscript = '';
+  double _soundLevel = 0.0;
 
 
   bool _showTokenSpeed = false;
@@ -139,48 +134,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _streamingTextNotifier = ValueNotifier<String>('');
   final StringBuffer _streamBuffer = StringBuffer();
   bool _shouldStop = false;
-  String _lastFlushedContent = '';
-  Timer? _flushTimer;
   Timer? _sttSilenceTimer;
   int _lastProcessedWordCount = 0;
 
   void _stopGeneration() {
     _shouldStop = true;
-    _stopFlushTimer();
     if (mounted) setState(() => _isStreaming = false);
-  }
-
-  void _flushNow() {
-    if (_streamBuffer.isNotEmpty) {
-      final current = _streamBuffer.toString();
-      _lastFlushedContent = current;
-      _streamingTextNotifier.value = current;
-    }
-  }
-
-  void _startFlushTimer() {
-    _flushNow();
-    _flushTimer?.cancel();
-    _lastFlushedContent = _streamBuffer.toString();
-    _flushTimer = Timer.periodic(const Duration(milliseconds: 16), (_) {
-      if (_streamBuffer.isNotEmpty) {
-        final current = _streamBuffer.toString();
-        if (current != _lastFlushedContent) {
-          _lastFlushedContent = current;
-          _streamingTextNotifier.value = current;
-        }
-      }
-    });
-  }
-
-  void _stopFlushTimer() {
-    _flushTimer?.cancel();
-    _flushTimer = null;
-    if (_streamBuffer.isNotEmpty) {
-      final current = _streamBuffer.toString();
-      _lastFlushedContent = current;
-      _streamingTextNotifier.value = current;
-    }
   }
 
 
@@ -264,7 +223,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       localPath: model.localPath,
       systemPrompt: systemPrompt,
       history: history,
-      maxTokens: 8192,
+      maxTokens: 4096,
       imagePaths: imagePaths,
       tools: tools,
     );
@@ -275,41 +234,46 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     await for (final token in stream) {
       if (!mounted || _shouldStop) break;
       buffer.write(token);
+      _streamingTextNotifier.value = buffer.toString();
       sentenceBuffer += token;
 
-
-
-      // In live mode, speak sentences as they come
       if (_shouldSpeakResponse && !_isCreationMode) {
-        // Trigger extremely fast for the first chunk
-        final triggerThreshold = hasStartedSpeaking ? 20 : 5;
-        
-        if (sentenceBuffer.length >= triggerThreshold && 
-            (sentenceBuffer.contains(RegExp(r'[.!?\n\s]')))) {
-          final cleanSentence = _cleanForSpeech(sentenceBuffer);
-          if (cleanSentence.isNotEmpty) {
-            _tts.speak(cleanSentence);
-            sentenceBuffer = "";
-            hasStartedSpeaking = true;
+        final fullText = buffer.toString();
+        final inCodeBlock = '```'.allMatches(fullText).length % 2 != 0;
+        final inThinkBlock = '<think>'.allMatches(fullText).length != '</think>'.allMatches(fullText).length;
+
+        if (!inCodeBlock && !inThinkBlock) {
+          final match = RegExp(r'([.!?]+(?=\s))|\n+').firstMatch(sentenceBuffer);
+          final commaMatch = sentenceBuffer.length > 50 ? RegExp(r',+(?=\s)').firstMatch(sentenceBuffer) : null;
+          
+          final breakMatch = match ?? commaMatch;
+          
+          if (breakMatch != null) {
+            final breakIndex = breakMatch.end;
+            final chunk = sentenceBuffer.substring(0, breakIndex);
+            final cleanSentence = _cleanForSpeech(chunk);
+            if (cleanSentence.isNotEmpty) {
+              _tts.speak(cleanSentence);
+              hasStartedSpeaking = true;
+            }
+            sentenceBuffer = sentenceBuffer.substring(breakIndex).trimLeft();
           }
         }
       }
     }
 
-    // Speak any remaining text in the buffer
     if (_shouldSpeakResponse && !_isCreationMode && sentenceBuffer.trim().isNotEmpty) {
       final cleanSentence = _cleanForSpeech(sentenceBuffer);
       if (cleanSentence.isNotEmpty) {
         await _tts.speak(cleanSentence);
       }
     } else if (_shouldSpeakResponse && !_isCreationMode && !hasStartedSpeaking) {
-      // If no sentence boundaries were found but we have text, speak it all now
       final response = buffer.toString().trim();
       if (response.isNotEmpty) {
         await _tts.speak(_cleanForSpeech(response));
       }
     }
-    
+
     _shouldSpeakResponse = false;
     return buffer.toString();
   }
@@ -415,9 +379,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     setState(() => _isStreaming = true);
     _shouldStop = false;
     _streamBuffer.clear();
-    _lastFlushedContent = '';
     _streamingTextNotifier.value = '';
-    _startFlushTimer();
 
     final currentMessages = ref.read(chatMessagesProvider);
 
@@ -503,10 +465,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     }
 
-    _stopFlushTimer();
-
     if (mounted && !_shouldStop) {
-      _streamingTextNotifier.value = accumulated;
       setState(() => _isStreaming = false);
       HapticFeedback.selectionClick();
 
@@ -706,9 +665,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     // Get only the words since we last "sent" a message
     // We use a simple substring approach or word split
     String newWords = '';
-    if (_lastProcessedWordCount > 0 && _lastProcessedWordCount < allWords.length) {
+    if (_lastProcessedWordCount > 0 && _lastProcessedWordCount <= allWords.length) {
        newWords = allWords.substring(_lastProcessedWordCount).trim();
-    } else if (_lastProcessedWordCount == 0) {
+    } else if (_lastProcessedWordCount == 0 || allWords.length < _lastProcessedWordCount) {
+       _lastProcessedWordCount = 0;
        newWords = allWords;
     }
 
@@ -787,6 +747,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     
     await _stt.listen(
       onResult: _onSttResult,
+      onSoundLevelChange: (level) {
+        if (mounted) setState(() => _soundLevel = level);
+      },
       listenFor: const Duration(hours: 1), // Practically infinite
       pauseFor: const Duration(seconds: 30), // Don't stop on short pauses
       localeId: null,
@@ -848,7 +811,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
-    _flushTimer?.cancel();
     _scrollController.removeListener(_onChatScroll);
     _scrollController.dispose();
     _controller.dispose();
@@ -935,7 +897,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                   padding: const EdgeInsets.only(top: 8),
                                                   itemCount: messages.length +
                                                       (_isStreaming ? 1 : 0),
-                                                  cacheExtent: 300,
+                                                  cacheExtent: 600,
                                                   addAutomaticKeepAlives: false,
                                                   addRepaintBoundaries: true,
                                                   physics: const BouncingScrollPhysics(),
@@ -1083,7 +1045,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             ),
                           if (_isLiveMode && _liveTranscript.isNotEmpty)
                             Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
+                              padding: const EdgeInsets.only(bottom: 20),
                               child: Container(
                                 constraints: const BoxConstraints(
                                   minHeight: 40,
@@ -1103,127 +1065,207 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 ),
                               ),
                             ),
-                          Container(
-                            constraints: const BoxConstraints(
-                              minHeight: 50,
-                              maxHeight: 140,
-                            ),
-                            padding: const EdgeInsets.only(
-                              left: 10,
-                              right: 6,
-                              top: 6,
-                              bottom: 6,
-                            ),
-                            decoration: BoxDecoration(
-                              color: flux.surface.withValues(alpha: 0.92),
-                              borderRadius: BorderRadius.circular(100),
-                              border: Border.all(color: flux.border, width: 1),
-                            ),
-                            child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.center,
-                              children: [
-                                if (_isLiveMode)
-                                  _ComposerIconButton(
-                                    tooltip: _isLiveMuted ? 'Unmute' : 'Mute',
-                                    icon: _isLiveMuted ? Icons.mic_off_rounded : Icons.mic_rounded,
-                                    isActive: _isLiveMuted,
-                                    onTap: _toggleLiveMute,
-                                  ),
-                                if (_isLiveMode) const SizedBox(width: 10),
-                                if (!_isLiveMode)
-                                  _ComposerAddButton(
-                                    isOpen: _isAddMenuOpen || _isCreationMode,
-                                    onTap: _isCreationMode
-                                        ? _exitCreationMode
-                                        : _toggleAddMenu,
-                                  ),
-                                if (!_isLiveMode) const SizedBox(width: 10),
-                                Expanded(
-                                  child: _isLiveMode
-                                      ? const _LiveWaveIndicator()
-                                      : Theme(
-                                    data: Theme.of(context).copyWith(
-                                      inputDecorationTheme:
-                                          const InputDecorationTheme(
-                                        border: InputBorder.none,
-                                        enabledBorder: InputBorder.none,
-                                        focusedBorder: InputBorder.none,
-                                      ),
+                          LayoutBuilder(
+                            builder: (context, constraints) {
+                              final rawLevel = _soundLevel.clamp(-50.0, 50.0);
+                              final normalizedLevel = math.max(0.0, (rawLevel + 40.0) / 50.0).clamp(0.0, 1.0);
+                              
+                              final liveMaxWidth = constraints.maxWidth - 88.0;
+                              final targetWidth = _isLiveMuted 
+                                  ? 34.0 
+                                  : 34.0 + (normalizedLevel * (liveMaxWidth - 34.0));
+                              
+                              return TweenAnimationBuilder<double>(
+                                duration: const Duration(milliseconds: 150),
+                                tween: Tween<double>(begin: targetWidth, end: targetWidth),
+                                builder: (context, smoothedTargetWidth, _) {
+                                  return TweenAnimationBuilder<double>(
+                                    duration: const Duration(milliseconds: 400),
+                                    curve: Curves.fastOutSlowIn,
+                                    tween: Tween<double>(
+                                      begin: _isLiveMode ? 1.0 : 0.0,
+                                      end: _isLiveMode ? 1.0 : 0.0,
                                     ),
-                                    child: TextField(
-                                      controller: _controller,
-                                      focusNode: _focusNode,
-                                      minLines: 1,
-                                      maxLines: 4,
-                                      keyboardType: TextInputType.multiline,
-                                      textInputAction: TextInputAction.newline,
-                                      style: textTheme.bodyMedium,
-                                      decoration: InputDecoration(
-                                        hintText: _isCreationMode
-                                            ? 'Describe your creation…'
-                                            : 'Ask anything',
-                                        hintStyle: textTheme.bodyMedium?.copyWith(
-                                          color: flux.textSecondary,
+                                    builder: (context, t, _) {
+                                      final currentWidth = constraints.maxWidth * (1 - t) + smoothedTargetWidth * t;
+                                      
+                                      final circleLeft = (constraints.maxWidth - currentWidth) / 2;
+                                      
+                                      return SizedBox(
+                                        width: constraints.maxWidth,
+                                        child: Stack(
+                                          alignment: Alignment.bottomCenter,
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            SizedBox(
+                                              width: currentWidth,
+                                              height: _isLiveMode ? currentWidth : null,
+                                              child: ClipRect(
+                                                child: AnimatedContainer(
+                                                duration: const Duration(milliseconds: 400),
+                                                curve: Curves.fastOutSlowIn,
+                                                constraints: _isLiveMode
+                                                    ? null
+                                                    : const BoxConstraints(minHeight: 44, maxHeight: 140),
+                                                decoration: _isLiveMode 
+                                                  ? BoxDecoration(
+                                                      borderRadius: BorderRadius.circular(100),
+                                                      gradient: const LinearGradient(
+                                                        begin: Alignment.topCenter,
+                                                        end: Alignment.bottomCenter,
+                                                        colors: [Colors.white, Color(0xFF86A8E7)],
+                                                      ),
+                                                    ) 
+                                                  : BoxDecoration(
+                                                      color: flux.surface.withValues(alpha: 0.92),
+                                                      borderRadius: BorderRadius.circular(100),
+                                                      border: Border.all(color: flux.border, width: 1),
+                                                    ),
+                                                clipBehavior: Clip.antiAlias,
+                                                child: IgnorePointer(
+                                                  ignoring: _isLiveMode,
+                                                  child: AnimatedOpacity(
+                                                  duration: const Duration(milliseconds: 200),
+                                                  opacity: _isLiveMode ? 0.0 : 1.0,
+                                                  child: Padding(
+                                                    padding: const EdgeInsets.only(left: 10, right: 6, top: 2, bottom: 2),
+                                                    child: Row(
+                                                      crossAxisAlignment: CrossAxisAlignment.center,
+                                                      children: [
+                                                             _ComposerAddButton(
+                                                               isOpen: _isAddMenuOpen || _isCreationMode,
+                                                               onTap: _isCreationMode ? _exitCreationMode : _toggleAddMenu,
+                                                             ),
+                                                             const SizedBox(width: 10),
+                                                             Expanded(
+                                                               child: Theme(
+                                                                 data: Theme.of(context).copyWith(
+                                                                   inputDecorationTheme: const InputDecorationTheme(
+                                                                     border: InputBorder.none,
+                                                                     enabledBorder: InputBorder.none,
+                                                                     focusedBorder: InputBorder.none,
+                                                                   ),
+                                                                 ),
+                                                                 child: TextField(
+                                                                   controller: _controller,
+                                                                   focusNode: _focusNode,
+                                                                   minLines: 1,
+                                                                   maxLines: 4,
+                                                                   keyboardType: TextInputType.multiline,
+                                                                   textInputAction: TextInputAction.newline,
+                                                                   style: textTheme.bodyMedium,
+                                                                   decoration: InputDecoration(
+                                                                     hintText: _isCreationMode ? 'Describe your creation…' : 'Ask anything',
+                                                                     hintStyle: textTheme.bodyMedium?.copyWith(color: flux.textSecondary),
+                                                                     filled: false,
+                                                                     fillColor: Colors.transparent,
+                                                                     border: InputBorder.none,
+                                                                     enabledBorder: InputBorder.none,
+                                                                     focusedBorder: InputBorder.none,
+                                                                     errorBorder: InputBorder.none,
+                                                                     disabledBorder: InputBorder.none,
+                                                                     contentPadding: const EdgeInsets.symmetric(vertical: 10),
+                                                                     isDense: true,
+                                                                     counterText: '',
+                                                                   ),
+                                                                   onSubmitted: (_) => _sendMessage(),
+                                                                 ),
+                                                               ),
+                                                             ),
+                                                             if (_searchEnabled && !_isCreationMode)
+                                                               _ComposerIconButton(
+                                                                 tooltip: 'Web search on',
+                                                                 icon: Icons.language_rounded,
+                                                                 isActive: true,
+                                                                 onTap: () {
+                                                                   HapticFeedback.lightImpact();
+                                                                   setState(() => _searchEnabled = false);
+                                                                 },
+                                                               ),
+                                                             if (_searchEnabled && !_isCreationMode)
+                                                               const SizedBox(width: 6),
+                                                             if (!_isCreationMode)
+                                                               _ComposerIconButton(
+                                                                 tooltip: 'Flux Voice',
+                                                                 svgAsset: 'assets/images/mic.svg',
+                                                                 onTap: () {
+                                                                   HapticFeedback.mediumImpact();
+                                                                   _toggleLiveMode();
+                                                                 },
+                                                               ),
+                                                             if (!_isCreationMode) const SizedBox(width: 6),
+                                                             FluxSendButton(
+                                                               onTap: _sendMessage,
+                                                               onStop: _stopGeneration,
+                                                               isEnabled: _hasText || _attachedImages.isNotEmpty,
+                                                               isStreaming: _isStreaming,
+                                                             ),
+                                                             ],
+                                                           ),
+                                                         ),
+                                                       ),
+                                                     ),
+                                                  ),
+                                                   ),
+                                                  ),
+                                              Positioned(
+                                                left: circleLeft - 44,
+                                              top: 0,
+                                              bottom: 0,
+                                              child: IgnorePointer(
+                                                ignoring: !_isLiveMode,
+                                                child: AnimatedOpacity(
+                                                  duration: const Duration(milliseconds: 250),
+                                                  curve: Curves.easeOut,
+                                                  opacity: _isLiveMode ? 1.0 : 0.0,
+                                                  child: SizedBox(
+                                                    width: 34,
+                                                    child: Center(
+                                                      child: _ComposerIconButton(
+                                                        tooltip: _isLiveMuted ? 'Unmute' : 'Mute',
+                                                        svgAsset: 'assets/images/mic.svg',
+                                                        isActive: _isLiveMuted,
+                                                        onTap: _toggleLiveMute,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                            Positioned(
+                                              right: circleLeft - 40,
+                                              top: 0,
+                                              bottom: 0,
+                                              child: IgnorePointer(
+                                                ignoring: !_isLiveMode,
+                                                child: AnimatedOpacity(
+                                                  duration: const Duration(milliseconds: 250),
+                                                  curve: Curves.easeOut,
+                                                  opacity: _isLiveMode ? 1.0 : 0.0,
+                                                  child: SizedBox(
+                                                    width: 34,
+                                                    child: Center(
+                                                      child: _ComposerAddButton(
+                                                        isOpen: true,
+                                                        onTap: _exitLiveMode,
+                                                      ),
+                                                    ),
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                        filled: false,
-                                        fillColor: Colors.transparent,
-                                        border: InputBorder.none,
-                                        enabledBorder: InputBorder.none,
-                                        focusedBorder: InputBorder.none,
-                                        errorBorder: InputBorder.none,
-                                        disabledBorder: InputBorder.none,
-                                        contentPadding:
-                                            const EdgeInsets.symmetric(vertical: 10),
-                                        isDense: true,
-                                        counterText: '',
-                                      ),
-                                      onSubmitted: (_) => _sendMessage(),
-                                    ),
-                                  ),
-                                ),
-                                if (_searchEnabled && !_isCreationMode)
-                                  _ComposerIconButton(
-                                    tooltip: 'Web search on',
-                                    icon: Icons.language_rounded,
-                                    isActive: true,
-                                    onTap: () {
-                                      HapticFeedback.lightImpact();
-                                      setState(() => _searchEnabled = false);
+                                      );
                                     },
-                                  ),
-                                if (_searchEnabled && !_isCreationMode && !_isLiveMode)
-                                  const SizedBox(width: 6),
-                                if (!_isCreationMode && !_isLiveMode)
-                                  _ComposerIconButton(
-                                    tooltip: 'Flux Voice',
-                                    svgAsset: 'assets/images/mic.svg',
-                                    onTap: () {
-                                      HapticFeedback.mediumImpact();
-                                      _toggleLiveMode();
-                                    },
-                                  ),
-                                if (_isLiveMode)
-                                  _ComposerIconButton(
-                                    tooltip: 'Exit live mode',
-                                    icon: Icons.close_rounded,
-                                    onTap: _exitLiveMode,
-                                  ),
-                                if (!_isCreationMode && !_isLiveMode) const SizedBox(width: 6),
-                                if (!_isLiveMode)
-                                  FluxSendButton(
-                                  onTap: _sendMessage,
-                                  onStop: _stopGeneration,
-                                  isEnabled:
-                                      _hasText || _attachedImages.isNotEmpty,
-                                  isStreaming: _isStreaming,
-                                ),
-                              ],
-                            ),
+                                  );
+                                },
+                              );
+                            },
                           ),
                         ],
                       ),
                     ),
-
                   ],
                 ),
               ),

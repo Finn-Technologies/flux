@@ -443,7 +443,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
                               conv.title,
                               style: textTheme.bodySmall?.copyWith(
                                 fontSize: 14,
-                                color: Colors.black,
+                                color: flux.textPrimary,
                                 decoration: TextDecoration.none,
                                 fontWeight: FontWeight.w400,
                               ),
