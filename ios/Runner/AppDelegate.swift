@@ -8,9 +8,9 @@ import UIKit
     didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?
   ) -> Bool {
     let controller : FlutterViewController = window?.rootViewController as! FlutterViewController
-    let channel = FlutterMethodChannel(name: "com.finn.flux/storage", binaryMessenger: controller.binaryMessenger)
+    let storageChannel = FlutterMethodChannel(name: "com.finn.flux/storage", binaryMessenger: controller.binaryMessenger)
     
-    channel.setMethodCallHandler({ (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
+    storageChannel.setMethodCallHandler({ (call: FlutterMethodCall, result: @escaping FlutterResult) -> Void in
       if call.method == "getStorageSpace" {
           let fileManager = FileManager.default
           do {
@@ -28,6 +28,16 @@ import UIKit
           result(FlutterMethodNotImplemented)
       }
     })
+
+    // Live Activity channel
+    let liveActivityChannel = FlutterMethodChannel(name: "com.finn.flux/live_activity", binaryMessenger: controller.binaryMessenger)
+    if #available(iOS 16.1, *) {
+      liveActivityChannel.setMethodCallHandler(DownloadLiveActivityManager.shared.handleMethodCall)
+    } else {
+      liveActivityChannel.setMethodCallHandler { (call, result) in
+        result(FlutterError(code: "UNSUPPORTED", message: "Live Activities require iOS 16.1 or later", details: nil))
+      }
+    }
     
     return super.application(application, didFinishLaunchingWithOptions: launchOptions)
   }

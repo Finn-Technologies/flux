@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:home_widget/home_widget.dart';
 import 'l10n/app_localizations.dart';
 import 'features/onboarding/onboarding_page.dart';
 import 'features/chat/chat_screen.dart';
@@ -21,6 +22,7 @@ import 'features/voice/voice_screen.dart';
 import 'core/widgets/flux_shell.dart';
 import 'core/services/inference_service.dart';
 import 'core/services/memory_service.dart';
+import 'core/services/download_notification_service.dart';
 import 'core/theme/flux_theme.dart';
 import 'core/widgets/flux_animations.dart';
 import 'features/you/you_screen.dart';
@@ -52,6 +54,7 @@ void main() async {
   await Hive.openBox('creations');
   await Hive.openBox('flux_code_projects');
   await MemoryService().init();
+  await DownloadNotificationService.initialize();
 
   final prefs = await SharedPreferences.getInstance();
   final onboarded = prefs.getBool('onboarded') ?? false;
@@ -139,9 +142,20 @@ class FluxApp extends StatefulWidget {
 class _FluxAppState extends State<FluxApp> {
   late final GoRouter _router;
 
+  void _setupWidgetClickHandler() {
+    HomeWidget.widgetClicked.listen((_) async {
+      if (!mounted) return;
+      final creationId = await HomeWidget.getWidgetData<String>('creationId', defaultValue: '');
+      if (creationId != null && creationId.isNotEmpty) {
+        _router.push('/creations/app/$creationId');
+      }
+    });
+  }
+
   @override
   void initState() {
     super.initState();
+    _setupWidgetClickHandler();
     _router = GoRouter(
       initialLocation: widget.onboarded ? '/home' : '/onboarding',
       routes: [

@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:llamadart/llamadart.dart';
 import 'package:path_provider/path_provider.dart';
+import 'model_service.dart';
 
 class InferenceService {
   static final InferenceService _instance = InferenceService._internal();
@@ -85,14 +86,34 @@ class InferenceService {
     final mmProjPath = localPath.replaceAll('.gguf', '.mmproj');
     final hasVision = File(mmProjPath).existsSync();
 
-    final ctx = fileSizeMB < 300
-        ? 4096
-        : (fileSizeMB < 1000 ? 6144 : 8192);
+    // Dynamically scale context size based on platform and available RAM to optimize memory on mobile
+    int ctx = 2048;
+    if (Platform.isAndroid || Platform.isIOS) {
+      final ram = await ModelService.getDeviceRAM();
+      if (ram <= 4) {
+        ctx = 2048; // Safe fallback to prevent OOM crashes on low-end devices
+      } else if (ram <= 8) {
+        // OnePlus Nord 1 / typical mid-range device (6GB - 8GB RAM):
+        // Lite model can run with 4096 context, Steady/Smart models with 3072 context
+        ctx = fileSizeMB < 300 ? 4096 : 3072;
+      } else {
+        // High-end mobile devices (12GB+ RAM): 4096 context for all models
+        ctx = 4096;
+      }
+    } else {
+      // Desktop platforms: keep high context size since there is plenty of memory and swap space
+      ctx = fileSizeMB < 300
+          ? 4096
+          : (fileSizeMB < 1000 ? 6144 : 8192);
+    }
 
     final gpuLayers = _detectOptimalGpuLayers();
 
     _engine = LlamaEngine(LlamaBackend());
 
+    // Configure model with optimized parameters:
+    // - On mobile: enable Flash Attention and Q8_0 KV Cache quantization to reduce RAM by 50%
+    final isMobile = Platform.isAndroid || Platform.isIOS;
     await _engine!.loadModel(
       localPath,
       modelParams: ModelParams(
@@ -100,6 +121,9 @@ class InferenceService {
         gpuLayers: gpuLayers,
         batchSize: 1024,
         microBatchSize: 512,
+        flashAttention: isMobile ? FlashAttention.enabled : FlashAttention.auto,
+        cacheTypeK: isMobile ? KvCacheType.q8_0 : KvCacheType.f16,
+        cacheTypeV: isMobile ? KvCacheType.q8_0 : KvCacheType.f16,
       ),
     );
 

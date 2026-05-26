@@ -347,13 +347,30 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
 
   Future<void> _pinToHome(Creation creation) async {
     try {
+      final dir = await getApplicationDocumentsDirectory();
+      final htmlFile = File('${dir.path}/widget_creation_${creation.id}.html');
+      await htmlFile.writeAsString(creation.html);
+
+      final h = _hashString(creation.id);
+      final c = _CreationStickerCard.palette[h % _CreationStickerCard.palette.length];
+      final colorHex =
+          '#${(c.toARGB32() & 0x00FFFFFF).toRadixString(16).padLeft(6, '0')}';
+
+      await HomeWidget.saveWidgetData<String>('creationId', creation.id);
+      await HomeWidget.saveWidgetData<String>('creationTitle', creation.title);
+      await HomeWidget.saveWidgetData<String>('creationColor', colorHex);
+      await HomeWidget.saveWidgetData<String>('htmlFilePath', htmlFile.path);
+      await HomeWidget.saveWidgetData<String>('updatedAt', creation.updatedAt.toIso8601String());
+
+      // Also save iOS-compatible keys (home_widget's iOS WidgetKit extension reads these)
       await HomeWidget.saveWidgetData<String>('title', creation.title);
       await HomeWidget.saveWidgetData<String>('content', 'Flux Creation: ${creation.title}');
+
       await HomeWidget.updateWidget(
         name: 'FluxWidgetProvider',
         androidName: 'FluxWidgetProvider',
       );
-      
+
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -367,6 +384,14 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         SnackBar(content: Text('Failed to pin: $e')),
       );
     }
+  }
+
+  int _hashString(String s) {
+    var h = 0;
+    for (final code in s.codeUnits) {
+      h = (h * 31 + code) & 0x7fffffff;
+    }
+    return h;
   }
 
   Future<void> _exportCreationAsHtml(Creation creation) async {
@@ -765,7 +790,7 @@ class _CreationStickerCard extends StatelessWidget {
 
   // Deterministic palette index from creation id — refreshed, slightly
   // more saturated, retro-pastel palette.
-  static const _palette = [
+  static const palette = [
     Color(0xFFFF8FAB), // bubblegum pink
     Color(0xFF80ED99), // spring green
     Color(0xFF73DDFF), // electric sky
@@ -854,7 +879,7 @@ class _CreationStickerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final h = _hash(creation.id);
-    final paletteColor = _palette[h % _palette.length];
+    final paletteColor = palette[h % palette.length];
     final iconData = _icons[(h ~/ 7) % _icons.length];
     final shape = _shapeFor(h % _shapeCount);
     final isDark = Theme.of(context).brightness == Brightness.dark;

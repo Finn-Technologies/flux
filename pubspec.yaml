@@ -19,16 +19,16 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   cupertino_icons: ^1.0.2
-  go_router: ^6.0.0
-  flutter_riverpod: ^2.1.0
-  riverpod: ^2.0.0
+  go_router: ^6.5.9
+  flutter_riverpod: ^2.6.1
+  riverpod: ^2.6.1
   hive_flutter: ^1.1.0
   shared_preferences: ^2.2.0
-  flutter_svg: ^2.0.0
-  google_fonts: ^6.0.0
+  flutter_svg: ^2.3.0
+  google_fonts: ^8.1.0
 
   path_provider: ^2.1.5
-  llamadart: ^0.6.10
+  llamadart: ^0.6.16
   background_downloader: ^9.5.4
   webview_flutter: ^4.13.1
   uuid: ^4.5.3
@@ -39,11 +39,11 @@ dependencies:
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.0
   home_widget: ^0.9.1
-  file_picker: ^8.1.4
+  file_picker: ^11.0.2
   path: ^1.9.0
 
 dev_dependencies:
-  flutter_lints: ^5.0.0
+  flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.4
   flutter_test:
     sdk: flutter

@@ -63,6 +63,8 @@
 	<string>Flux uses the microphone for Flux Voice — hands-free conversation with your local AI model.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Flux uses on-device speech recognition to convert your voice into text for Flux Voice.</string>
+	<key>NSSupportsLiveActivities</key>
+	<true/>
 	<key>UISupportedInterfaceOrientations~ipad</key>
 	<array>
 		<string>UIInterfaceOrientationPortrait</string>

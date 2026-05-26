@@ -6,6 +6,7 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/hf_model.dart';
 import '../services/model_service.dart';
+import '../services/download_notification_service.dart';
 
 final downloadProvider =
     StateNotifierProvider<DownloadNotifier, List<HFModel>>((ref) {
@@ -107,6 +108,7 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
       retries: 3,
       allowPause: true,
       taskId: model.id,
+      displayName: model.name,
       priority: 10, // High priority for faster downloading
     );
 
@@ -125,6 +127,13 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
 
     final enqueued = await FileDownloader().enqueue(task);
     print('Download task enqueued for ${model.id}: $enqueued (file: $filename)');
+    if (enqueued) {
+      DownloadNotificationService.onDownloadStart(
+        model.id,
+        model.name,
+        model.totalBytes ?? (model.sizeMB * 1024 * 1024).toInt(),
+      );
+    }
     if (!enqueued) {
       state = state.map((m) {
         if (m.id == model.id) {
@@ -144,13 +153,23 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
     final clampedProgress = progress.clamp(0.0, 1.0);
     state = state.map((m) {
       if (m.id == id) {
+        final totalBytes = m.totalBytes ?? (m.sizeMB * 1024 * 1024);
+        final downloadedBytes = (totalBytes * clampedProgress).toInt();
+
+        DownloadNotificationService.onProgressUpdate(
+          id,
+          clampedProgress,
+          speed >= 0 ? speed : (m.downloadSpeed ?? 0),
+          downloadedBytes,
+          totalBytes.toInt(),
+        );
+
         return m.copyWith(
           downloadStatus: 'downloading',
           progress: (clampedProgress * 100).toInt(),
           downloadSpeed: speed >= 0 ? speed : (m.downloadSpeed ?? 0),
-          downloadedBytes:
-              ((m.totalBytes ?? (m.sizeMB * 1024 * 1024)) * clampedProgress).toInt(),
-          totalBytes: m.totalBytes ?? (m.sizeMB * 1024 * 1024),
+          downloadedBytes: downloadedBytes,
+          totalBytes: totalBytes.toInt(),
         );
       }
       return m;
@@ -176,6 +195,8 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
     final fileSize = await file.length();
     print(
         'Download completed: $modelPath (${(fileSize / 1024 / 1024).toStringAsFixed(1)} MB)');
+
+    DownloadNotificationService.onDownloadComplete(id);
 
     final completedModel = model.copyWith(
       downloaded: true,
@@ -211,6 +232,7 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
 
   void _markAsFailed(String id, [String? error]) {
     print('Download failed for $id: ${error ?? 'unknown error'}');
+    DownloadNotificationService.onDownloadError(id);
     state = state.map((m) {
       if (m.id == id) {
         return m.copyWith(
@@ -275,6 +297,7 @@ class DownloadNotifier extends StateNotifier<List<HFModel>> {
 
   /// Cancel a downloading model
   Future<void> cancelDownload(String id) async {
+    DownloadNotificationService.onDownloadCancelled(id);
     // Cancel the download task
     await FileDownloader().cancelTaskWithId(id);
     
