@@ -87,7 +87,7 @@ class SkillsScreen extends ConsumerWidget {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: flux.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(28)),
+        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
         title: const Text("Create New Skill"),
         content: Column(
           mainAxisSize: MainAxisSize.min,
@@ -168,7 +168,7 @@ class _SkillTile extends ConsumerWidget {
           padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
           decoration: BoxDecoration(
             color: flux.surface,
-            borderRadius: BorderRadius.circular(40),
+            borderRadius: BorderRadius.circular(999),
           ),
         child: Row(
           children: [

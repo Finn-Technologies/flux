@@ -216,8 +216,8 @@ class FluxTheme {
       cardTheme: CardThemeData(
         elevation: 0,
         color: surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
+        shape: ContinuousRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
           side: BorderSide(color: border.withValues(alpha: 0.5)),
         ),
       ),
@@ -225,15 +225,15 @@ class FluxTheme {
         filled: true,
         fillColor: surface,
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(999),
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(999),
           borderSide: BorderSide(color: border.withValues(alpha: 0.5)),
         ),
         focusedBorder: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(999),
           borderSide: BorderSide(color: textPrimary, width: 1.5),
         ),
         contentPadding: const EdgeInsets.symmetric(
@@ -278,8 +278,8 @@ class FluxTheme {
           backgroundColor: textPrimary,
           foregroundColor: background,
           minimumSize: const Size(double.infinity, 54),
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+          shape: ContinuousRectangleBorder(
+            borderRadius: BorderRadius.circular(999),
           ),
           textStyle: GoogleFonts.instrumentSans(
             fontSize: 16,
@@ -301,8 +301,8 @@ class FluxTheme {
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        shape: ContinuousRectangleBorder(
+          borderRadius: BorderRadius.all(Radius.circular(999)),
         ),
       ),
       listTileTheme: const ListTileThemeData(
@@ -312,7 +312,7 @@ class FluxTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
         contentTextStyle: textTheme.bodyMedium?.copyWith(color: textPrimary),
       ),
       extensions: [colors],

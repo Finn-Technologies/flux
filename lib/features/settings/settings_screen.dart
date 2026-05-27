@@ -156,7 +156,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: flux.surface,
         shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
         title: Text(loc.clearCacheQuestion, style: textTheme.headlineMedium),
         content: Text(loc.clearCacheMessage, style: textTheme.bodySmall),
         actions: [
@@ -191,8 +191,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                         style: textTheme.bodySmall),
                     duration: const Duration(seconds: 2),
                     behavior: SnackBarBehavior.floating,
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16)),
+                    shape:ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
                     margin: const EdgeInsets.all(20),
                   ),
                 );
@@ -263,7 +262,7 @@ class _StickerTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 14, 16, 14),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: BorderRadius.circular(40),
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
           children: [

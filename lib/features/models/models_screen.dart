@@ -257,7 +257,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
       builder: (context) => AlertDialog(
         backgroundColor: flux.surface,
         shape:
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
         title: Text(title, style: textTheme.headlineMedium),
         content: Text(content, style: textTheme.bodySmall),
         actions: [
@@ -330,7 +330,7 @@ class _StorageCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: BorderRadius.circular(32),
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -357,7 +357,7 @@ class _StorageCard extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             ClipRRect(
-              borderRadius: BorderRadius.circular(100),
+              borderRadius: BorderRadius.circular(999),
               child: LinearProgressIndicator(
                 value: fraction.clamp(0.0, 1.0),
                 backgroundColor: flux.border,
@@ -423,7 +423,7 @@ class _ModelCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
       decoration: BoxDecoration(
         color: flux.surface,
-        borderRadius: BorderRadius.circular(40),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -470,7 +470,7 @@ class _ModelCard extends StatelessWidget {
             const SizedBox(height: 14),
             RepaintBoundary(
               child: ClipRRect(
-                borderRadius: BorderRadius.circular(100),
+                borderRadius: BorderRadius.circular(999),
                 child: LinearProgressIndicator(
                   value: model.progress / 100,
                   backgroundColor: flux.border,
@@ -550,7 +550,7 @@ class _StickerChip extends StatelessWidget {
       height: 44,
       decoration: BoxDecoration(
         color: flux.textPrimary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Center(
         child: Icon(icon, size: 20, color: flux.textPrimary),

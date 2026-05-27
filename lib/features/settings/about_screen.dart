@@ -239,7 +239,7 @@ class _AboutCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: flux.surface,
-        borderRadius: BorderRadius.circular(40),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +269,7 @@ class _FeatureSticker extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
       decoration: BoxDecoration(
         color: flux.surface,
-        borderRadius: BorderRadius.circular(40),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -323,7 +323,7 @@ class _LicenseTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: BorderRadius.circular(40),
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
           children: [

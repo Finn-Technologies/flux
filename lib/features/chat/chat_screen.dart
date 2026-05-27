@@ -109,9 +109,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   bool _searchEnabled = false;
   List<String> _attachedImages = [];
   bool _isModelSelectorExpanded = false;
+  bool _isModelSelectorClosing = false;
   bool _isModelLoading = false;
   // Inline add-menu panel above the composer.
   bool _isAddMenuOpen = false;
+  bool _isAddMenuClosing = false;
   // Creation mode: chip above composer, voice hidden, send routes the
   // typed message through the HTML-creation system prompt.
   bool _isCreationMode = false;
@@ -126,6 +128,29 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   double _soundLevel = 0.0;
 
   bool _showTokenSpeed = false;
+
+  /// Randomly selected suggestions for empty state.
+  List<String> _suggestions = [];
+
+  static const _suggestionPool = [
+    'Explain quantum computing simply',
+    'Write me a haiku about space',
+    'Help me debug my code',
+    'Plan a weekend trip itinerary',
+    'Summarize this article for me',
+    'Write a poem about the ocean',
+    'Explain how neural networks work',
+    'Give me a healthy meal plan',
+    'Draft a professional email',
+    'Tell me a fun science fact',
+    'Help me brainstorm app ideas',
+    'Write a short story about robots',
+  ];
+
+  void _shuffleSuggestions() {
+    _suggestions = List<String>.from(_suggestionPool)..shuffle(math.Random());
+    _suggestions = _suggestions.take(3).toList();
+  }
 
   /// Running summary of older conversation turns.
   String? _contextSummary;
@@ -142,6 +167,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   }
 
   void _startNewChat() {
+    _shuffleSuggestions();
     setState(() => _isClearingChat = true);
     Future.delayed(const Duration(milliseconds: 200), () {
       ref.read(chatMessagesProvider.notifier).clear();
@@ -563,24 +589,43 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
+  void _closeModelSelector() {
+    if (!_isModelSelectorExpanded && !_isModelSelectorClosing) return;
+    setState(() {
+      _isModelSelectorExpanded = false;
+      _isModelSelectorClosing = true;
+    });
+  }
+
+  void _closeAddMenu() {
+    if (!_isAddMenuOpen && !_isAddMenuClosing) return;
+    setState(() {
+      _isAddMenuOpen = false;
+      _isAddMenuClosing = true;
+    });
+  }
+
   void _toggleAddMenu() {
     HapticFeedback.lightImpact();
-    setState(() {
-      _isAddMenuOpen = !_isAddMenuOpen;
-      if (_isAddMenuOpen) {
+    if (_isAddMenuOpen) {
+      _closeAddMenu();
+    } else {
+      setState(() {
+        _isAddMenuOpen = true;
+        _isAddMenuClosing = false;
         _focusNode.unfocus();
-        _isModelSelectorExpanded = false;
-      }
-    });
+      });
+      _closeModelSelector();
+    }
   }
 
   void _enterCreationMode() {
     HapticFeedback.selectionClick();
     setState(() {
       _isCreationMode = true;
-      _isAddMenuOpen = false;
       _searchEnabled = false;
     });
+    _closeAddMenu();
     _focusNode.requestFocus();
   }
 
@@ -592,6 +637,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _shuffleSuggestions();
     _controller.addListener(() {
       final hasText = _controller.text.isNotEmpty;
       if (hasText != _hasText) {
@@ -750,9 +796,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _isLiveMode = true;
       _liveTranscript = '';
       _lastProcessedWordCount = 0;
-      _isAddMenuOpen = false;
       _shouldSpeakResponse = true;
     });
+    _closeAddMenu();
 
     if (!skipStopTts) {
       await _tts.stop();
@@ -875,10 +921,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           onTap: () {
             FocusScope.of(context).unfocus();
             if (_isModelSelectorExpanded || _isAddMenuOpen) {
-              setState(() {
-                _isModelSelectorExpanded = false;
-                _isAddMenuOpen = false;
-              });
+              if (_isModelSelectorExpanded) _closeModelSelector();
+              if (_isAddMenuOpen) _closeAddMenu();
             }
           },
           behavior: HitTestBehavior.translucent,
@@ -901,6 +945,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     Expanded(
                       flex: 1,
                       child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Expanded(
                             child: Stack(
@@ -999,107 +1044,95 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                               ],
                             ),
                           ),
-                          const SizedBox(height: 15),
-                          if (_attachedImages.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child: SizedBox(
-                                height: 80,
-                                child: ListView.builder(
-                                  scrollDirection: Axis.horizontal,
-                                  itemCount: _attachedImages.length,
-                                  itemBuilder: (context, index) => Padding(
-                                    padding: const EdgeInsets.only(right: 8),
-                                    child: Stack(
-                                      clipBehavior: Clip.none,
-                                      children: [
-                                        ClipRRect(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
-                                          child: Image.file(
-                                            File(_attachedImages[index]),
-                                            width: 72,
-                                            height: 72,
-                                            fit: BoxFit.cover,
-                                          ),
-                                        ),
-                                        Positioned(
-                                          top: -6,
-                                          right: -6,
-                                          child: GestureDetector(
-                                            onTap: () => _removeImage(index),
-                                            child: Container(
-                                              width: 22,
-                                              height: 22,
-                                              decoration: BoxDecoration(
-                                                color: flux.surface,
-                                                shape: BoxShape.circle,
-                                                border: Border.all(
-                                                  color: flux.border,
-                                                  width: 1,
-                                                ),
-                                              ),
-                                              child: Icon(
-                                                Icons.close,
-                                                size: 14,
-                                                color: flux.textSecondary,
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const SizedBox(height: 10),
+                              if (_attachedImages.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: SizedBox(
+                                    height: 80,
+                                    child: ListView.builder(
+                                      scrollDirection: Axis.horizontal,
+                                      itemCount: _attachedImages.length,
+                                      itemBuilder: (context, index) => Padding(
+                                        padding: const EdgeInsets.only(right: 8),
+                                        child: Stack(
+                                          clipBehavior: Clip.none,
+                                          children: [
+                                            ClipRRect(
+                                              borderRadius:
+                                                  BorderRadius.circular(999),
+                                              child: Image.file(
+                                                File(_attachedImages[index]),
+                                                width: 72,
+                                                height: 72,
+                                                fit: BoxFit.cover,
                                               ),
                                             ),
-                                          ),
+                                            Positioned(
+                                              top: -6,
+                                              right: -6,
+                                              child: GestureDetector(
+                                                onTap: () => _removeImage(index),
+                                                child: Container(
+                                                  width: 22,
+                                                  height: 22,
+                                                  decoration: BoxDecoration(
+                                                    color: flux.surface,
+                                                    shape: BoxShape.circle,
+                                                    border: Border.all(
+                                                      color: flux.border,
+                                                      width: 1,
+                                                    ),
+                                                  ),
+                                                  child: Icon(
+                                                    Icons.close,
+                                                    size: 14,
+                                                    color: flux.textSecondary,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ],
                                         ),
-                                      ],
+                                      ),
                                     ),
                                   ),
                                 ),
-                              ),
-                            ),
-                          if (_isAddMenuOpen)
-                            _AddMenuPanel(
-                              onPickFile: () {
-                                setState(() => _isAddMenuOpen = false);
-                                _pickImages();
-                              },
-                              onMakeCreation: _enterCreationMode,
-                              searchEnabled: _searchEnabled,
-                              onToggleSearch: () {
-                                HapticFeedback.lightImpact();
-                                setState(() {
-                                  _searchEnabled = !_searchEnabled;
-                                  _isAddMenuOpen = false;
-                                });
-                              },
-                              isCreationMode: _isCreationMode,
-                            ),
-                          if (_isCreationMode && !_isAddMenuOpen)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 8),
-                              child:
-                                  _CreationChip(onDismiss: _exitCreationMode),
-                            ),
-                          if (_isLiveMode && _liveTranscript.isNotEmpty)
-                            Padding(
-                              padding: const EdgeInsets.only(bottom: 20),
-                              child: Container(
-                                constraints: const BoxConstraints(
-                                  minHeight: 40,
-                                  maxHeight: 100,
+                              if (_isCreationMode && !_isAddMenuOpen)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child:
+                                      _CreationChip(onDismiss: _exitCreationMode),
                                 ),
-                                padding: const EdgeInsets.symmetric(
-                                    horizontal: 16, vertical: 10),
-                                decoration: BoxDecoration(
-                                  color: flux.surface.withValues(alpha: 0.92),
-                                  borderRadius: BorderRadius.circular(100),
-                                  border:
-                                      Border.all(color: flux.border, width: 1),
+                              if (_isLiveMode && _liveTranscript.isNotEmpty)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 20),
+                                  child: Container(
+                                    constraints: const BoxConstraints(
+                                      minHeight: 40,
+                                      maxHeight: 100,
+                                    ),
+                                    padding: const EdgeInsets.symmetric(
+                                        horizontal: 16, vertical: 10),
+                                    decoration: BoxDecoration(
+                                      color: flux.surface.withValues(alpha: 0.92),
+                                      borderRadius: BorderRadius.circular(999),
+                                      border:
+                                          Border.all(color: flux.border, width: 1),
+                                    ),
+                                    child: Text(
+                                      _liveTranscript,
+                                      style: textTheme.bodyMedium,
+                                      maxLines: 3,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
                                 ),
-                                child: Text(
-                                  _liveTranscript,
-                                  style: textTheme.bodyMedium,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                ),
-                              ),
-                            ),
+                            ],
+                          ),
                           LayoutBuilder(
                             builder: (context, constraints) {
                               final rawLevel = _soundLevel.clamp(-50.0, 50.0);
@@ -1193,10 +1226,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                             padding:
                                                                 const EdgeInsets
                                                                     .only(
-                                                                    left: 10,
+                                                                    left: 6,
                                                                     right: 6,
-                                                                    top: 2,
-                                                                    bottom: 2),
+                                                                    top: 6,
+                                                                    bottom: 6),
                                                             child: Row(
                                                               crossAxisAlignment:
                                                                   CrossAxisAlignment
@@ -1402,19 +1435,54 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ],
                 ),
               ),
-              if (_isModelSelectorExpanded)
+              if (_isModelSelectorExpanded || _isModelSelectorClosing)
                 Positioned(
-                  top: math.min(
-                    topPadding + 92,
-                    MediaQuery.of(context).size.height - 1,
-                  ),
+                  top: 0,
                   left: 0,
                   right: 0,
                   bottom: 0,
                   child: IgnorePointer(
                     child: Container(
-                      color: flux.background.withValues(alpha: 0.4),
+                      color: flux.background.withValues(alpha: 0.6),
                     ),
+                  ),
+                ),
+              if (_isAddMenuOpen || _isAddMenuClosing)
+                Positioned(
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  child: IgnorePointer(
+                    child: Container(
+                      color: flux.background.withValues(alpha: 0.6),
+                    ),
+                  ),
+                ),
+              if (_isAddMenuOpen || _isAddMenuClosing)
+                Positioned(
+                  left: 20,
+                  right: 20,
+                  bottom: inputBottom + 56,
+                  child: _AddMenuPanel(
+                    isOpen: _isAddMenuOpen,
+                    onCloseComplete: () {
+                      if (mounted) {
+                        setState(() => _isAddMenuClosing = false);
+                      }
+                    },
+                    onPickFile: () {
+                      _closeAddMenu();
+                      _pickImages();
+                    },
+                    onMakeCreation: _enterCreationMode,
+                    searchEnabled: _searchEnabled,
+                    onToggleSearch: () {
+                      HapticFeedback.lightImpact();
+                      setState(() => _searchEnabled = !_searchEnabled);
+                      _closeAddMenu();
+                    },
+                    isCreationMode: _isCreationMode,
                   ),
                 ),
               Positioned(
@@ -1482,101 +1550,82 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   return Positioned(
                     left: 72,
                     top: topPadding + 52,
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        BouncyTap(
-                          onTap: hasMultiple
-                              ? () => setState(
-                                    () => _isModelSelectorExpanded =
-                                        !_isModelSelectorExpanded,
-                                  )
-                              : null,
-                          scaleDown: 0.95,
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                'Flux',
-                                style: textTheme.displaySmall?.copyWith(
-                                  fontSize: 20,
-                                ),
-                              ),
-                              if (suffix.isNotEmpty)
-                                Text(
-                                  suffix,
-                                  style: textTheme.displaySmall?.copyWith(
-                                    fontSize: 20,
-                                    color: _isModelSelectorExpanded
-                                        ? flux.textPrimary
-                                        : flux.textSecondary,
-                                  ),
-                                ),
-                              if (hasMultiple) ...[
-                                const SizedBox(width: 4),
-                                Icon(
-                                  _isModelSelectorExpanded
-                                      ? Icons.keyboard_arrow_up_rounded
-                                      : Icons.keyboard_arrow_down_rounded,
-                                  size: 18,
-                                  color: flux.textSecondary,
-                                ),
-                              ],
-                            ],
-                          ),
-                        ),
-                        if (_isModelSelectorExpanded && otherModels.isNotEmpty)
-                          Padding(
-                            padding: EdgeInsets.only(
-                              top: 6,
-                              left: (textTheme.displaySmall?.fontSize ?? 32) *
-                                  2.0,
+                    child: BouncyTap(
+                      onTap: hasMultiple
+                          ? () {
+                              if (_isModelSelectorExpanded) {
+                                _closeModelSelector();
+                              } else {
+                                setState(() {
+                                  _isModelSelectorExpanded = true;
+                                  _isModelSelectorClosing = false;
+                                });
+                              }
+                            }
+                          : null,
+                      scaleDown: 0.95,
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Flux',
+                            style: textTheme.displaySmall?.copyWith(
+                              fontSize: 20,
                             ),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children:
-                                  otherModels.asMap().entries.map((entry) {
-                                final model = entry.value;
-                                String modelSuffix = '';
-                                final mn = model.name.toLowerCase();
-                                if (mn.contains('lite')) {
-                                  modelSuffix = ' Lite';
-                                } else if (mn.contains('steady')) {
-                                  modelSuffix = ' Steady';
-                                } else if (mn.contains('smart')) {
-                                  modelSuffix = ' Smart';
-                                } else if (mn.contains('creative')) {
-                                  modelSuffix = ' Creative';
-                                }
-                                return BouncyTap(
-                                  scaleDown: 0.97,
-                                  onTap: () {
+                          ),
+                          Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  if (suffix.isNotEmpty)
+                                    Text(
+                                      suffix,
+                                      style: textTheme.displaySmall?.copyWith(
+                                        fontSize: 20,
+                                        color: _isModelSelectorExpanded
+                                            ? flux.textPrimary
+                                            : flux.textSecondary,
+                                      ),
+                                    ),
+                                  if (hasMultiple) ...[
+                                    const SizedBox(width: 4),
+                                    Icon(
+                                      _isModelSelectorExpanded
+                                          ? Icons.keyboard_arrow_up_rounded
+                                          : Icons.keyboard_arrow_down_rounded,
+                                      size: 18,
+                                      color: flux.textSecondary,
+                                    ),
+                                  ],
+                                ],
+                              ),
+                              if ((_isModelSelectorExpanded ||
+                                      _isModelSelectorClosing) &&
+                                  otherModels.isNotEmpty)
+                                _ModelPickerDropdown(
+                                  models: otherModels,
+                                  isOpen: _isModelSelectorExpanded,
+                                  onCloseComplete: () {
+                                    if (mounted) {
+                                      setState(
+                                          () => _isModelSelectorClosing = false);
+                                    }
+                                  },
+                                  onSelect: (model) {
                                     ref
                                         .read(selectedModelIdProvider.notifier)
                                         .select(model.id);
-                                    setState(
-                                      () => _isModelSelectorExpanded = false,
-                                    );
+                                    _closeModelSelector();
                                   },
-                                  child: Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 6,
-                                    ),
-                                    child: Text(
-                                      modelSuffix,
-                                      style: textTheme.displaySmall?.copyWith(
-                                        fontSize: 20,
-                                        color: flux.textSecondary,
-                                      ),
-                                    ),
-                                  ),
-                                );
-                              }).toList(),
-                            ),
+                                ),
+                            ],
                           ),
-                      ],
+                        ],
+                      ),
                     ),
                   );
                 },
@@ -1609,11 +1658,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         ? 'Good morning'
         : (hour < 17 ? 'Good afternoon' : 'Good evening');
 
-    const suggestions = [
-      'Explain quantum computing simply',
-      'Write me a haiku about space',
-      'Help me debug my code',
-    ];
+    final suggestions = _suggestions;
 
     if (_isModelLoading) {
       return Center(
@@ -1666,7 +1711,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     ),
                     decoration: BoxDecoration(
                       color: flux.surface.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(100),
+                      borderRadius: BorderRadius.circular(999),
                       border: Border.all(
                         color: flux.border,
                         width: 1,
@@ -1736,7 +1781,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                 runSpacing: 6,
                 children: msg.imagePaths.map((path) {
                   return ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(999),
                     child: Image.file(
                       File(path),
                       width: 180,
@@ -1804,7 +1849,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                           ),
                           decoration: BoxDecoration(
                             color: flux.textPrimary.withValues(alpha: 0.05),
-                            borderRadius: BorderRadius.circular(100),
+                            borderRadius: BorderRadius.circular(999),
                           ),
                           child: Row(
                             mainAxisSize: MainAxisSize.min,
@@ -1842,15 +1887,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                         horizontal: 14,
                         vertical: 10,
                       ),
-                      decoration: BoxDecoration(
+                      decoration: ShapeDecoration(
                         color: flux.surfaceSecondary,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(18),
-                          topRight: Radius.circular(18),
-                          bottomLeft: Radius.circular(18),
-                          bottomRight: Radius.circular(4),
+                        shape: const ContinuousRectangleBorder(
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.circular(18),
+                            topRight: Radius.circular(18),
+                            bottomLeft: Radius.circular(18),
+                            bottomRight: Radius.circular(4),
+                          ),
                         ),
-                        boxShadow: [
+                        shadows: [
                           BoxShadow(
                             color: flux.textPrimary.withValues(alpha: 0.03),
                             blurRadius: 8,
@@ -1878,11 +1925,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final msgIndex = messages.indexOf(msg);
     if (msgIndex < 0) return;
 
+    // Find the last user message before this assistant message
     final earlierMessages = messages.sublist(0, msgIndex);
-    final userMsg = earlierMessages.lastWhere(
-      (m) => m.fromUser,
-      orElse: () => messages.first,
-    );
+    final userMsgIndex = earlierMessages.lastIndexWhere((m) => m.fromUser);
+    if (userMsgIndex < 0) return; // No user message to regenerate from
+    final userMsg = earlierMessages[userMsgIndex];
 
     ref.read(chatMessagesProvider.notifier).setMessages(earlierMessages);
     _controller.text = userMsg.text;
@@ -1923,8 +1970,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   duration: const Duration(seconds: 2),
                   behavior: SnackBarBehavior.floating,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                  shape: ContinuousRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   margin: const EdgeInsets.all(20),
                 ),
@@ -2014,7 +2061,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
       decoration: BoxDecoration(
         color: flux.textPrimary.withValues(alpha: 0.05),
-        borderRadius: BorderRadius.circular(100),
+        borderRadius: BorderRadius.circular(999),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -2116,7 +2163,7 @@ class _LiveWaveIndicatorState extends State<_LiveWaveIndicator>
               margin: const EdgeInsets.symmetric(horizontal: 3),
               decoration: BoxDecoration(
                 color: flux.textPrimary.withValues(alpha: 0.5),
-                borderRadius: BorderRadius.circular(2),
+                borderRadius: BorderRadius.circular(999),
               ),
             );
           }),
@@ -2169,12 +2216,14 @@ class _ComposerAddButton extends StatelessWidget {
   }
 }
 
-class _AddMenuPanel extends StatelessWidget {
+class _AddMenuPanel extends StatefulWidget {
   final VoidCallback onPickFile;
   final VoidCallback onMakeCreation;
   final VoidCallback onToggleSearch;
   final bool searchEnabled;
   final bool isCreationMode;
+  final bool isOpen;
+  final VoidCallback? onCloseComplete;
 
   const _AddMenuPanel({
     required this.onPickFile,
@@ -2182,87 +2231,175 @@ class _AddMenuPanel extends StatelessWidget {
     required this.onToggleSearch,
     required this.searchEnabled,
     required this.isCreationMode,
+    required this.isOpen,
+    this.onCloseComplete,
   });
+
+  @override
+  State<_AddMenuPanel> createState() => _AddMenuPanelState();
+}
+
+class _AddMenuPanelState extends State<_AddMenuPanel>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  bool _isOpening = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 480),
+      vsync: this,
+    );
+    _isOpening = widget.isOpen;
+    if (widget.isOpen) {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_AddMenuPanel oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isOpen && !widget.isOpen) {
+      _isOpening = false;
+      _controller.reverse().then((_) {
+        widget.onCloseComplete?.call();
+      });
+    } else if (!oldWidget.isOpen && widget.isOpen) {
+      _isOpening = true;
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Cascade animation: bottom item slides up first from the composer,
+  /// then the middle item from the bottom one, then the top item from
+  /// the middle. On close, reverse: top slides down first.
+  /// The top item (last to appear on open) gets a subtle bounce.
+  Widget _cascadeItem(int visualIndex, Widget child) {
+    final itemCount = 3;
+    // visualIndex 0 = topmost, itemCount-1 = bottommost (closest to composer)
+    // On open: bottom animates first → reverse visual order
+    // On close: top animates first → forward visual order
+
+    // For a 3-item menu, open stagger: 0ms, 90ms, 180ms out of 480ms
+    final stagger = 90 / 480.0;
+    final itemDuration = 0.52;
+
+    // On open: last visual item first, on close: first visual item first
+    final int staggerIndex =
+        _isOpening ? (itemCount - 1 - visualIndex) : visualIndex;
+    final openStart = staggerIndex * stagger;
+    final openEnd = openStart + itemDuration;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        double itemT;
+        if (t <= openStart) {
+          itemT = 0.0;
+        } else if (t >= openEnd) {
+          itemT = 1.0;
+        } else {
+          itemT = (t - openStart) / (openEnd - openStart);
+        }
+
+        // Topmost item (visualIndex 0), last to appear on open, gets a subtle bounce
+        final easedT = Curves.easeOut.transform(itemT.clamp(0.0, 1.0));
+        final bounce = visualIndex == 0 && _isOpening && itemT > 0.98
+            ? math.sin((itemT - 0.98) / 0.02 * math.pi) * 0.04
+            : 0.0;
+        // Opacity always clamped to [0,1]; translation allows overshoot for bounce
+        final opacity = easedT.clamp(0.0, 1.0);
+        final offsetY = 24 * (1 - easedT) - bounce * 24;
+        return Opacity(
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(0, offsetY),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    return BouncyFadeSlide(
-      duration: FluxDurations.fast,
-      slideOffset: 14,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 10),
-        child: Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: flux.surface.withValues(alpha: 0.96),
-            borderRadius: BorderRadius.circular(22),
-            border: Border.all(color: flux.border, width: 1),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.35 : 0.08),
-                blurRadius: 18,
-                offset: const Offset(0, 8),
-              ),
-            ],
+    return Padding(
+      padding: const EdgeInsets.only(left: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _cascadeItem(
+            0,
+            _AddMenuRow(
+              label: 'Attach file or image',
+              onTap: widget.onPickFile,
+            ),
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
+          _cascadeItem(
+            1,
+            _AddMenuRow(
+              label: widget.isCreationMode
+                  ? 'Creation mode is on'
+                  : 'Make a creation',
+              onTap: widget.onMakeCreation,
+              active: widget.isCreationMode,
+            ),
+          ),
+          if (!widget.isCreationMode)
+            _cascadeItem(
+              2,
               _AddMenuRow(
-                icon: Icons.attach_file_rounded,
-                label: 'Attach file or image',
-                onTap: onPickFile,
-              ),
-              _AddMenuRow(
-                icon: Icons.auto_awesome_rounded,
                 label:
-                    isCreationMode ? 'Creation mode is on' : 'Make a creation',
-                onTap: onMakeCreation,
-                active: isCreationMode,
+                    widget.searchEnabled ? 'Web search · on' : 'Web search',
+                onTap: widget.onToggleSearch,
+                active: widget.searchEnabled,
+                trailing: widget.searchEnabled
+                    ? Icon(Icons.check_rounded,
+                        color: flux.textPrimary, size: 18)
+                    : null,
               ),
-              if (!isCreationMode)
-                _AddMenuRow(
-                  icon: Icons.language_rounded,
-                  label: searchEnabled ? 'Web search · on' : 'Web search',
-                  onTap: onToggleSearch,
-                  active: searchEnabled,
-                  trailing: searchEnabled
-                      ? Icon(Icons.check_rounded,
-                          color: flux.textPrimary, size: 18)
-                      : null,
-                ),
-              if (isCreationMode)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(14, 4, 14, 10),
-                  child: Text(
-                    'Web search and voice are paused while you build a creation.',
-                    style: textTheme.bodySmall?.copyWith(
-                      color: flux.textSecondary,
-                      fontSize: 11,
-                    ),
+            ),
+          if (widget.isCreationMode)
+            _cascadeItem(
+              2,
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 10),
+                child: Text(
+                  'Web search and voice are paused while you build a creation.',
+                  style: textTheme.bodySmall?.copyWith(
+                    color: flux.textSecondary,
+                    fontSize: 11,
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+          const SizedBox(height: 16),
+        ],
       ),
     );
   }
 }
 
 class _AddMenuRow extends StatelessWidget {
-  final IconData icon;
   final String label;
   final VoidCallback onTap;
   final bool active;
   final Widget? trailing;
 
   const _AddMenuRow({
-    required this.icon,
     required this.label,
     required this.onTap,
     this.active = false,
@@ -2276,30 +2413,178 @@ class _AddMenuRow extends StatelessWidget {
     return BouncyTap(
       onTap: onTap,
       scaleDown: 0.97,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 2),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-        decoration: BoxDecoration(
-          color: active
-              ? flux.textPrimary.withValues(alpha: 0.08)
-              : Colors.transparent,
-          borderRadius: BorderRadius.circular(16),
-        ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, color: flux.textPrimary, size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Text(
-                label,
-                style: textTheme.bodyMedium?.copyWith(
-                  color: flux.textPrimary,
+            Text(
+              label,
+              style: textTheme.displaySmall?.copyWith(
+                fontSize: 20,
+                color: flux.textPrimary,
+              ),
+            ),
+            if (trailing != null) ...[
+              const SizedBox(width: 4),
+              trailing!,
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Cascade-animated dropdown for model switching. Same animation as
+/// [_AddMenuPanel]: bottom item slides up first on open, top slides down
+/// first on close, with a subtle bounce on the topmost item.
+class _ModelPickerDropdown extends StatefulWidget {
+  final List<HFModel> models;
+  final bool isOpen;
+  final VoidCallback? onCloseComplete;
+  final void Function(HFModel model) onSelect;
+
+  const _ModelPickerDropdown({
+    required this.models,
+    required this.isOpen,
+    required this.onSelect,
+    this.onCloseComplete,
+  });
+
+  @override
+  State<_ModelPickerDropdown> createState() => _ModelPickerDropdownState();
+}
+
+class _ModelPickerDropdownState extends State<_ModelPickerDropdown>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+  bool _isOpening = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      duration: const Duration(milliseconds: 300),
+      vsync: this,
+    );
+    _isOpening = widget.isOpen;
+    if (widget.isOpen) {
+      _controller.forward();
+    }
+  }
+
+  @override
+  void didUpdateWidget(_ModelPickerDropdown oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.isOpen && !widget.isOpen) {
+      _isOpening = false;
+      _controller.reverse().then((_) {
+        widget.onCloseComplete?.call();
+      });
+    } else if (!oldWidget.isOpen && widget.isOpen) {
+      _isOpening = true;
+      _controller.forward();
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  /// Same cascade logic as [_AddMenuPanel._cascadeItem], but items slide
+  /// DOWN from above (the model picker expands downward from the header).
+  Widget _cascadeItem(int visualIndex, Widget child) {
+    final itemCount = widget.models.length;
+    final stagger = 60 / 300.0;
+    final itemDuration = 0.52;
+
+    // visualIndex 0 = topmost (closest to header), itemCount-1 = bottommost
+    // On open: bottom appears first (itemCount-1 → ... → 0)
+    // On close: top disappears first (0 → ... → itemCount-1)
+    final int staggerIndex =
+        _isOpening ? (itemCount - 1 - visualIndex) : visualIndex;
+    final openStart = staggerIndex * stagger;
+    final openEnd = openStart + itemDuration;
+
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        final t = _controller.value;
+        double itemT;
+        if (t <= openStart) {
+          itemT = 0.0;
+        } else if (t >= openEnd) {
+          itemT = 1.0;
+        } else {
+          itemT = (t - openStart) / (openEnd - openStart);
+        }
+
+        final easedT = Curves.easeOut.transform(itemT.clamp(0.0, 1.0));
+        // Topmost item is last to appear on open — give it a subtle bounce
+        final bounce = visualIndex == 0 && _isOpening && itemT > 0.98
+            ? math.sin((itemT - 0.98) / 0.02 * math.pi) * 0.04
+            : 0.0;
+        final opacity = easedT.clamp(0.0, 1.0);
+        // Slide DOWN: items start above their final position (negative Y)
+        final offsetY = -24 * (1 - easedT) + bounce * 24;
+        return Opacity(
+          opacity: opacity,
+          child: Transform.translate(
+            offset: Offset(0, offsetY),
+            child: child,
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: widget.models.asMap().entries.map((entry) {
+          final index = entry.key;
+          final model = entry.value;
+          String modelSuffix = '';
+          final mn = model.name.toLowerCase();
+          if (mn.contains('lite')) {
+            modelSuffix = ' Lite';
+          } else if (mn.contains('steady')) {
+            modelSuffix = ' Steady';
+          } else if (mn.contains('smart')) {
+            modelSuffix = ' Smart';
+          } else if (mn.contains('creative')) {
+            modelSuffix = ' Creative';
+          }
+          return _cascadeItem(
+            index,
+            BouncyTap(
+              scaleDown: 0.97,
+              onTap: () => widget.onSelect(model),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 6),
+                child: Text(
+                  modelSuffix,
+                  style: textTheme.displaySmall?.copyWith(
+                    fontSize: 20,
+                    color: Theme.of(context)
+                        .extension<FluxColorsExtension>()!
+                        .textSecondary,
+                  ),
                 ),
               ),
             ),
-            if (trailing != null) trailing!,
-          ],
-        ),
+          );
+        }).toList(),
       ),
     );
   }
@@ -2322,7 +2607,7 @@ class _CreationChip extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
         decoration: BoxDecoration(
           color: flux.textPrimary,
-          borderRadius: BorderRadius.circular(100),
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
@@ -2481,7 +2766,7 @@ class _ThinkingProcessBlockState extends State<_ThinkingProcessBlock> {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             color: widget.flux.textSecondary.withValues(alpha: 0.04),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(999),
             border: Border.all(
               color: widget.flux.border.withValues(
                 alpha: _expanded ? 0.5 : 0.25,
@@ -2550,14 +2835,40 @@ class _ThinkingProcessBlockState extends State<_ThinkingProcessBlock> {
 }
 
 /// Subtle pulsing text for loading states (e.g. "Loading model").
-class _PulseText extends StatelessWidget {
+class _PulseText extends StatefulWidget {
   final String text;
   final TextStyle? style;
 
   const _PulseText({required this.text, this.style});
 
   @override
+  State<_PulseText> createState() => _PulseTextState();
+}
+
+class _PulseTextState extends State<_PulseText>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Text(text, style: style);
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Opacity(
+          opacity: 0.4 + 0.6 * _controller.value,
+          child: child,
+        );
+      },
+      child: Text(widget.text, style: widget.style),
+    );
   }
 }

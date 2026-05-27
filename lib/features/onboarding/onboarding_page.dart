@@ -524,7 +524,7 @@ class _DownloadModelSlide extends StatelessWidget {
                             ),
                             decoration: BoxDecoration(
                               color: flux.surface,
-                              borderRadius: BorderRadius.circular(15),
+                              borderRadius: BorderRadius.circular(999),
                               border: Border.all(
                                 color:
                                     isSelected ? flux.textPrimary : flux.border,
@@ -672,17 +672,43 @@ class _FinishSlide extends StatelessWidget {
 // COMPONENTS — v0.1.6 pill buttons, current animations
 // ============================================================================
 
-class AnimatedSlideHint extends StatelessWidget {
+class AnimatedSlideHint extends StatefulWidget {
   final Color color;
 
   const AnimatedSlideHint({super.key, required this.color});
 
   @override
+  State<AnimatedSlideHint> createState() => _AnimatedSlideHintState();
+}
+
+class _AnimatedSlideHintState extends State<AnimatedSlideHint>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1000),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return Icon(
-      Icons.keyboard_arrow_up_rounded,
-      size: 18,
-      color: color,
+    return AnimatedBuilder(
+      animation: _controller,
+      builder: (context, child) {
+        return Transform.translate(
+          offset: Offset(0, -4 * _controller.value),
+          child: child,
+        );
+      },
+      child: Icon(
+        Icons.keyboard_arrow_up_rounded,
+        size: 18,
+        color: widget.color,
+      ),
     );
   }
 }
@@ -704,7 +730,7 @@ class _AnimatedButton extends StatelessWidget {
           color: onPressed != null
               ? flux.textPrimary
               : flux.textPrimary.withValues(alpha: 0.3),
-          borderRadius: BorderRadius.circular(100),
+          borderRadius: BorderRadius.circular(999),
         ),
         child: Text(text, style: _AppTypography.button(context)),
       ),

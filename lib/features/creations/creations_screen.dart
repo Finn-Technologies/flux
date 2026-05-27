@@ -290,7 +290,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         context: context,
         position: position,
         color: flux.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
         items: [
           PopupMenuItem<String>(
             value: 'pin',
@@ -473,7 +473,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: flux.surface,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
           title: Text(
             '${AppLocalizations.of(context)!.delete} ${AppLocalizations.of(context)!.creations}?',
             style: textTheme.headlineMedium,
@@ -647,7 +647,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         padding: const EdgeInsets.all(20),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(999),
           border: Border.all(color: flux.border, width: 1),
         ),
         child: Column(
@@ -660,7 +660,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                   height: 44,
                   decoration: BoxDecoration(
                     color: flux.textPrimary.withValues(alpha: 0.06),
-                    borderRadius: BorderRadius.circular(14),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Icon(
                     Icons.memory,
@@ -695,7 +695,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 decoration: BoxDecoration(
                   color: flux.textPrimary,
-                  borderRadius: BorderRadius.circular(16),
+                  borderRadius: BorderRadius.circular(999),
                 ),
                 child: Center(
                   child: Text(
@@ -835,10 +835,10 @@ class _CreationStickerCard extends StatelessWidget {
       case 0:
         return const CircleBorder();
       case 1:
-        return RoundedRectangleBorder(borderRadius: BorderRadius.circular(28));
+        return ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999));
       case 2:
         // Squircle-ish — rounded corners with a slight asymmetric bias.
-        return const RoundedRectangleBorder(
+        return const ContinuousRectangleBorder(
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(40),
             topRight: Radius.circular(18),
@@ -848,12 +848,12 @@ class _CreationStickerCard extends StatelessWidget {
         );
       case 3:
         // Pill shape
-        return const RoundedRectangleBorder(
+        return const ContinuousRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(36)),
         );
       case 4:
         // Diamond-ish with asymmetric corners
-        return const RoundedRectangleBorder(
+        return const ContinuousRectangleBorder(
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(8),
             topRight: Radius.circular(36),
@@ -864,7 +864,7 @@ class _CreationStickerCard extends StatelessWidget {
       case 5:
       default:
         // Octagon-ish with varying corner radii
-        return const RoundedRectangleBorder(
+        return const ContinuousRectangleBorder(
           borderRadius: BorderRadius.only(
             topLeft: Radius.circular(24),
             topRight: Radius.circular(12),

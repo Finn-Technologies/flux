@@ -35,11 +35,19 @@ class InferenceService {
   int get contextSize => _contextSize ?? 2048;
   int? _contextSize;
 
+  /// Detect optimal GPU layers for the current device.
+  /// On desktop with sufficient RAM (8GB+), offload some layers to GPU.
+  /// On mobile and low-RAM desktops, keep all layers on CPU.
+  /// The layer counts are intentionally higher than most model architectures;
+  /// llama.cpp safely clamps to the actual layer count of the loaded model.
   static int _detectOptimalGpuLayers() {
     if (Platform.isAndroid || Platform.isIOS) return 0;
     try {
       final totalMem = _deviceTotalMemoryMB();
-      if (totalMem > 0 && totalMem < 6000) return 0;
+      // 8GB+ RAM: aggressive GPU offload (safe upper bound, clamped by engine)
+      if (totalMem >= 8192) return 33;
+      // 6-8GB RAM: conservative GPU offload
+      if (totalMem >= 6000) return 16;
     } catch (_) {}
     return 0;
   }
@@ -47,9 +55,9 @@ class InferenceService {
   static int _deviceTotalMemoryMB() {
     try {
       if (Platform.isMacOS) {
-        final result = Process.runSync('sysctl', ['hw.memsize']);
+        final result = Process.runSync('sysctl', ['-n', 'hw.memsize']);
         if (result.exitCode == 0) {
-          final memBytes = int.tryParse(result.stdout.toString().trim().split(' ').last) ?? 0;
+          final memBytes = int.tryParse(result.stdout.toString().trim()) ?? 0;
           return memBytes ~/ (1024 * 1024);
         }
       } else if (Platform.isLinux) {

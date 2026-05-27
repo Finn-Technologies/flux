@@ -76,7 +76,7 @@ class _YouScreenState extends ConsumerState<YouScreen> with TickerProviderStateM
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   decoration: BoxDecoration(
                     color: flux.surface,
-                    borderRadius: BorderRadius.circular(40),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -380,7 +380,7 @@ class _OrbitingNode extends StatelessWidget {
         padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(32)),
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(999)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

@@ -119,7 +119,7 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
               color: isSelected
                   ? colorScheme.primary.withValues(alpha: 0.05)
                   : colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(999),
               border: Border.all(
                 color: isSelected ? colorScheme.primary : Colors.transparent,
                 width: 2,
@@ -132,7 +132,7 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
                   height: 48,
                   decoration: BoxDecoration(
                     color: isSelected ? colorScheme.primary : colorScheme.outlineVariant.withValues(alpha: 0.3),
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(999),
                   ),
                   child: Icon(
                     Icons.smart_toy_rounded,
@@ -182,7 +182,7 @@ class _ChooseModelScreenState extends ConsumerState<ChooseModelScreen> {
             child: FilledButton(
               onPressed: (_selectedModel == null || _isSubmitting) ? null : _onContinue,
               style: FilledButton.styleFrom(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
               ),
               child: _isSubmitting
                   ? const SizedBox(

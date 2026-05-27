@@ -287,7 +287,7 @@ class FluxEmptyState extends StatelessWidget {
             height: 72,
             decoration: BoxDecoration(
               color: flux.textPrimary.withValues(alpha: 0.05),
-              borderRadius: BorderRadius.circular(24),
+              borderRadius: BorderRadius.circular(999),
             ),
             child: Icon(
               icon,

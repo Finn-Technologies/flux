@@ -294,7 +294,7 @@ class _MathBlock extends StatelessWidget {
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: flux.textPrimary.withValues(alpha: 0.04),
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(999),
         border: Border.all(color: flux.border, width: 0.5),
       ),
       child: SingleChildScrollView(
@@ -334,7 +334,7 @@ class _CodeBlock extends StatelessWidget {
       child: Container(
           decoration: BoxDecoration(
             color: flux.textPrimary.withValues(alpha: 0.05),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(999),
             border: Border.all(color: flux.border, width: 0.5),
           ),
           child: Column(
@@ -405,7 +405,7 @@ class _CodeBlock extends StatelessWidget {
                       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                       decoration: BoxDecoration(
                         color: flux.textPrimary.withValues(alpha: 0.08),
-                        borderRadius: BorderRadius.circular(8),
+                        borderRadius: BorderRadius.circular(999),
                       ),
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
@@ -528,7 +528,7 @@ class _ThinkBlockState extends State<_ThinkBlock> {
       child: Container(
           decoration: BoxDecoration(
             color: bgColor,
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(999),
             border: Border.all(color: borderColor, width: 0.5),
           ),
           child: Column(
@@ -606,7 +606,7 @@ class _TableBlock extends StatelessWidget {
       child: Container(
           decoration: BoxDecoration(
             border: Border.all(color: flux.border, width: 0.5),
-            borderRadius: BorderRadius.circular(14),
+            borderRadius: BorderRadius.circular(999),
           ),
           child: SingleChildScrollView(
             scrollDirection: Axis.horizontal,

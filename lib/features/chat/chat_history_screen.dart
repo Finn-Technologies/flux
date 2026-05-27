@@ -45,7 +45,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: flux.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
         title: Text(
           AppLocalizations.of(context)!.renameChat,
           style: textTheme.headlineMedium,
@@ -58,11 +58,11 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
             hintText: AppLocalizations.of(context)!.chatName,
             hintStyle: textTheme.bodyLarge?.copyWith(color: flux.textSecondary),
             border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(999),
               borderSide: BorderSide(color: flux.border),
             ),
             focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(14),
+              borderRadius: BorderRadius.circular(999),
               borderSide: BorderSide(color: flux.textPrimary, width: 1.5),
             ),
           ),
@@ -117,7 +117,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: flux.surface,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
         title: Text(
           '${AppLocalizations.of(context)!.delete} "${conv.title}"?',
           style: textTheme.headlineMedium,
@@ -246,8 +246,8 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
         context: context,
         position: position,
         color: flux.surface,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
+        shape: ContinuousRectangleBorder(
+          borderRadius: BorderRadius.circular(999),
         ),
         items: [
           PopupMenuItem<String>(
@@ -437,7 +437,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
                               color: isSelected
                                   ? flux.textPrimary.withValues(alpha: 0.06)
                                   : Colors.transparent,
-                              borderRadius: BorderRadius.circular(12),
+                              borderRadius: BorderRadius.circular(999),
                             ),
                             child: Text(
                               conv.title,

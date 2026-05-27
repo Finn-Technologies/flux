@@ -58,7 +58,7 @@ class LicenseScreen extends StatelessWidget {
                               horizontal: 10, vertical: 4),
                           decoration: BoxDecoration(
                             color: flux.textPrimary.withValues(alpha: 0.08),
-                            borderRadius: BorderRadius.circular(100),
+                            borderRadius: BorderRadius.circular(999),
                           ),
                           child: Text(
                             entry.type,
@@ -82,7 +82,7 @@ class LicenseScreen extends StatelessWidget {
                     padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                     decoration: BoxDecoration(
                       color: flux.surface,
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(999),
                       border: Border.all(color: flux.border, width: 1),
                     ),
                     child: SingleChildScrollView(
