@@ -1,5 +1,4 @@
 import 'dart:math' as math;
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -17,7 +16,12 @@ class YouScreen extends ConsumerStatefulWidget {
 
 class _YouScreenState extends ConsumerState<YouScreen> with TickerProviderStateMixin {
   late final AnimationController _orbitController;
-  final List<Memory> _memories = MemoryService().getAllMemories();
+  List<Memory> _memories = MemoryService().getAllMemories();
+
+  void _refreshMemories() {
+    if (!mounted) return;
+    setState(() => _memories = MemoryService().getAllMemories());
+  }
   
   @override
   void initState() {
@@ -56,13 +60,42 @@ class _YouScreenState extends ConsumerState<YouScreen> with TickerProviderStateM
             child: const FluxTitle(title: "You"),
           ),
 
-          // Orbit UI
-          Positioned.fill(
-            child: _OrbitUI(
-              memories: _memories,
-              controller: _orbitController,
+          // Orbit UI / empty state
+          if (_memories.isEmpty)
+            Positioned.fill(
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 48),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.bubble_chart_rounded,
+                          size: 48, color: flux.textSecondary.withValues(alpha: 0.5)),
+                      const SizedBox(height: 16),
+                      Text(
+                        "Nothing remembered yet",
+                        textAlign: TextAlign.center,
+                        style: textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        "Flux saves facts and preferences here as you chat, or add one yourself.",
+                        textAlign: TextAlign.center,
+                        style: textTheme.bodySmall?.copyWith(color: flux.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          else
+            Positioned.fill(
+              child: _OrbitUI(
+                memories: _memories,
+                controller: _orbitController,
+                onChanged: _refreshMemories,
+              ),
             ),
-          ),
 
           // Bottom Controls
           Positioned(
@@ -76,7 +109,7 @@ class _YouScreenState extends ConsumerState<YouScreen> with TickerProviderStateM
                   padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
                   decoration: BoxDecoration(
                     color: flux.surface,
-                    borderRadius: BorderRadius.circular(999),
+                    borderRadius: BorderRadius.circular(FluxRadii.card),
                   ),
                   child: Row(
                     mainAxisSize: MainAxisSize.min,
@@ -148,8 +181,13 @@ class _YouScreenState extends ConsumerState<YouScreen> with TickerProviderStateM
 class _OrbitUI extends StatefulWidget {
   final List<Memory> memories;
   final AnimationController controller;
+  final VoidCallback onChanged;
 
-  const _OrbitUI({required this.memories, required this.controller});
+  const _OrbitUI({
+    required this.memories,
+    required this.controller,
+    required this.onChanged,
+  });
 
   @override
   State<_OrbitUI> createState() => _OrbitUIState();
@@ -183,13 +221,14 @@ class _OrbitUIState extends State<_OrbitUI> {
 
                   // Orbit Rings (Subtle)
                   for (var i = 1; i <= 3; i++)
-                    Opacity(
-                      opacity: 0.3,
-                      child: Container(
-                        width: i * 220.0,
-                        height: i * 220.0,
-                        decoration: const BoxDecoration(
-                          shape: BoxShape.circle,
+                    Container(
+                      width: i * 220.0,
+                      height: i * 220.0,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        border: Border.all(
+                          color: flux.textPrimary.withValues(alpha: 0.05),
+                          width: 1,
                         ),
                       ),
                     ),
@@ -208,6 +247,7 @@ class _OrbitUIState extends State<_OrbitUI> {
                 total: widget.memories.length,
                 progress: widget.controller.value,
                 flux: flux,
+                onChanged: widget.onChanged,
               ),
           ],
         );
@@ -314,6 +354,7 @@ class _OrbitingNode extends StatelessWidget {
   final int total;
   final double progress;
   final FluxColorsExtension flux;
+  final VoidCallback onChanged;
 
   const _OrbitingNode({
     required this.memory,
@@ -321,6 +362,7 @@ class _OrbitingNode extends StatelessWidget {
     required this.total,
     required this.progress,
     required this.flux,
+    required this.onChanged,
   });
 
   @override
@@ -380,7 +422,8 @@ class _OrbitingNode extends StatelessWidget {
         padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(999)),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(FluxRadii.sheet)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -403,6 +446,7 @@ class _OrbitingNode extends StatelessWidget {
                 BouncyTap(
                   onTap: () async {
                     await MemoryService().deleteMemory(memory.id);
+                    onChanged();
                     if (context.mounted) Navigator.pop(context);
                   },
                   child: Icon(Icons.delete_outline_rounded, color: flux.accentWarm, size: 24),

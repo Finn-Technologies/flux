@@ -28,6 +28,8 @@ class Creation {
   final bool isPinned;
   final String? pinnedIconPath;
   final String? pinnedName;
+  final String type;
+  final String? screenshotPath;
 
   Creation({
     required this.id,
@@ -39,7 +41,11 @@ class Creation {
     this.isPinned = false,
     this.pinnedIconPath,
     this.pinnedName,
+    this.type = 'playground',
+    this.screenshotPath,
   });
+
+  bool get isWidget => type == 'widget';
 
   Map<String, dynamic> toJson() => {
     'id': id,
@@ -51,6 +57,8 @@ class Creation {
     'isPinned': isPinned,
     'pinnedIconPath': pinnedIconPath,
     'pinnedName': pinnedName,
+    'type': type,
+    'screenshotPath': screenshotPath,
   };
 
   factory Creation.fromJson(Map<String, dynamic> json) => Creation(
@@ -66,6 +74,8 @@ class Creation {
     isPinned: json['isPinned'] as bool? ?? false,
     pinnedIconPath: json['pinnedIconPath'] as String?,
     pinnedName: json['pinnedName'] as String?,
+    type: json['type'] as String? ?? 'playground',
+    screenshotPath: json['screenshotPath'] as String?,
   );
 
   Creation copyWith({
@@ -78,6 +88,8 @@ class Creation {
     bool? isPinned,
     String? pinnedIconPath,
     String? pinnedName,
+    String? type,
+    String? screenshotPath,
   }) =>
       Creation(
         id: id ?? this.id,
@@ -89,6 +101,8 @@ class Creation {
         isPinned: isPinned ?? this.isPinned,
         pinnedIconPath: pinnedIconPath ?? this.pinnedIconPath,
         pinnedName: pinnedName ?? this.pinnedName,
+        type: type ?? this.type,
+        screenshotPath: screenshotPath ?? this.screenshotPath,
       );
 }
 
@@ -157,6 +171,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
   final _scrollController = ScrollController();
   double _topFadeOpacity = 0.0;
   double _bottomFadeOpacity = 0.0;
+  String _selectedTab = 'all';
 
   @override
   void initState() {
@@ -290,7 +305,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         context: context,
         position: position,
         color: flux.surface,
-        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FluxRadii.menu)),
         items: [
           PopupMenuItem<String>(
             value: 'pin',
@@ -361,6 +376,11 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
       await HomeWidget.saveWidgetData<String>('creationColor', colorHex);
       await HomeWidget.saveWidgetData<String>('htmlFilePath', htmlFile.path);
       await HomeWidget.saveWidgetData<String>('updatedAt', creation.updatedAt.toIso8601String());
+      await HomeWidget.saveWidgetData<String>('creationType', creation.type);
+
+      if (creation.screenshotPath != null) {
+        await HomeWidget.saveWidgetData<String>('screenshotPath', creation.screenshotPath);
+      }
 
       // Also save iOS-compatible keys (home_widget's iOS WidgetKit extension reads these)
       await HomeWidget.saveWidgetData<String>('title', creation.title);
@@ -473,7 +493,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         context: context,
         builder: (ctx) => AlertDialog(
           backgroundColor: flux.surface,
-          shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FluxRadii.dialog)),
           title: Text(
             '${AppLocalizations.of(context)!.delete} ${AppLocalizations.of(context)!.creations}?',
             style: textTheme.headlineMedium,
@@ -538,6 +558,10 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
     final creativeModels = downloaded.where((m) => m.downloaded);
     final creativeModel = creativeModels.isNotEmpty ? creativeModels.first : null;
 
+    final filtered = _selectedTab == 'all'
+        ? creations
+        : creations.where((c) => c.type == _selectedTab).toList();
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle(
         statusBarColor: Colors.transparent,
@@ -566,6 +590,8 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    _buildTabBar(context, flux),
+                    const SizedBox(height: 12),
                     if (creativeModel == null)
                       _buildCreativePrompt(context, flux),
                     if (creativeModel == null) const SizedBox(height: 20),
@@ -573,7 +599,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
                       child: Stack(
                         children: [
                           Positioned.fill(
-                            child: creations.isEmpty
+                            child: filtered.isEmpty
                                 ? _buildEmptyState(context, flux)
                                 : _buildGrid(context, creations, flux),
                           ),
@@ -723,9 +749,50 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
     );
   }
 
+  Widget _buildTabBar(BuildContext context, FluxColorsExtension flux) {
+    final textTheme = Theme.of(context).textTheme;
+    final tabs = [
+      ('all', 'All'),
+      ('playgrounds', 'Playgrounds'),
+      ('widgets', 'Widgets'),
+    ];
+    return Row(
+      children: tabs.map((tab) {
+        final isSelected = _selectedTab == tab.$1;
+        return GestureDetector(
+          onTap: () => setState(() => _selectedTab = tab.$1),
+          child: AnimatedContainer(
+            duration: const Duration(milliseconds: 200),
+            margin: const EdgeInsets.only(right: 8),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              color: isSelected ? flux.textPrimary : Colors.transparent,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected ? flux.textPrimary : flux.border,
+                width: 1,
+              ),
+            ),
+            child: Text(
+              tab.$2,
+              style: textTheme.bodySmall?.copyWith(
+                color: isSelected ? flux.background : flux.textPrimary,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
+        );
+      }).toList(),
+    );
+  }
+
   Widget _buildGrid(BuildContext context, List<Creation> creations, FluxColorsExtension flux) {
     final width = MediaQuery.of(context).size.width;
     final columns = width > 900 ? 5 : (width > 600 ? 4 : (width > 400 ? 3 : 2));
+
+    final filtered = _selectedTab == 'all'
+        ? creations
+        : creations.where((c) => c.type == _selectedTab).toList();
 
     final bottomSafe = MediaQuery.of(context).padding.bottom;
     return GridView.builder(
@@ -735,32 +802,41 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         crossAxisCount: columns,
         crossAxisSpacing: 14,
         mainAxisSpacing: 18,
-        // Slightly taller than wide so the title fits cleanly under
-        // the centered sticker icon.
         childAspectRatio: 0.78,
       ),
-      itemCount: creations.length,
+      itemCount: filtered.length,
       cacheExtent: 500,
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       physics: const BouncingScrollPhysics(),
       itemBuilder: (context, index) {
-        final creation = creations[index];
+        final creation = filtered[index];
         final cardKey = GlobalKey();
         return StaggeredEntrance(
           index: index,
           delayStep: const Duration(milliseconds: 30),
-          child: _CreationStickerCard(
-            key: cardKey,
-            creation: creation,
-            flux: flux,
-            onTap: () {
-              HapticFeedback.lightImpact();
-              context.push('/creations/app/${creation.id}');
-            },
-            onLongPress: () => _showCreationOptions(cardKey, creation),
-            onPlayPreview: () => _showPreview(context, creation),
-          ),
+          child: creation.isWidget
+              ? _CreationWidgetCard(
+                  key: cardKey,
+                  creation: creation,
+                  flux: flux,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/creations/app/${creation.id}');
+                  },
+                  onLongPress: () => _showCreationOptions(cardKey, creation),
+                )
+              : _CreationStickerCard(
+                  key: cardKey,
+                  creation: creation,
+                  flux: flux,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    context.push('/creations/app/${creation.id}');
+                  },
+                  onLongPress: () => _showCreationOptions(cardKey, creation),
+                  onPlayPreview: () => _showPreview(context, creation),
+                ),
         );
       },
     );
@@ -1017,6 +1093,203 @@ class _CreationStickerCard extends StatelessWidget {
     if (diff.inMinutes < 1) return AppLocalizations.of(context)!.justNow;
     if (diff.inHours < 1) {
       return AppLocalizations.of(context)!.minutesAgo(diff.inMinutes);
+    }
+    if (diff.inDays < 1) {
+      return AppLocalizations.of(context)!.hoursAgo(diff.inHours);
+    }
+    if (diff.inDays < 7) {
+      return AppLocalizations.of(context)!.daysAgo(diff.inDays);
+    }
+    return '${date.month}/${date.day}/${date.year}';
+  }
+}
+
+// ============================================================================
+// WIDGET CARD — shows screenshot preview for widget-type creations.
+// ============================================================================
+class _CreationWidgetCard extends StatelessWidget {
+  final Creation creation;
+  final FluxColorsExtension flux;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  const _CreationWidgetCard({
+    super.key,
+    required this.creation,
+    required this.flux,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  static const _palette = [
+    Color(0xFFFF8FAB),
+    Color(0xFF80ED99),
+    Color(0xFF73DDFF),
+    Color(0xFFFFD166),
+    Color(0xFFE0AAFF),
+    Color(0xFFFFA552),
+    Color(0xFF95E1D3),
+    Color(0xFFC1FF9B),
+    Color(0xFFFF6B6B),
+    Color(0xFFB388FF),
+  ];
+
+  int _hash(String s) {
+    var h = 0;
+    for (final code in s.codeUnits) {
+      h = (h * 31 + code) & 0x7fffffff;
+    }
+    return h;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final h = _hash(creation.id);
+    final fallbackColor = _palette[h % _palette.length];
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    final card = BouncyTap(
+      onTap: onTap,
+      onLongPress: onLongPress,
+      scaleDown: 0.94,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Expanded(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                // White border + shadow
+                Container(
+                  decoration: BoxDecoration(
+                    color: isDark ? const Color(0xFFEFEFEF) : Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: isDark ? 0.45 : 0.12),
+                        blurRadius: 16,
+                        offset: const Offset(0, 8),
+                      ),
+                    ],
+                  ),
+                  margin: const EdgeInsets.all(4),
+                ),
+                // Screenshot image or fallback
+                Container(
+                  margin: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: fallbackColor,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: creation.screenshotPath != null
+                      ? Image.file(
+                          File(creation.screenshotPath!),
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.cover,
+                          errorBuilder: (_, __, ___) => _buildFallbackIcon(fallbackColor),
+                        )
+                      : _buildFallbackIcon(fallbackColor),
+                ),
+                // Widget badge
+                Positioned(
+                  top: 10,
+                  left: 12,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.7),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.widgets_rounded, size: 10, color: Colors.white),
+                        const SizedBox(width: 4),
+                        Text(
+                          'WIDGET',
+                          style: textTheme.labelSmall?.copyWith(
+                            color: Colors.white,
+                            fontSize: 7,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                if (creation.isPinned)
+                  Positioned(
+                    top: 10,
+                    right: 12,
+                    child: Container(
+                      padding: const EdgeInsets.all(4),
+                      decoration: const BoxDecoration(
+                        color: Colors.black,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(Icons.push_pin_rounded,
+                          size: 10, color: Colors.white),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 4),
+            child: Text(
+              creation.title.isNotEmpty
+                  ? creation.title
+                  : AppLocalizations.of(context)!.untitledCreation,
+              style: textTheme.bodySmall?.copyWith(
+                color: flux.textPrimary,
+                fontWeight: FontWeight.w500,
+                height: 1.2,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ),
+          Text(
+            _formatDate(context, creation.updatedAt),
+            style: textTheme.labelMedium?.copyWith(
+              color: flux.textSecondary,
+              fontSize: 10,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+
+    if (context.isDesktop) {
+      return FluxHoverScale(hoverScale: 1.04, child: card);
+    }
+    return card;
+  }
+
+  Widget _buildFallbackIcon(Color color) {
+    return const Center(
+      child: Icon(
+        Icons.widgets_rounded,
+        size: 44,
+        color: Colors.black87,
+      ),
+    );
+  }
+
+  String _formatDate(BuildContext context, DateTime date) {
+    final now = DateTime.now();
+    final diff = now.difference(date);
+    if (diff.inMinutes < 1) return AppLocalizations.of(context)!.justNow;
+    if (diff.inHours < 1) {
+      return AppLocalizations.of(context)!.minutesAgo(diff.inHours);
     }
     if (diff.inDays < 1) {
       return AppLocalizations.of(context)!.hoursAgo(diff.inHours);

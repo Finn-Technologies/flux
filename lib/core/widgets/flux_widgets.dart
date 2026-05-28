@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/flux_theme.dart';
@@ -5,7 +6,10 @@ import 'flux_animations.dart';
 
 enum BackdropState { idle, loading }
 
-class FluxBackdrop extends StatelessWidget {
+/// A living "aurora" backdrop: a handful of soft, slowly drifting colour blobs
+/// over the page background. It breathes gently while idle and warms to a rosy
+/// palette while a model is loading, transitioning smoothly between the two.
+class FluxBackdrop extends StatefulWidget {
   final bool compact;
   final BackdropState state;
 
@@ -16,108 +20,190 @@ class FluxBackdrop extends StatelessWidget {
   });
 
   @override
+  State<FluxBackdrop> createState() => _FluxBackdropState();
+}
+
+class _FluxBackdropState extends State<FluxBackdrop>
+    with TickerProviderStateMixin {
+  late final AnimationController _drift;
+  late final AnimationController _loadCtrl;
+  late final Animation<double> _loadAnim;
+
+  @override
+  void initState() {
+    super.initState();
+    _drift = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 28),
+    )..repeat();
+    _loadCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1100),
+      value: widget.state == BackdropState.loading ? 1.0 : 0.0,
+    );
+    _loadAnim = CurvedAnimation(parent: _loadCtrl, curve: Curves.easeInOut);
+  }
+
+  @override
+  void didUpdateWidget(FluxBackdrop oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.state != oldWidget.state) {
+      if (widget.state == BackdropState.loading) {
+        _loadCtrl.forward();
+      } else {
+        _loadCtrl.reverse();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _drift.dispose();
+    _loadCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final bg = Theme.of(context).extension<FluxColorsExtension>()!.background;
 
     return IgnorePointer(
       child: RepaintBoundary(
-        child: CustomPaint(
-          painter: _BackdropPainter(
-            drift: 0.5,
-            loadT: state == BackdropState.loading ? 1.0 : 0.0,
-            isDark: isDark,
-            bg: bg,
-          ),
-          size: Size.infinite,
+        child: AnimatedBuilder(
+          animation: Listenable.merge([_drift, _loadAnim]),
+          builder: (context, _) {
+            return CustomPaint(
+              painter: _AuroraPainter(
+                t: _drift.value,
+                loadT: _loadAnim.value,
+                isDark: isDark,
+                bg: bg,
+              ),
+              size: Size.infinite,
+            );
+          },
         ),
       ),
     );
   }
 }
 
-class _BackdropPainter extends CustomPainter {
-  final double drift;
+class _Blob {
+  final double baseX; // fractional 0..1
+  final double baseY;
+  final double ampX;
+  final double ampY;
+  final double phase;
+  final double radius; // fraction of the shortest side
+  final int colorIndex;
+  const _Blob(this.baseX, this.baseY, this.ampX, this.ampY, this.phase,
+      this.radius, this.colorIndex);
+}
+
+class _AuroraPainter extends CustomPainter {
+  final double t;
   final double loadT;
   final bool isDark;
   final Color bg;
 
-  _BackdropPainter({
-    required this.drift,
+  _AuroraPainter({
+    required this.t,
     required this.loadT,
     required this.isDark,
     required this.bg,
   });
 
-  static const _idleA1 = Color(0x507DFFCD);
-  static const _idleA2 = Color(0x4000FF2B);
-  static const _idleDark1 = Color(0x505CFFB5);
-  static const _idleDark2 = Color(0x403AFF65);
-  static const _idleB1 = Color(0x4860E8D0);
-  static const _idleB2 = Color(0x3800D4AA);
-  static const _idleBDark1 = Color(0x4840D0B0);
-  static const _idleBDark2 = Color(0x3830C8AA);
-  static const _loadL1 = Color(0x50E8A0BF);
-  static const _loadL2 = Color(0x40EFBAD5);
-  static const _loadD1 = Color(0x50D48FAB);
-  static const _loadD2 = Color(0x40C87DAA);
+  // Idle palette — cool mint / teal / aqua.
+  static const _idleLight = [
+    Color(0xFF7DFFCD),
+    Color(0xFF63E6C4),
+    Color(0xFF9BF5DC),
+  ];
+  static const _idleDark = [
+    Color(0xFF5CFFB5),
+    Color(0xFF36D9A8),
+    Color(0xFF49C8E0),
+  ];
+  // Loading palette — warm rose.
+  static const _loadLight = [
+    Color(0xFFE8A0BF),
+    Color(0xFFEFBAD5),
+    Color(0xFFF3C9B0),
+  ];
+  static const _loadDark = [
+    Color(0xFFD48FAB),
+    Color(0xFFC87DAA),
+    Color(0xFFB98FD4),
+  ];
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    canvas.drawRect(
-      Offset.zero & size,
-      Paint()..color = bg,
-    );
+  static const List<_Blob> _blobs = [
+    _Blob(0.18, 0.82, 0.10, 0.06, 0.0, 0.85, 0),
+    _Blob(0.82, 0.88, 0.12, 0.05, 1.9, 0.95, 1),
+    _Blob(0.70, 0.30, 0.10, 0.08, 3.6, 0.70, 2),
+    _Blob(0.25, 0.32, 0.09, 0.07, 5.1, 0.62, 1),
+  ];
 
-    final t = drift;
-    final s = loadT;
-    final cyc = (drift * 0.64 + 0.18) % 1.0;
-
-    final c1 = Color.lerp(
-      Color.lerp(isDark ? _idleDark1 : _idleA1, isDark ? _idleBDark1 : _idleB1, cyc),
-      isDark ? _loadD1 : _loadL1,
-      s,
-    )!;
-    final c2 = Color.lerp(
-      Color.lerp(isDark ? _idleDark2 : _idleA2, isDark ? _idleBDark2 : _idleB2, cyc),
-      isDark ? _loadD2 : _loadL2,
-      s,
-    )!;
-
-    final rect = Offset.zero & size;
-    final transparent = bg.withValues(alpha: 0);
-    final paint = Paint();
-
-    final begin1 = Alignment(-0.6 + t * 0.4, 1.0);
-    final end1 = Alignment(0.3 - t * 0.2, 0.2 + t * 0.15);
-    paint.shader = LinearGradient(
-      begin: begin1,
-      end: end1,
-      colors: [c1, transparent],
-    ).createShader(rect);
-    canvas.drawRect(rect, paint);
-
-    final begin2 = Alignment(0.6 - t * 0.5, 1.0);
-    final end2 = Alignment(-0.3 + t * 0.3, 0.25 + t * 0.1);
-    paint.shader = LinearGradient(
-      begin: begin2,
-      end: end2,
-      colors: [c2, transparent],
-    ).createShader(rect);
-    canvas.drawRect(rect, paint);
-
-    final c3 = Color.lerp(c1, c2, 0.5)!.withValues(alpha: 0.18);
-    paint.shader = LinearGradient(
-      begin: Alignment(0.0 + t * 0.2, 1.0),
-      end: Alignment(0.0 - t * 0.1, 0.35 + t * 0.1),
-      colors: [c3, transparent],
-    ).createShader(rect);
-    canvas.drawRect(rect, paint);
+  Color _colorFor(int index) {
+    final idle = isDark ? _idleDark[index] : _idleLight[index];
+    final load = isDark ? _loadDark[index] : _loadLight[index];
+    return Color.lerp(idle, load, loadT)!;
   }
 
   @override
-  bool shouldRepaint(_BackdropPainter old) =>
-      drift != old.drift || loadT != old.loadT || isDark != old.isDark || bg != old.bg;
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    canvas.drawRect(rect, Paint()..color = bg);
+
+    final shortest = size.shortestSide;
+    final tau = 2 * math.pi;
+    // Slightly livelier motion while loading.
+    final speed = 1.0 + loadT * 0.4;
+    // Idle blobs sit a touch stronger on dark backgrounds.
+    final baseAlpha = (isDark ? 0.22 : 0.20) + loadT * 0.04;
+
+    for (final b in _blobs) {
+      final angle = t * tau * speed + b.phase;
+      final dx = (b.baseX + b.ampX * math.sin(angle)) * size.width;
+      final dy = (b.baseY + b.ampY * math.cos(angle * 0.9)) * size.height;
+      final r = b.radius * shortest * (1.0 + 0.06 * math.sin(angle * 0.7));
+      final color = _colorFor(b.colorIndex);
+
+      final paint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            color.withValues(alpha: baseAlpha),
+            color.withValues(alpha: 0.0),
+          ],
+          stops: const [0.0, 1.0],
+        ).createShader(Rect.fromCircle(center: Offset(dx, dy), radius: r));
+      canvas.drawCircle(Offset(dx, dy), r, paint);
+    }
+
+    // A soft veil from the centre keeps the middle of the screen calm and
+    // text legible, while colour pools toward the edges.
+    final veil = Paint()
+      ..shader = RadialGradient(
+        colors: [
+          bg.withValues(alpha: isDark ? 0.34 : 0.30),
+          bg.withValues(alpha: 0.0),
+        ],
+        stops: const [0.0, 0.75],
+      ).createShader(
+        Rect.fromCircle(
+          center: Offset(size.width * 0.5, size.height * 0.42),
+          radius: shortest * 0.9,
+        ),
+      );
+    canvas.drawRect(rect, veil);
+  }
+
+  @override
+  bool shouldRepaint(_AuroraPainter old) =>
+      t != old.t ||
+      loadT != old.loadT ||
+      isDark != old.isDark ||
+      bg != old.bg;
 }
 
 // ============================================================================

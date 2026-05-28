@@ -5,6 +5,14 @@
     android:layout_height="match_parent"
     android:padding="0dp">
 
+    <ImageView
+        android:id="@+id/widget_screenshot"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:scaleType="centerCrop"
+        android:visibility="gone"
+        android:contentDescription="Creation preview" />
+
     <LinearLayout
         android:id="@+id/widget_card"
         android:layout_width="match_parent"

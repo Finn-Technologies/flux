@@ -15,10 +15,14 @@ class FluxDurations {
 }
 
 class FluxCurves {
-  static const Curve smooth = Curves.linear;
-  static const Curve gentle = Curves.linear;
-  static const Curve emphasized = Curves.linear;
-  static const Curve linearOut = Curves.linear;
+  /// Default deceleration for most entrances and movement.
+  static const Curve smooth = Curves.easeOutCubic;
+  /// Symmetric ease for reversible state changes.
+  static const Curve gentle = Curves.easeInOutCubic;
+  /// Slight overshoot for playful, tactile moments.
+  static const Curve emphasized = Curves.easeOutBack;
+  /// Quick settle for exits.
+  static const Curve linearOut = Curves.easeOut;
 }
 
 class BouncyTap extends StatefulWidget {
@@ -82,9 +86,8 @@ class _BouncyTapState extends State<BouncyTap>
       child: AnimatedBuilder(
         animation: _controller,
         builder: (context, child) {
-          final t = _controller.value;
+          final t = Curves.easeOut.transform(_controller.value);
           final scale = 1.0 + (widget.scaleDown - 1.0) * t;
-          final blur = t * 2.5;
           return Transform.scale(
             scale: scale,
             child: child,
@@ -146,8 +149,7 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final t = _controller.value;
-        final sigma = (1 - t) * 3.0;
+        final t = Curves.easeOutCubic.transform(_controller.value);
         return Opacity(
           opacity: t,
           child: Transform.translate(
@@ -210,10 +212,9 @@ class _BouncyFadeSlideState extends State<BouncyFadeSlide>
     return AnimatedBuilder(
       animation: _controller,
       builder: (context, child) {
-        final t = _controller.value;
-        final sigma = (1 - t) * 3.0;
+        final t = Curves.easeOutCubic.transform(_controller.value);
         return Opacity(
-          opacity: t,
+          opacity: t.clamp(0.0, 1.0),
           child: Transform.translate(
             offset: isVertical
                 ? Offset(0, widget.slideOffset * (1 - t))
@@ -245,51 +246,62 @@ class FluxPageTransition extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final inCurve = CurvedAnimation(
+      parent: primaryAnimation,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
+
     final inSlide = Tween<Offset>(
-      begin: Offset(isForwardLayout ? -0.06 : 0.06, 0),
+      begin: Offset(isForwardLayout ? -0.08 : 0.08, 0),
       end: Offset.zero,
-    ).animate(primaryAnimation);
+    ).animate(inCurve);
 
     final inFade = Tween<double>(begin: 0.0, end: 1.0).animate(
       CurvedAnimation(
         parent: primaryAnimation,
-        curve: const Interval(0.05, 1.0, curve: Curves.linear),
+        curve: const Interval(0.0, 0.6, curve: Curves.easeOut),
       ),
     );
 
-    final inBlur = Tween<double>(begin: 3.0, end: 0.0).animate(
-      CurvedAnimation(
-        parent: primaryAnimation,
-        curve: const Interval(0.0, 0.7, curve: Curves.linear),
-      ),
-    );
+    final inScale = Tween<double>(begin: 0.985, end: 1.0).animate(inCurve);
 
     final isDismissing = secondaryAnimation == null || secondaryAnimation!.value == 0.0;
     final exitDriver = isDismissing ? const AlwaysStoppedAnimation(0.0) : secondaryAnimation!;
+    final exitCurve = CurvedAnimation(
+      parent: exitDriver,
+      curve: Curves.easeInOutCubic,
+    );
 
     // Use exitToRight to determine the direction when covered.
-    final double exitEndX = exitToRight ? 0.04 : -0.04;
-    
+    final double exitEndX = exitToRight ? 0.05 : -0.05;
+
     final outSlide = Tween<Offset>(
       begin: Offset.zero,
       end: Offset(exitEndX, 0),
-    ).animate(exitDriver);
+    ).animate(exitCurve);
 
-    final outFade = Tween<double>(begin: 1.0, end: 0.78).animate(exitDriver);
-    final outBlur = Tween<double>(begin: 0.0, end: 4.0).animate(exitDriver);
+    final outFade = Tween<double>(begin: 1.0, end: 0.72).animate(exitCurve);
+    final outScale = Tween<double>(begin: 1.0, end: 0.97).animate(exitCurve);
 
     return AnimatedBuilder(
       animation: Listenable.merge([primaryAnimation, secondaryAnimation]),
       builder: (context, _) {
         return SlideTransition(
           position: outSlide,
-          child: FadeTransition(
-            opacity: outFade,
-            child: SlideTransition(
-              position: inSlide,
-              child: FadeTransition(
-                opacity: inFade,
-                child: child,
+          child: ScaleTransition(
+            scale: outScale,
+            child: FadeTransition(
+              opacity: outFade,
+              child: SlideTransition(
+                position: inSlide,
+                child: ScaleTransition(
+                  scale: inScale,
+                  child: FadeTransition(
+                    opacity: inFade,
+                    child: child,
+                  ),
+                ),
               ),
             ),
           ),
@@ -671,8 +683,7 @@ class _FluxBlurRevealState extends State<FluxBlurReveal>
     return AnimatedBuilder(
       animation: _c,
       builder: (context, child) {
-        final t = _c.value;
-        final sigma = (1 - t) * widget.maxBlur;
+        final t = Curves.easeOut.transform(_c.value);
         return Opacity(
           opacity: t,
           child: child,

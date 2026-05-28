@@ -18,7 +18,6 @@ import 'features/models/models_screen.dart';
 import 'features/settings/settings_screen.dart';
 import 'features/settings/about_screen.dart';
 import 'features/settings/license_screen.dart';
-import 'features/voice/voice_screen.dart';
 import 'core/widgets/flux_shell.dart';
 import 'core/services/inference_service.dart';
 import 'core/services/memory_service.dart';
@@ -245,13 +244,6 @@ class _FluxAppState extends State<FluxApp> {
           ),
         ),
 
-        GoRoute(
-          path: '/voice',
-          pageBuilder: (context, state) => buildSlidePage(
-            state: state,
-            child: const VoiceScreen(),
-          ),
-        ),
         GoRoute(
           path: '/model/:id',
           pageBuilder: (context, state) => buildSlidePage(

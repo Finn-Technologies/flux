@@ -124,13 +124,12 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     await _tts.stop();
     await _stt.listen(
       onResult: _onResult,
-      listenFor: const Duration(minutes: 1),
-      pauseFor: const Duration(seconds: 2),
-      localeId: null,
       listenOptions: SpeechListenOptions(
         partialResults: true,
         cancelOnError: true,
         listenMode: ListenMode.confirmation,
+        listenFor: const Duration(minutes: 1),
+        pauseFor: const Duration(seconds: 2),
       ),
     );
   }
@@ -188,7 +187,10 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
       prompt: prompt,
       localPath: model.localPath,
       systemPrompt:
-          'You are Flux, a friendly voice assistant. Answer conversationally, in 1–3 short sentences. Do not use markdown, bullets, or code.',
+          "You are Flux, a warm, witty, and genuinely caring voice companion. "
+          "Speak like a real person chatting with a friend — natural, relaxed, and easy to listen to. "
+          "Use contractions and a casual rhythm, keep it to 1–3 short sentences, and let a little personality and warmth come through. "
+          "Never use markdown, bullets, lists, or code — just spoken-style words.",
       history:
           _history.length > 1 ? _history.sublist(0, _history.length - 1) : const [],
       maxTokens: 256,

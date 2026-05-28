@@ -20,6 +20,7 @@ import '../../core/services/search_service.dart';
 import '../../core/providers/model_provider.dart';
 import '../../core/providers/download_provider.dart';
 import '../../core/providers/sidebar_provider.dart';
+import '../../core/providers/skill_provider.dart';
 import '../../core/models/chat_session.dart';
 import '../../core/models/hf_model.dart';
 import '../../core/theme/flux_theme.dart';
@@ -28,6 +29,8 @@ import '../../core/widgets/flux_widgets.dart';
 import '../../core/widgets/flux_animations.dart';
 import '../../core/constants/responsive.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import 'package:path_provider/path_provider.dart';
+import '../../core/services/html_renderer.dart';
 import '../../l10n/app_localizations.dart';
 
 // ============================================================================
@@ -95,12 +98,11 @@ class ChatScreen extends ConsumerStatefulWidget {
   ConsumerState<ChatScreen> createState() => _ChatScreenState();
 }
 
-class _ChatScreenState extends ConsumerState<ChatScreen> {
+class _ChatScreenState extends ConsumerState<ChatScreen>
+    with TickerProviderStateMixin {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
   final _scrollController = ScrollController();
-  double _topFadeOpacity = 0.0;
-  double _bottomFadeOpacity = 0.0;
   bool _isStreaming = false;
   String? _currentConversationId;
   bool _hasText = false;
@@ -117,6 +119,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   // Creation mode: chip above composer, voice hidden, send routes the
   // typed message through the HTML-creation system prompt.
   bool _isCreationMode = false;
+  String _creationType = 'playground';
 
   // Live voice mode state
   bool _isLiveMode = false;
@@ -126,6 +129,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final TtsService _tts = TtsService();
   String _liveTranscript = '';
   double _soundLevel = 0.0;
+
+  // Drives the chat-composer <-> live-voice morph (0 = chat, 1 = live).
+  late final AnimationController _modeController;
+  late final Animation<double> _modeT;
 
   bool _showTokenSpeed = false;
 
@@ -413,6 +420,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     _shouldStop = false;
     _streamBuffer.clear();
     _streamingTextNotifier.value = '';
+    _scrollToBottom(smooth: false);
 
     final currentMessages = ref.read(chatMessagesProvider);
 
@@ -454,20 +462,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     final isCreation = _isCreationMode;
     final actualPrompt = prompt;
 
-    final searchTools =
-        _searchEnabled && !isCreation ? [SearchService.webSearchTool] : null;
-    final memoryTools = !isCreation ? [MemoryService.saveMemoryTool] : null;
-
-    final List<ToolDefinition> allTools = [
-      ...(searchTools ?? []),
-      ...(memoryTools ?? []),
-    ];
+    // Tools are derived from the enabled Skills (Skills screen), deduped by
+    // name. The composer's web-search toggle adds web search on demand for the
+    // current message even if the skill is off.
+    final toolsByName = <String, ToolDefinition>{};
+    if (!isCreation) {
+      for (final t in ref.read(skillProvider.notifier).getActiveTools()) {
+        toolsByName[t.name] = t;
+      }
+      if (_searchEnabled) {
+        toolsByName['web_search'] = SearchService.webSearchTool;
+      }
+    }
+    final List<ToolDefinition> allTools = toolsByName.values.toList();
 
     final systemPrompt = isCreation
-        ? "You are Flux Creator. The user wants to build an interactive HTML mini-app. "
-            "Always respond with a complete, self-contained HTML file inside a markdown code block (```html ... ```). "
-            "Use inline CSS and JavaScript. Make it visually polished and interactive."
-        : "You are Flux, a helpful and friendly on-device AI assistant. Keep responses concise and engaging. ${MemoryService().getMemoriesForPrompt()}";
+        ? (_creationType == 'widget'
+            ? "You are Flux Widget Creator. The user wants to build a home screen widget. "
+                "Always respond with a complete, self-contained HTML file inside a markdown code block (```html ... ```). "
+                "The widget must be visually striking at small sizes (2x2 or 4x2 cells). "
+                "Use bold solid background colors, large readable text, minimal content. "
+                "Think: clock, weather, counter, status display, countdown, quick note. "
+                "Avoid: scrollable content, tiny text, complex layouts, hover effects. "
+                "Use inline CSS and JavaScript. Make it work well at 300x200 pixels."
+            : "You are Flux Creator. The user wants to build an interactive HTML mini-app. "
+                "Always respond with a complete, self-contained HTML file inside a markdown code block (```html ... ```). "
+                "Use inline CSS and JavaScript. Make it visually polished and interactive.")
+        : "You are Flux, a warm, witty, and genuinely helpful on-device AI companion. "
+            "Talk like a thoughtful friend, not a manual: use contractions, natural phrasing, and a relaxed, human tone. "
+            "Vary your sentence rhythm, show a little personality and warmth, and keep things concise and to the point. "
+            "Avoid robotic boilerplate, over-formality, and dumping long bullet lists unless they're truly the clearest way to help. "
+            "When your reply will be read aloud, favor short, flowing sentences that sound good spoken. "
+            "${MemoryService().getMemoriesForPrompt()}${ref.read(skillProvider.notifier).getActiveSkillInstructions()}";
 
     String accumulated = await _generateWithModel(
       prompt: actualPrompt,
@@ -500,7 +526,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         systemPrompt: systemPrompt,
         buffer: _streamBuffer,
         imagePaths: attachedImages.isNotEmpty ? attachedImages : null,
-        tools: searchTools,
+        tools: allTools.isNotEmpty ? allTools : null,
       );
 
       if (cont.trim().isNotEmpty) {
@@ -539,17 +565,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
       if (isCreation) {
         final html = _extractHtml(accumulated);
-        if (html != null && html.isNotEmpty) {
+        if (html != null && html.isNotEmpty && mounted) {
+          final chosenType = _creationType;
           final creationId = DateTime.now().millisecondsSinceEpoch.toString();
           final title = actualPrompt.length > 30
               ? '${actualPrompt.substring(0, 30)}...'
               : actualPrompt;
+
+          String? screenshotPath;
+          if (chosenType == 'widget') {
+            try {
+              final imageBytes = await HtmlRenderer.renderToImage(
+                html,
+                context: context,
+                size: const Size(400, 300),
+              );
+              if (imageBytes != null) {
+                final dir = await getApplicationDocumentsDirectory();
+                final file = File('${dir.path}/creation_screenshot_$creationId.png');
+                await file.writeAsBytes(imageBytes);
+                screenshotPath = file.path;
+              }
+            } catch (_) {}
+          }
+
           final newCreation = Creation(
             id: creationId,
             title: title,
             html: html,
             createdAt: DateTime.now(),
             updatedAt: DateTime.now(),
+            type: chosenType,
+            screenshotPath: screenshotPath,
           );
           await ref.read(creationsProvider.notifier).saveCreation(newCreation);
         }
@@ -562,6 +609,12 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       if (_scrollController.hasClients) {
         final maxExtent = _scrollController.position.maxScrollExtent;
         if (smooth) {
+          _scrollController.animateTo(
+            maxExtent,
+            duration: const Duration(milliseconds: 280),
+            curve: Curves.easeOutCubic,
+          );
+        } else {
           _scrollController.jumpTo(maxExtent);
         }
       }
@@ -619,10 +672,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
   }
 
-  void _enterCreationMode() {
+  void _enterCreationMode([String type = 'playground']) {
     HapticFeedback.selectionClick();
     setState(() {
       _isCreationMode = true;
+      _creationType = type;
       _searchEnabled = false;
     });
     _closeAddMenu();
@@ -637,6 +691,15 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   @override
   void initState() {
     super.initState();
+    _modeController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 460),
+    );
+    _modeT = CurvedAnimation(
+      parent: _modeController,
+      curve: Curves.easeOutCubic,
+      reverseCurve: Curves.easeInCubic,
+    );
     _shuffleSuggestions();
     _controller.addListener(() {
       final hasText = _controller.text.isNotEmpty;
@@ -644,13 +707,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         setState(() => _hasText = hasText);
       }
     });
-    _scrollController.addListener(_onChatScroll);
     _loadPreferences();
     _checkAssistantTrigger();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      _checkBottomFade();
-    });
   }
 
   Future<void> _checkAssistantTrigger() async {
@@ -659,32 +717,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       final bool wasAssistant =
           await channel.invokeMethod('checkAssistantTrigger');
       if (wasAssistant && mounted) {
-        context.push('/voice');
+        // Flux Live now lives in the chat composer, so launch straight into it.
+        _enterLiveMode(isInitial: true);
       }
     } catch (_) {}
-  }
-
-  void _onChatScroll() {
-    if (!_scrollController.hasClients) return;
-    final offset = _scrollController.offset;
-    final maxExtent = _scrollController.position.maxScrollExtent;
-    final top = offset > 0 ? 1.0 : 0.0;
-    final bottom = maxExtent > 0 && offset < maxExtent ? 1.0 : 0.0;
-
-    if (top != _topFadeOpacity || bottom != _bottomFadeOpacity) {
-      _topFadeOpacity = top;
-      _bottomFadeOpacity = bottom;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) setState(() {});
-      });
-    }
-  }
-
-  void _checkBottomFade() {
-    if (_scrollController.hasClients &&
-        _scrollController.position.maxScrollExtent > 0) {
-      setState(() => _bottomFadeOpacity = 1.0);
-    }
   }
 
   void _loadPreferences() async {
@@ -799,6 +835,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       _shouldSpeakResponse = true;
     });
     _closeAddMenu();
+    _modeController.forward();
 
     if (!skipStopTts) {
       await _tts.stop();
@@ -819,20 +856,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       onSoundLevelChange: (level) {
         if (mounted) setState(() => _soundLevel = level);
       },
-      listenFor: const Duration(hours: 1), // Practically infinite
-      pauseFor: const Duration(seconds: 30), // Don't stop on short pauses
-      localeId: null,
       listenOptions: SpeechListenOptions(
         partialResults: true,
         cancelOnError: true,
         listenMode: ListenMode.dictation,
         onDevice: true,
+        listenFor: const Duration(hours: 1), // Practically infinite
+        pauseFor: const Duration(seconds: 30), // Don't stop on short pauses
       ),
     );
   }
 
   Future<void> _exitLiveMode() async {
     HapticFeedback.lightImpact();
+
+    // Revert the UI immediately so the morph back to the text composer feels
+    // instant; the audio engines are torn down in the background afterwards.
+    if (mounted) {
+      setState(() {
+        _isLiveMode = false;
+        _liveTranscript = '';
+        _shouldSpeakResponse = false;
+      });
+      _modeController.reverse();
+    }
+
     await _stt.stop();
     await _tts.stop();
 
@@ -845,13 +893,6 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         await channel.invokeMethod('unmuteMusicStream');
       } catch (_) {}
     }
-
-    if (!mounted) return;
-    setState(() {
-      _isLiveMode = false;
-      _liveTranscript = '';
-      _shouldSpeakResponse = false;
-    });
   }
 
   void _toggleLiveMute() {
@@ -880,11 +921,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
 
   @override
   void dispose() {
-    _scrollController.removeListener(_onChatScroll);
     _scrollController.dispose();
     _controller.dispose();
     _focusNode.dispose();
     _streamingTextNotifier.dispose();
+    _modeController.dispose();
     _stt.stop();
     _tts.stop();
 
@@ -960,87 +1001,60 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                         opacity: _isClearingChat ? 0.0 : 1.0,
                                         duration:
                                             const Duration(milliseconds: 180),
-                                        child: messages.isEmpty
-                                            ? _buildEmptyState(context)
-                                            : ListView.builder(
-                                                controller: _scrollController,
-                                                padding: const EdgeInsets.only(
-                                                    top: 8),
-                                                itemCount: messages.length +
-                                                    (_isStreaming ? 1 : 0),
-                                                cacheExtent: 600,
-                                                addAutomaticKeepAlives: false,
-                                                addRepaintBoundaries: true,
-                                                physics:
-                                                    const BouncingScrollPhysics(),
-                                                itemBuilder: (context, index) {
-                                                  if (index ==
-                                                      messages.length) {
-                                                    return _buildStreamingBubble(
-                                                        true);
-                                                  }
-                                                  final msg = messages[index];
-                                                  final isLast = index ==
-                                                          messages.length - 1 &&
-                                                      !_isStreaming;
-                                                  return _buildBubble(
-                                                    msg,
-                                                    isLast: isLast,
-                                                  );
-                                                },
-                                              ),
+                                        child: ShaderMask(
+                                          shaderCallback: (rect) {
+                                            return const LinearGradient(
+                                              begin: Alignment.topCenter,
+                                              end: Alignment.bottomCenter,
+                                              colors: [
+                                                Colors.transparent,
+                                                Colors.white,
+                                                Colors.white,
+                                                Colors.transparent,
+                                              ],
+                                              stops: [
+                                                0.0,
+                                                0.06,
+                                                0.94,
+                                                1.0,
+                                              ],
+                                            ).createShader(rect);
+                                          },
+                                          blendMode: BlendMode.dstIn,
+                                          child: messages.isEmpty
+                                              ? _buildEmptyState(context)
+                                              : ListView.builder(
+                                                  controller: _scrollController,
+                                                  padding: const EdgeInsets.only(
+                                                      top: 8),
+                                                  itemCount: messages.length +
+                                                      (_isStreaming ? 1 : 0),
+                                                  cacheExtent: 600,
+                                                  addAutomaticKeepAlives: false,
+                                                  addRepaintBoundaries: true,
+                                                  physics:
+                                                      const BouncingScrollPhysics(),
+                                                  itemBuilder: (context, index) {
+                                                    if (index ==
+                                                        messages.length) {
+                                                      return _buildStreamingBubble(
+                                                          true);
+                                                    }
+                                                    final msg = messages[index];
+                                                    final isLast = index ==
+                                                            messages.length - 1 &&
+                                                        !_isStreaming;
+                                                    return _buildBubble(
+                                                      msg,
+                                                      isLast: isLast,
+                                                    );
+                                                  },
+                                                ),
+                                        ),
                                       );
                                     },
                                   ),
                                 ),
-                                if (_topFadeOpacity > 0)
-                                  Positioned(
-                                    top: 0,
-                                    left: 0,
-                                    right: 0,
-                                    height: 30,
-                                    child: IgnorePointer(
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.topCenter,
-                                            end: Alignment.bottomCenter,
-                                            colors: [
-                                              flux.background,
-                                              flux.background,
-                                              flux.background
-                                                  .withValues(alpha: 0),
-                                            ],
-                                            stops: const [0.0, 0.3, 1.0],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                if (_bottomFadeOpacity > 0)
-                                  Positioned(
-                                    bottom: -5,
-                                    left: 0,
-                                    right: 0,
-                                    height: 30,
-                                    child: IgnorePointer(
-                                      child: Container(
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            begin: Alignment.bottomCenter,
-                                            end: Alignment.topCenter,
-                                            colors: [
-                                              flux.background,
-                                              flux.background,
-                                              flux.background
-                                                  .withValues(alpha: 0),
-                                            ],
-                                            stops: const [0.0, 0.3, 1.0],
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
                               ],
                             ),
                           ),
@@ -1105,10 +1119,13 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
                                   child:
-                                      _CreationChip(onDismiss: _exitCreationMode),
+                                      _CreationChip(onDismiss: _exitCreationMode, creationType: _creationType),
                                 ),
                               if (_isLiveMode && _liveTranscript.isNotEmpty)
-                                Padding(
+                                BouncyFadeSlide(
+                                  duration: const Duration(milliseconds: 280),
+                                  slideOffset: 14,
+                                  child: Padding(
                                   padding: const EdgeInsets.only(bottom: 20),
                                   child: Container(
                                     constraints: const BoxConstraints(
@@ -1130,6 +1147,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                       overflow: TextOverflow.ellipsis,
                                     ),
                                   ),
+                                  ),
                                 ),
                             ],
                           ),
@@ -1141,21 +1159,32 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                   .clamp(0.0, 1.0);
 
                               final liveMaxWidth = constraints.maxWidth - 88.0;
-                              final liveTarget = _isLiveMuted
+                              final audioWidth = _isLiveMuted
                                   ? 44.0
                                   : 44.0 +
                                       (normalizedLevel * (liveMaxWidth - 44.0));
-                              final targetWidth = _isLiveMode
-                                  ? liveTarget
-                                  : constraints.maxWidth;
 
-                              return TweenAnimationBuilder<double>(
-                                duration: const Duration(milliseconds: 400),
-                                curve: Curves.fastOutSlowIn,
-                                tween: Tween<double>(
-                                    begin: targetWidth, end: targetWidth),
-                                builder: (context, smoothedTargetWidth, _) {
-                                  final currentWidth = smoothedTargetWidth;
+                              return AnimatedBuilder(
+                                animation: _modeT,
+                                builder: (context, _) {
+                                  final mt = _modeT.value;
+                                  // The chat<->live morph is driven by _modeT;
+                                  // the audio-reactive width is smoothed quickly
+                                  // so the pill stays snappy while listening.
+                                  return TweenAnimationBuilder<double>(
+                                    duration:
+                                        const Duration(milliseconds: 120),
+                                    curve: Curves.easeOut,
+                                    tween: Tween<double>(
+                                        begin: audioWidth, end: audioWidth),
+                                    builder: (context, smoothAudio, __) {
+                                      final currentWidth =
+                                          constraints.maxWidth +
+                                              (smoothAudio -
+                                                      constraints.maxWidth) *
+                                                  mt;
+                                      final btnT = ((mt - 0.35) / 0.65)
+                                          .clamp(0.0, 1.0);
 
                                       final circleLeft = (constraints.maxWidth -
                                               currentWidth) /
@@ -1171,8 +1200,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                               width: currentWidth,
                                               child: AnimatedContainer(
                                                 duration: const Duration(
-                                                    milliseconds: 400),
-                                                curve: Curves.fastOutSlowIn,
+                                                    milliseconds: 460),
+                                                curve: Curves.easeOutCubic,
                                                 height: _isLiveMode
                                                     ? 44.0
                                                     : null,
@@ -1210,19 +1239,28 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                                             width: 1),
                                                       ),
                                                 clipBehavior: Clip.antiAlias,
-                                                child: AnimatedOpacity(
-                                                  duration: const Duration(
-                                                      milliseconds: 300),
-                                                  curve: Curves.easeOut,
-                                                  opacity:
-                                                      _isLiveMode ? 0.0 : 1.0,
+                                                child: AnimatedBuilder(
+                                                  animation: _modeController,
+                                                  builder: (context, child) {
+                                                    final v =
+                                                        _modeController.value;
+                                                    final cv = (1.0 - v / 0.5)
+                                                        .clamp(0.0, 1.0);
+                                                    return Opacity(
+                                                      opacity: Curves.easeOut
+                                                          .transform(cv),
+                                                      child: Transform.scale(
+                                                        scale:
+                                                            0.95 + 0.05 * cv,
+                                                        alignment: Alignment
+                                                            .centerLeft,
+                                                        child: child,
+                                                      ),
+                                                    );
+                                                  },
                                                   child: IgnorePointer(
                                                     ignoring: _isLiveMode,
-                                                    child: _isLiveMode
-                                                        ? SizedBox(
-                                                            width: currentWidth,
-                                                            height: 44.0)
-                                                        : Padding(
+                                                    child: Padding(
                                                             padding:
                                                                 const EdgeInsets
                                                                     .only(
@@ -1374,24 +1412,25 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                               bottom: 0,
                                               child: IgnorePointer(
                                                 ignoring: !_isLiveMode,
-                                                child: AnimatedOpacity(
-                                                  duration: const Duration(
-                                                      milliseconds: 300),
-                                                  curve: Curves.easeOut,
-                                                  opacity:
-                                                      _isLiveMode ? 1.0 : 0.0,
-                                                  child: SizedBox(
-                                                    width: 34,
-                                                    child: Center(
-                                                      child:
-                                                          _ComposerIconButton(
-                                                        tooltip: _isLiveMuted
-                                                            ? 'Unmute'
-                                                            : 'Mute',
-                                                        svgAsset:
-                                                            'assets/images/mic.svg',
-                                                        isActive: _isLiveMuted,
-                                                        onTap: _toggleLiveMute,
+                                                child: Opacity(
+                                                  opacity: btnT,
+                                                  child: Transform.scale(
+                                                    scale: 0.7 + 0.3 * btnT,
+                                                    child: SizedBox(
+                                                      width: 34,
+                                                      child: Center(
+                                                        child:
+                                                            _ComposerIconButton(
+                                                          tooltip: _isLiveMuted
+                                                              ? 'Unmute'
+                                                              : 'Mute',
+                                                          svgAsset:
+                                                              'assets/images/mic.svg',
+                                                          isActive:
+                                                              _isLiveMuted,
+                                                          onTap:
+                                                              _toggleLiveMute,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -1404,18 +1443,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                               bottom: 0,
                                               child: IgnorePointer(
                                                 ignoring: !_isLiveMode,
-                                                child: AnimatedOpacity(
-                                                  duration: const Duration(
-                                                      milliseconds: 300),
-                                                  curve: Curves.easeOut,
-                                                  opacity:
-                                                      _isLiveMode ? 1.0 : 0.0,
-                                                  child: SizedBox(
-                                                    width: 34,
-                                                    child: Center(
-                                                      child: _ComposerAddButton(
-                                                        isOpen: true,
-                                                        onTap: _exitLiveMode,
+                                                child: Opacity(
+                                                  opacity: btnT,
+                                                  child: Transform.scale(
+                                                    scale: 0.7 + 0.3 * btnT,
+                                                    child: SizedBox(
+                                                      width: 34,
+                                                      child: Center(
+                                                        child:
+                                                            _ComposerAddButton(
+                                                          isOpen: true,
+                                                          onTap: _exitLiveMode,
+                                                        ),
                                                       ),
                                                     ),
                                                   ),
@@ -1426,9 +1465,11 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                                         ),
                                       );
                                     },
-                                    );
-                                  },
-                            ),
+                                  );
+                                },
+                              );
+                            },
+                          ),
                           ],
                         ),
                     ),
@@ -1475,7 +1516,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                       _closeAddMenu();
                       _pickImages();
                     },
-                    onMakeCreation: _enterCreationMode,
+                    onSelectCreationType: (type) => _enterCreationMode(type),
                     searchEnabled: _searchEnabled,
                     onToggleSearch: () {
                       HapticFeedback.lightImpact();
@@ -1970,8 +2011,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                   ),
                   duration: const Duration(seconds: 2),
                   behavior: SnackBarBehavior.floating,
-                  shape: ContinuousRectangleBorder(
-                    borderRadius: BorderRadius.circular(999),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(FluxRadii.snackBar),
                   ),
                   margin: const EdgeInsets.all(20),
                 ),
@@ -2218,7 +2259,7 @@ class _ComposerAddButton extends StatelessWidget {
 
 class _AddMenuPanel extends StatefulWidget {
   final VoidCallback onPickFile;
-  final VoidCallback onMakeCreation;
+  final void Function(String type) onSelectCreationType;
   final VoidCallback onToggleSearch;
   final bool searchEnabled;
   final bool isCreationMode;
@@ -2227,7 +2268,7 @@ class _AddMenuPanel extends StatefulWidget {
 
   const _AddMenuPanel({
     required this.onPickFile,
-    required this.onMakeCreation,
+    required this.onSelectCreationType,
     required this.onToggleSearch,
     required this.searchEnabled,
     required this.isCreationMode,
@@ -2243,6 +2284,7 @@ class _AddMenuPanelState extends State<_AddMenuPanel>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   bool _isOpening = true;
+  bool _isCreationsExpanded = false;
 
   @override
   void initState() {
@@ -2353,11 +2395,46 @@ class _AddMenuPanelState extends State<_AddMenuPanel>
             _AddMenuRow(
               label: widget.isCreationMode
                   ? 'Creation mode is on'
-                  : 'Make a creation',
-              onTap: widget.onMakeCreation,
+                  : 'Creations',
+              onTap: widget.isCreationMode
+                  ? null
+                  : () => setState(() => _isCreationsExpanded = !_isCreationsExpanded),
               active: widget.isCreationMode,
+              trailing: widget.isCreationMode
+                  ? Icon(Icons.check_rounded, color: flux.textPrimary, size: 18)
+                  : Icon(
+                      _isCreationsExpanded
+                          ? Icons.keyboard_arrow_up
+                          : Icons.keyboard_arrow_down,
+                      color: flux.textSecondary,
+                      size: 20,
+                    ),
             ),
           ),
+          if (_isCreationsExpanded && !widget.isCreationMode)
+            Padding(
+              padding: const EdgeInsets.only(left: 16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const SizedBox(height: 2),
+                  _AddMenuSubRow(
+                    label: 'Playground',
+                    onTap: () {
+                      widget.onSelectCreationType('playground');
+                    },
+                  ),
+                  _AddMenuSubRow(
+                    label: 'Widget',
+                    onTap: () {
+                      widget.onSelectCreationType('widget');
+                    },
+                  ),
+                  const SizedBox(height: 4),
+                ],
+              ),
+            ),
           if (!widget.isCreationMode)
             _cascadeItem(
               2,
@@ -2395,13 +2472,13 @@ class _AddMenuPanelState extends State<_AddMenuPanel>
 
 class _AddMenuRow extends StatelessWidget {
   final String label;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
   final bool active;
   final Widget? trailing;
 
   const _AddMenuRow({
     required this.label,
-    required this.onTap,
+    this.onTap,
     this.active = false,
     this.trailing,
   });
@@ -2430,6 +2507,36 @@ class _AddMenuRow extends StatelessWidget {
               trailing!,
             ],
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddMenuSubRow extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+
+  const _AddMenuSubRow({
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    final textTheme = Theme.of(context).textTheme;
+    return BouncyTap(
+      onTap: onTap,
+      scaleDown: 0.97,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 6),
+        child: Text(
+          label,
+          style: textTheme.displaySmall?.copyWith(
+            fontSize: 20,
+            color: flux.textPrimary,
+          ),
         ),
       ),
     );
@@ -2595,12 +2702,14 @@ class _ModelPickerDropdownState extends State<_ModelPickerDropdown>
 /// feels of-a-piece with the composer's add button.
 class _CreationChip extends StatelessWidget {
   final VoidCallback onDismiss;
-  const _CreationChip({required this.onDismiss});
+  final String creationType;
+  const _CreationChip({required this.onDismiss, this.creationType = 'playground'});
 
   @override
   Widget build(BuildContext context) {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
+    final isWidget = creationType == 'widget';
     return Align(
       alignment: Alignment.centerLeft,
       child: Container(
@@ -2612,10 +2721,14 @@ class _CreationChip extends StatelessWidget {
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.auto_awesome_rounded, size: 14, color: flux.background),
+            Icon(
+              isWidget ? Icons.widgets_rounded : Icons.auto_awesome_rounded,
+              size: 14,
+              color: flux.background,
+            ),
             const SizedBox(width: 6),
             Text(
-              'Creation',
+              isWidget ? 'Widget' : 'Creation',
               style: textTheme.labelLarge?.copyWith(
                 color: flux.background,
                 fontWeight: FontWeight.w500,

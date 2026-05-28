@@ -256,8 +256,8 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: flux.surface,
-        shape:
-            ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(FluxRadii.dialog)),
         title: Text(title, style: textTheme.headlineMedium),
         content: Text(content, style: textTheme.bodySmall),
         actions: [
@@ -330,7 +330,7 @@ class _StorageCard extends StatelessWidget {
         padding: const EdgeInsets.all(18),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(FluxRadii.card),
         ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -423,7 +423,7 @@ class _ModelCard extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
       decoration: BoxDecoration(
         color: flux.surface,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(FluxRadii.card),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -454,35 +454,52 @@ class _ModelCard extends StatelessWidget {
               BouncyTap(
                 onTap: onPrimaryTap,
                 scaleDown: 0.86,
-                child: Container(
+                child: SizedBox(
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(
-                    color: flux.textPrimary.withValues(alpha: 0.05),
-                    shape: BoxShape.circle,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      if (isDownloading)
+                        RepaintBoundary(
+                          child: SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: CircularProgressIndicator(
+                              value: model.progress > 0
+                                  ? model.progress / 100
+                                  : null,
+                              strokeWidth: 2.5,
+                              backgroundColor:
+                                  flux.textPrimary.withValues(alpha: 0.08),
+                              valueColor:
+                                  AlwaysStoppedAnimation(flux.textPrimary),
+                            ),
+                          ),
+                        ),
+                      Container(
+                        width: isDownloading ? 34 : 44,
+                        height: isDownloading ? 34 : 44,
+                        decoration: BoxDecoration(
+                          color: flux.textPrimary.withValues(alpha: 0.05),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(primaryIcon,
+                            size: isDownloading ? 15 : 18,
+                            color: flux.textPrimary),
+                      ),
+                    ],
                   ),
-                  child: Icon(primaryIcon, size: 18, color: flux.textPrimary),
                 ),
               ),
             ],
           ),
           if (isDownloading) ...[
-            const SizedBox(height: 14),
-            RepaintBoundary(
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: model.progress / 100,
-                  backgroundColor: flux.border,
-                  valueColor: AlwaysStoppedAnimation(flux.textPrimary),
-                  minHeight: 5,
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             Text(
               '${model.progress}%${model.downloadSpeed != null && model.downloadSpeed! > 0 ? ' · ${model.downloadSpeed!.toStringAsFixed(1)} MB/s' : ''} · ${_formatDownloadedSize()}',
-              style: textTheme.bodySmall?.copyWith(fontSize: 11),
+              style: textTheme.bodySmall
+                  ?.copyWith(fontSize: 11, color: flux.textSecondary),
             ),
           ],
           if (hasError && model.errorMessage != null) ...[

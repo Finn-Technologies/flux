@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import '../../core/models/chat_session.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/providers/model_provider.dart';
+import '../../core/widgets/flux_animations.dart';
 import '../../l10n/app_localizations.dart';
 import 'chat_screen.dart';
 
@@ -45,7 +46,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: flux.surface,
-        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FluxRadii.dialog)),
         title: Text(
           AppLocalizations.of(context)!.renameChat,
           style: textTheme.headlineMedium,
@@ -117,7 +118,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: flux.surface,
-        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FluxRadii.dialog)),
         title: Text(
           '${AppLocalizations.of(context)!.delete} "${conv.title}"?',
           style: textTheme.headlineMedium,
@@ -246,8 +247,8 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
         context: context,
         position: position,
         color: flux.surface,
-        shape: ContinuousRectangleBorder(
-          borderRadius: BorderRadius.circular(999),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(FluxRadii.menu),
         ),
         items: [
           PopupMenuItem<String>(
@@ -344,33 +345,49 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
                     alignment: WrapAlignment.spaceBetween,
                     runSpacing: 15,
                   children: [
-                  _SidebarAction(
-                    svgAsset: 'assets/images/canvas.svg',
-                    label: AppLocalizations.of(context)!.creations,
-                    onTap: () {
-                      context.push('/creations');
-                    },
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 40),
+                    slideOffset: 14,
+                    child: _SidebarAction(
+                      svgAsset: 'assets/images/canvas.svg',
+                      label: AppLocalizations.of(context)!.creations,
+                      onTap: () {
+                        context.push('/creations');
+                      },
+                    ),
                   ),
-                  _SidebarAction(
-                    svgAsset: 'assets/images/relieved-02.svg',
-                    label: 'You',
-                    onTap: () {
-                      context.push('/you');
-                    },
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 100),
+                    slideOffset: 14,
+                    child: _SidebarAction(
+                      svgAsset: 'assets/images/relieved-02.svg',
+                      label: 'You',
+                      onTap: () {
+                        context.push('/you');
+                      },
+                    ),
                   ),
-                  _SidebarAction(
-                    svgAsset: 'assets/images/book-open-text.svg',
-                    label: 'Skills',
-                    onTap: () {
-                      context.push('/skills');
-                    },
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 160),
+                    slideOffset: 14,
+                    child: _SidebarAction(
+                      svgAsset: 'assets/images/book-open-text.svg',
+                      label: 'Skills',
+                      onTap: () {
+                        context.push('/skills');
+                      },
+                    ),
                   ),
-                  _SidebarAction(
-                    svgAsset: 'assets/images/chip.svg',
-                    label: AppLocalizations.of(context)!.models,
-                    onTap: () {
-                      context.push('/settings/models');
-                    },
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 220),
+                    slideOffset: 14,
+                    child: _SidebarAction(
+                      svgAsset: 'assets/images/chip.svg',
+                      label: AppLocalizations.of(context)!.models,
+                      onTap: () {
+                        context.push('/settings/models');
+                      },
+                    ),
                   ),
                 ],
                   ),

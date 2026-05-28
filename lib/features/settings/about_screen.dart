@@ -25,6 +25,7 @@ class _AboutScreenState extends State<AboutScreen> {
     final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     final textTheme = Theme.of(context).textTheme;
     final brightness = Theme.of(context).brightness;
+    final topPadding = MediaQuery.of(context).padding.top;
     final bottomSafe = MediaQuery.of(context).padding.bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
@@ -36,26 +37,24 @@ class _AboutScreenState extends State<AboutScreen> {
       ),
       child: Scaffold(
         backgroundColor: flux.background,
-        body: SafeArea(
-            bottom: false,
-            child: Stack(
-              children: [
-                Positioned(
-                  left: 20,
-                  top: 48,
-                  child: FluxBackButton(onTap: () => context.pop()),
-                ),
-                const Positioned(
-                  left: 20,
-                  top: 100,
-                  child: FluxTitle(title: 'About'),
-                ),
-                Positioned.fill(
-                  left: 20,
-                  right: 20,
-                  top: 156,
-                  child: ListView(
-                    padding: EdgeInsets.only(bottom: bottomSafe + 24),
+        body: Stack(
+          children: [
+            Positioned(
+              left: 20,
+              top: topPadding + 48,
+              child: FluxBackButton(onTap: () => context.pop()),
+            ),
+            Positioned(
+              left: 20,
+              top: topPadding + 100,
+              child: const FluxTitle(title: 'About'),
+            ),
+            Positioned.fill(
+              left: 20,
+              right: 20,
+              top: topPadding + 150,
+              child: ListView(
+                padding: EdgeInsets.only(bottom: bottomSafe + 24),
                     cacheExtent: 500,
                     physics: const BouncingScrollPhysics(),
                     children: [
@@ -179,8 +178,7 @@ class _AboutScreenState extends State<AboutScreen> {
               ],
             ),
           ),
-        ),
-      );
+        );
   }
 }
 
@@ -239,7 +237,7 @@ class _AboutCard extends StatelessWidget {
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
         color: flux.surface,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(FluxRadii.card),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -269,7 +267,7 @@ class _FeatureSticker extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
       decoration: BoxDecoration(
         color: flux.surface,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(FluxRadii.card),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
@@ -323,7 +321,7 @@ class _LicenseTile extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius: BorderRadius.circular(999),
+          borderRadius: BorderRadius.circular(FluxRadii.card),
         ),
         child: Row(
           children: [

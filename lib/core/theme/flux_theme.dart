@@ -2,6 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+/// Standard corner radii used across Flux. Pop-up surfaces (dialogs, sheets,
+/// menus, snackbars) use soft, normal rounding — not the pill/stadium shape
+/// reserved for buttons, inputs and chips.
+class FluxRadii {
+  static const double dialog = 28.0;
+  static const double sheet = 30.0;
+  static const double menu = 20.0;
+  static const double snackBar = 18.0;
+  static const double card = 24.0;
+}
+
 class FluxColors {
   // Light theme
   static const lightBackground = Color(0xFFF8F8F8);
@@ -298,11 +309,27 @@ class FluxTheme {
         ),
       ),
       dividerTheme: DividerThemeData(color: border, thickness: 0.5, space: 0.5),
+      dialogTheme: DialogThemeData(
+        backgroundColor: surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(FluxRadii.dialog),
+        ),
+      ),
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
-        shape: ContinuousRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(999)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(FluxRadii.sheet)),
+        ),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: surface,
+        surfaceTintColor: Colors.transparent,
+        elevation: 8,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(FluxRadii.menu),
         ),
       ),
       listTileTheme: const ListTileThemeData(
@@ -312,7 +339,9 @@ class FluxTheme {
       snackBarTheme: SnackBarThemeData(
         behavior: SnackBarBehavior.floating,
         backgroundColor: surface,
-        shape: ContinuousRectangleBorder(borderRadius: BorderRadius.circular(999)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(FluxRadii.snackBar),
+        ),
         contentTextStyle: textTheme.bodyMedium?.copyWith(color: textPrimary),
       ),
       extensions: [colors],
