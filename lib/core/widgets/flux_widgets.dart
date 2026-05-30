@@ -4,7 +4,7 @@ import 'package:flutter_svg/flutter_svg.dart';
 import '../theme/flux_theme.dart';
 import 'flux_animations.dart';
 
-enum BackdropState { idle, loading }
+enum BackdropState { idle, loading, streaming }
 
 /// A living "aurora" backdrop: a handful of soft, slowly drifting colour blobs
 /// over the page background. It breathes gently while idle and warms to a rosy
@@ -49,9 +49,12 @@ class _FluxBackdropState extends State<FluxBackdrop>
     super.didUpdateWidget(oldWidget);
     if (widget.state != oldWidget.state) {
       if (widget.state == BackdropState.loading) {
-        _loadCtrl.forward();
+        _loadCtrl.animateTo(1.0, duration: const Duration(milliseconds: 1100));
+      } else if (widget.state == BackdropState.streaming) {
+        // Streaming uses a gentler shift — go to 0.45 for a subtler warm tint
+        _loadCtrl.animateTo(0.45, duration: const Duration(milliseconds: 1800));
       } else {
-        _loadCtrl.reverse();
+        _loadCtrl.animateTo(0.0, duration: const Duration(milliseconds: 1400));
       }
     }
   }

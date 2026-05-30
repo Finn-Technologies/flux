@@ -973,7 +973,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                 child: FluxBackdrop(
                   state: _isModelLoading
                       ? BackdropState.loading
-                      : BackdropState.idle,
+                      : _isStreaming
+                          ? BackdropState.streaming
+                          : BackdropState.idle,
                 ),
               ),
               Positioned(

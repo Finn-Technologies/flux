@@ -28,14 +28,25 @@ class _AppTypography {
         letterSpacing: 0,
       );
 
-  static TextStyle description(BuildContext context) =>
+  /// Smaller heading for content slides (privacy, offline, model picker).
+  static TextStyle contentHeading(BuildContext context) =>
       GoogleFonts.instrumentSans(
-        fontSize: 20,
+        fontSize: 21,
+        fontWeight: FontWeight.w400,
+        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
+        height: 1.25,
+        letterSpacing: 0,
+      );
+
+  /// Smaller description for content slides.
+  static TextStyle contentDescription(BuildContext context) =>
+      GoogleFonts.instrumentSans(
+        fontSize: 16,
         fontWeight: FontWeight.w400,
         color: Theme.of(
           context,
         ).extension<FluxColorsExtension>()!.textSecondary,
-        height: 1.22,
+        height: 1.35,
         letterSpacing: 0,
       );
 
@@ -58,30 +69,13 @@ class _AppTypography {
         letterSpacing: 0,
       );
 
-  static TextStyle modelTitle(BuildContext context) =>
-      GoogleFonts.instrumentSans(
-        fontSize: 17,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(context).extension<FluxColorsExtension>()!.textPrimary,
-        letterSpacing: 0,
-      );
-
-  static TextStyle modelSubtitle(BuildContext context) =>
-      GoogleFonts.instrumentSans(
-        fontSize: 13,
-        fontWeight: FontWeight.w400,
-        color: Theme.of(
-          context,
-        ).extension<FluxColorsExtension>()!.textSecondary,
-        letterSpacing: 0,
-      );
 }
 
 // ============================================================================
 // ASSETS
 // ============================================================================
 class _AppAssets {
-  static const String backArrow = 'assets/images/back_arrow.svg';
+  static const String backArrow = 'assets/images/back_icon.svg';
 }
 
 // ============================================================================
@@ -156,12 +150,19 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
     }
   }
 
-  void _onNext() => setState(() { if (_page < 4) _page++; });
+  void _onNext() {
+    HapticFeedback.lightImpact();
+    setState(() { if (_page < 4) _page++; });
+  }
 
-  void _onBack() => setState(() { if (_page > 0) _page--; });
+  void _onBack() {
+    HapticFeedback.lightImpact();
+    setState(() { if (_page > 0) _page--; });
+  }
 
   Future<void> _onFinish() async {
     if (_isDownloading) return;
+    HapticFeedback.mediumImpact();
     setState(() => _isDownloading = true);
     if (_selectedModel != null) {
       final url = ModelService.getDownloadUrl(_selectedModel!.id);
@@ -190,20 +191,66 @@ class _OnboardingScreenState extends ConsumerState<OnboardingScreen> {
       ),
       child: Scaffold(
         backgroundColor: flux.background,
-        body: SafeArea(
+        body: FluxAuraBackground(
+          primary: flux.accent,
+          secondary: flux.accentWarm,
+          intensity: 0.06,
+          period: const Duration(seconds: 80),
+          child: SafeArea(
             child: Stack(
               children: [
-                _buildSlide(_page),
+                // — Animated slide transitions (cross-fade + gentle scale)
+                Positioned.fill(
+                  child: AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 400),
+                    switchInCurve: Curves.easeOut,
+                    switchOutCurve: Curves.easeIn,
+                    transitionBuilder: (child, animation) {
+                      return FadeTransition(
+                        opacity: animation,
+                        child: ScaleTransition(
+                          scale: Tween<double>(begin: 0.96, end: 1.0).animate(
+                            CurvedAnimation(
+                              parent: animation,
+                              curve: Curves.easeOutCubic,
+                            ),
+                          ),
+                          child: child,
+                        ),
+                      );
+                    },
+                    child: _buildSlide(_page),
+                  ),
+                ),
+                // — Page indicator (visible on content slides only)
+                Positioned(
+                  left: 0,
+                  right: 0,
+                  bottom: 16,
+                  child: AnimatedOpacity(
+                    opacity: (_page > 0 && _page < 4) ? 1.0 : 0.0,
+                    duration: const Duration(milliseconds: 300),
+                    curve: Curves.easeOut,
+                    child: IgnorePointer(
+                      ignoring: !(_page > 0 && _page < 4),
+                      child: _PageIndicator(
+                        currentPage: _page,
+                        totalPages: 5,
+                      ),
+                    ),
+                  ),
+                ),
               ],
             ),
           ),
+        ),
       ),
     );
   }
 }
 
 // ============================================================================
-// SLIDES — v0.1.6 layout, current animations
+// SLIDES — reimagined with choreographed entrances
 // ============================================================================
 
 class _WelcomeSlide extends StatelessWidget {
@@ -223,38 +270,53 @@ class _WelcomeSlide extends StatelessWidget {
         builder: (context, constraints) {
           return Stack(
             children: [
+              // — Title with scale-up materialisation
               Positioned(
                 left: 0,
                 right: 0,
                 top: constraints.maxHeight * 0.47,
                 child: BouncyFadeSlide(
                   delay: const Duration(milliseconds: 120),
-                  duration: const Duration(milliseconds: 620),
-                  slideOffset: 16,
-                  child: Text(
-                    AppLocalizations.of(context)!.welcomeToFlux,
-                    style: _AppTypography.heading(context),
-                    textAlign: TextAlign.center,
+                  duration: const Duration(milliseconds: 800),
+                  slideOffset: 12,
+                  child: TweenAnimationBuilder<double>(
+                    tween: Tween(begin: 0.92, end: 1.0),
+                    duration: const Duration(milliseconds: 900),
+                    curve: Curves.easeOutCubic,
+                    builder: (context, scale, child) {
+                      return Transform.scale(scale: scale, child: child);
+                    },
+                    child: Text(
+                      AppLocalizations.of(context)!.welcomeToFlux,
+                      style: _AppTypography.heading(context),
+                      textAlign: TextAlign.center,
+                    ),
                   ),
                 ),
               ),
+              // — Swipe hint with delayed entrance
               Positioned(
                 left: 0,
                 right: 0,
                 bottom: 118,
-                child: BouncyTap(
-                  onTap: onNext,
-                  scaleDown: 0.96,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedSlideHint(color: flux.textSecondary),
-                      const SizedBox(height: 8),
-                      Text(
-                        'Swipe up to start',
-                        style: _AppTypography.backButton(context),
-                      ),
-                    ],
+                child: BouncyFadeSlide(
+                  delay: const Duration(milliseconds: 700),
+                  duration: const Duration(milliseconds: 600),
+                  slideOffset: 10,
+                  child: BouncyTap(
+                    onTap: onNext,
+                    scaleDown: 0.96,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        AnimatedSlideHint(color: flux.textSecondary),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Swipe up to start',
+                          style: _AppTypography.backButton(context),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -289,7 +351,8 @@ class _PrivacySlide extends StatelessWidget {
               child: BouncyFadeSlide(
                 delay: Duration.zero,
                 duration: const Duration(milliseconds: 400),
-                slideOffset: 20,
+                slideOffset: -16,
+                slideDirection: Axis.horizontal,
                 child: _BackButton(onPressed: onBack),
               ),
             ),
@@ -301,33 +364,33 @@ class _PrivacySlide extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   BouncyFadeSlide(
-                    delay: const Duration(milliseconds: 100),
-                    duration: const Duration(milliseconds: 500),
-                    slideOffset: 20,
+                    delay: const Duration(milliseconds: 80),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 16,
                     child: Text(
                       AppLocalizations.of(context)!.weValuePrivacy,
-                      style: _AppTypography.heading(context),
+                      style: _AppTypography.contentHeading(context),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 20),
                   BouncyFadeSlide(
-                    delay: const Duration(milliseconds: 150),
-                    duration: const Duration(milliseconds: 500),
-                    slideOffset: 20,
+                    delay: const Duration(milliseconds: 220),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 26,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
                         AppLocalizations.of(context)!.privacyDescription,
-                        style: _AppTypography.description(context),
+                        style: _AppTypography.contentDescription(context),
                         textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                   const SizedBox(height: spacing),
                   BouncyFadeSlide(
-                    delay: const Duration(milliseconds: 200),
-                    duration: const Duration(milliseconds: 500),
+                    delay: const Duration(milliseconds: 400),
+                    duration: const Duration(milliseconds: 600),
                     slideOffset: 20,
                     child: _AnimatedButton(
                       text: AppLocalizations.of(context)!.next,
@@ -367,7 +430,8 @@ class _OfflineSlide extends StatelessWidget {
               child: BouncyFadeSlide(
                 delay: Duration.zero,
                 duration: const Duration(milliseconds: 400),
-                slideOffset: 20,
+                slideOffset: -16,
+                slideDirection: Axis.horizontal,
                 child: _BackButton(onPressed: onBack),
               ),
             ),
@@ -379,33 +443,33 @@ class _OfflineSlide extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   BouncyFadeSlide(
-                    delay: const Duration(milliseconds: 100),
-                    duration: const Duration(milliseconds: 500),
-                    slideOffset: 20,
+                    delay: const Duration(milliseconds: 80),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 16,
                     child: Text(
                       AppLocalizations.of(context)!.fullyOffline,
-                      style: _AppTypography.heading(context),
+                      style: _AppTypography.contentHeading(context),
                       textAlign: TextAlign.center,
                     ),
                   ),
                   const SizedBox(height: 20),
                   BouncyFadeSlide(
-                    delay: const Duration(milliseconds: 150),
-                    duration: const Duration(milliseconds: 500),
-                    slideOffset: 20,
+                    delay: const Duration(milliseconds: 220),
+                    duration: const Duration(milliseconds: 600),
+                    slideOffset: 26,
                     child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
                       child: Text(
                         AppLocalizations.of(context)!.offlineDescription,
-                        style: _AppTypography.description(context),
+                        style: _AppTypography.contentDescription(context),
                         textAlign: TextAlign.center,
                       ),
                     ),
                   ),
                   const SizedBox(height: spacing),
                   BouncyFadeSlide(
-                    delay: const Duration(milliseconds: 200),
-                    duration: const Duration(milliseconds: 500),
+                    delay: const Duration(milliseconds: 400),
+                    duration: const Duration(milliseconds: 600),
                     slideOffset: 20,
                     child: _AnimatedButton(
                       text: AppLocalizations.of(context)!.next,
@@ -451,43 +515,47 @@ class _DownloadModelSlide extends StatelessWidget {
           child: BouncyFadeSlide(
             delay: Duration.zero,
             duration: const Duration(milliseconds: 400),
-            slideOffset: 20,
+            slideOffset: -16,
+            slideDirection: Axis.horizontal,
             child: _BackButton(onPressed: onBack),
           ),
         ),
         Positioned(
           left: 20,
-          top: 122,
+          top: 114,
           right: 20,
           child: BouncyFadeSlide(
-            delay: const Duration(milliseconds: 100),
+            delay: const Duration(milliseconds: 80),
             duration: const Duration(milliseconds: 500),
-            slideOffset: 20,
+            slideOffset: 16,
             child: Text(
               AppLocalizations.of(context)!.chooseModel,
-              style: _AppTypography.heading(context),
+              style: _AppTypography.contentHeading(context),
               textAlign: TextAlign.center,
             ),
           ),
         ),
         Positioned(
           left: 20,
-          top: 173,
+          top: 152,
           right: 20,
           child: BouncyFadeSlide(
-            delay: const Duration(milliseconds: 150),
+            delay: const Duration(milliseconds: 180),
             duration: const Duration(milliseconds: 500),
-            slideOffset: 20,
-            child: Text(
-              AppLocalizations.of(context)!.chooseModelDescription,
-              style: _AppTypography.description(context),
-              textAlign: TextAlign.center,
+            slideOffset: 22,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Text(
+                AppLocalizations.of(context)!.chooseModelDescription,
+                style: _AppTypography.contentDescription(context),
+                textAlign: TextAlign.center,
+              ),
             ),
           ),
         ),
         Positioned(
           left: 20,
-          top: 265,
+          top: 220,
           right: 20,
           bottom: 100,
           child: isLoading
@@ -500,6 +568,7 @@ class _DownloadModelSlide extends StatelessWidget {
               : ListView.builder(
                   padding: EdgeInsets.zero,
                   itemCount: models.length,
+                  // ignore: deprecated_member_use
                   cacheExtent: 150,
                   addAutomaticKeepAlives: false,
                   addRepaintBoundaries: true,
@@ -508,33 +577,52 @@ class _DownloadModelSlide extends StatelessWidget {
                     final model = models[index];
                     final isSelected = selectedModel?.id == model.id;
 
+                    final sizeLabel = model.sizeMB >= 1024
+                        ? '${(model.sizeMB / 1024).toStringAsFixed(1)} GB'
+                        : '${model.sizeMB} MB';
+
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 12),
                       child: BouncyFadeSlide(
-                        delay: Duration(milliseconds: 100 + index * 60),
-                        duration: const Duration(milliseconds: 400),
+                        delay: Duration(milliseconds: 120 + index * 80),
+                        duration: const Duration(milliseconds: 450),
                         slideOffset: 20,
                         child: BouncyTap(
-                          onTap: () => onSelect(model),
+                          onTap: () {
+                            HapticFeedback.selectionClick();
+                            onSelect(model);
+                          },
                           scaleDown: 0.95,
                           child: Container(
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 15,
-                              vertical: 10,
-                            ),
+                            padding: const EdgeInsets.fromLTRB(14, 14, 12, 14),
                             decoration: BoxDecoration(
                               color: flux.surface,
-                              borderRadius: BorderRadius.circular(999),
-                              border: Border.all(
-                                color:
-                                    isSelected ? flux.textPrimary : flux.border,
-                                width: isSelected ? 2 : 1,
-                              ),
+                              borderRadius:
+                                  BorderRadius.circular(FluxRadii.card),
                             ),
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
+                                Container(
+                                  width: 48,
+                                  height: 48,
+                                  decoration: BoxDecoration(
+                                    color: flux.textPrimary
+                                        .withValues(alpha: 0.05),
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: Center(
+                                    child: SvgPicture.asset(
+                                      'assets/images/chip.svg',
+                                      width: 22,
+                                      height: 22,
+                                      colorFilter: ColorFilter.mode(
+                                        flux.textPrimary,
+                                        BlendMode.srcIn,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
                                     crossAxisAlignment:
@@ -542,47 +630,74 @@ class _DownloadModelSlide extends StatelessWidget {
                                     children: [
                                       Text(
                                         model.name,
-                                        style: _AppTypography.modelTitle(
-                                          context,
-                                        ),
+                                        style:
+                                            Theme.of(context)
+                                                .textTheme
+                                                .bodyLarge,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      const SizedBox(height: 4),
+                                      const SizedBox(height: 2),
                                       Text(
-                                        'Powered by ${model.baseModel ?? model.name} (${model.sizeMB >= 1024 ? '${(model.sizeMB / 1024).toStringAsFixed(1)} GB' : '${model.sizeMB} MB'})',
-                                        style: _AppTypography.modelSubtitle(
-                                          context,
-                                        ),
+                                        'Powered by ${model.baseModel ?? model.name} · $sizeLabel',
+                                        style:
+                                            Theme.of(context)
+                                                .textTheme
+                                                .bodySmall,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
                                     ],
                                   ),
                                 ),
-                                Container(
-                                  width: 32,
-                                  height: 32,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    border: Border.all(
-                                      color: isSelected
-                                          ? flux.textPrimary
-                                          : flux.border,
-                                      width: 1,
-                                    ),
-                                    color: isSelected
-                                        ? flux.textPrimary
-                                        : flux.surface,
-                                  ),
+                                const SizedBox(width: 8),
+                                // — Selection indicator with animated scale
+                                SizedBox(
+                                  width: 44,
+                                  height: 44,
                                   child: Center(
-                                    child: isSelected
-                                        ? Icon(
-                                            Icons.check,
-                                            size: 16,
-                                            color: flux.background,
-                                          )
-                                        : Icon(
-                                            Icons.add,
-                                            size: 16,
-                                            color: flux.textPrimary,
+                                    child: AnimatedScale(
+                                      scale: isSelected ? 1.0 : 0.85,
+                                      duration:
+                                          const Duration(milliseconds: 200),
+                                      curve: Curves.easeOutBack,
+                                      child: AnimatedContainer(
+                                        duration:
+                                            const Duration(milliseconds: 250),
+                                        curve: Curves.easeOutCubic,
+                                        width: 44,
+                                        height: 44,
+                                        decoration: BoxDecoration(
+                                          color: isSelected
+                                              ? flux.textPrimary
+                                              : flux.textPrimary
+                                                  .withValues(alpha: 0.05),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: Center(
+                                          child: AnimatedSwitcher(
+                                            duration: const Duration(
+                                              milliseconds: 200,
+                                            ),
+                                            child: isSelected
+                                                ? Icon(
+                                                    Icons.check,
+                                                    key: const ValueKey(
+                                                      'check',
+                                                    ),
+                                                    size: 18,
+                                                    color: flux.background,
+                                                  )
+                                                : Icon(
+                                                    Icons.add,
+                                                    key: const ValueKey('add'),
+                                                    size: 18,
+                                                    color: flux.textPrimary,
+                                                  ),
                                           ),
+                                        ),
+                                      ),
+                                    ),
                                   ),
                                 ),
                               ],
@@ -600,7 +715,7 @@ class _DownloadModelSlide extends StatelessWidget {
           bottom: 40,
           child: Center(
             child: BouncyFadeSlide(
-              delay: const Duration(milliseconds: 200),
+              delay: const Duration(milliseconds: 300),
               duration: const Duration(milliseconds: 500),
               slideOffset: 20,
               child: _AnimatedButton(
@@ -622,12 +737,13 @@ class _FinishSlide extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
     return LayoutBuilder(
       builder: (context, constraints) {
         final screenHeight = constraints.maxHeight;
-        const spacing = 60.0;
-        const contentHeight = 31.0 + spacing + 44;
-        final topPadding = ((screenHeight - contentHeight) / 2) + 60;
+        const spacing = 40.0;
+        const contentHeight = 48.0 + 24 + 31.0 + spacing + 44;
+        final topPadding = ((screenHeight - contentHeight) / 2) + 40;
 
         return Stack(
           children: [
@@ -638,24 +754,54 @@ class _FinishSlide extends StatelessWidget {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
+                  // — Animated checkmark that draws itself on arrival
                   BouncyFadeSlide(
-                    delay: const Duration(milliseconds: 100),
-                    duration: const Duration(milliseconds: 600),
-                    slideOffset: 20,
-                    child: Text(
-                      AppLocalizations.of(context)!.thatsIt,
-                      style: _AppTypography.heading(context),
-                      textAlign: TextAlign.center,
+                    delay: const Duration(milliseconds: 50),
+                    duration: const Duration(milliseconds: 700),
+                    slideOffset: 12,
+                    child: FluxSuccessCheck(
+                      size: 48,
+                      color: flux.accent,
+                      duration: const Duration(milliseconds: 800),
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  // — Title with scale-up materialisation
+                  BouncyFadeSlide(
+                    delay: const Duration(milliseconds: 300),
+                    duration: const Duration(milliseconds: 700),
+                    slideOffset: 14,
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0.92, end: 1.0),
+                      duration: const Duration(milliseconds: 800),
+                      curve: Curves.easeOutCubic,
+                      builder: (context, scale, child) {
+                        return Transform.scale(scale: scale, child: child);
+                      },
+                      child: Text(
+                        AppLocalizations.of(context)!.thatsIt,
+                        style: _AppTypography.heading(context),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
                   const SizedBox(height: spacing),
+                  // — Finish button with breathing accent glow
                   BouncyFadeSlide(
-                    delay: const Duration(milliseconds: 200),
-                    duration: const Duration(milliseconds: 600),
-                    slideOffset: 20,
-                    child: _AnimatedButton(
-                      text: AppLocalizations.of(context)!.finish,
-                      onPressed: onFinish,
+                    delay: const Duration(milliseconds: 520),
+                    duration: const Duration(milliseconds: 700),
+                    slideOffset: 14,
+                    child: FluxPulseGlow(
+                      color: flux.accent,
+                      minBlur: 4,
+                      maxBlur: 14,
+                      spread: 0,
+                      period: const Duration(milliseconds: 2400),
+                      borderRadius: BorderRadius.circular(999),
+                      child: _AnimatedButton(
+                        text: AppLocalizations.of(context)!.finish,
+                        onPressed: onFinish,
+                      ),
                     ),
                   ),
                 ],
@@ -669,8 +815,42 @@ class _FinishSlide extends StatelessWidget {
 }
 
 // ============================================================================
-// COMPONENTS — v0.1.6 pill buttons, current animations
+// COMPONENTS — page indicator, buttons, animations
 // ============================================================================
+
+class _PageIndicator extends StatelessWidget {
+  final int currentPage;
+  final int totalPages;
+
+  const _PageIndicator({
+    required this.currentPage,
+    required this.totalPages,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(totalPages, (index) {
+        final isActive = index == currentPage;
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOutCubic,
+          margin: const EdgeInsets.symmetric(horizontal: 3),
+          width: isActive ? 20 : 6,
+          height: 6,
+          decoration: BoxDecoration(
+            color: isActive
+                ? flux.textPrimary
+                : flux.textTertiary.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(3),
+          ),
+        );
+      }),
+    );
+  }
+}
 
 class AnimatedSlideHint extends StatefulWidget {
   final Color color;
