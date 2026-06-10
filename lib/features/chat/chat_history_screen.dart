@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -429,7 +430,7 @@ class _ChatHistoryScreenState extends ConsumerState<ChatHistoryScreen> {
                   : ListView.builder(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       itemCount: conversations.length,
-                      cacheExtent: 150,
+                      scrollCacheExtent: const ScrollCacheExtent.pixels(150),
                       addAutomaticKeepAlives: false,
                       addRepaintBoundaries: true,
                       itemBuilder: (context, index) {

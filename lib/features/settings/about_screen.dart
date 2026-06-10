@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 import '../../core/constants/app_version.dart';
@@ -55,7 +56,7 @@ class _AboutScreenState extends State<AboutScreen> {
               top: topPadding + 150,
               child: ListView(
                 padding: EdgeInsets.only(bottom: bottomSafe + 24),
-                    cacheExtent: 500,
+                    scrollCacheExtent: const ScrollCacheExtent.pixels(500),
                     physics: const BouncingScrollPhysics(),
                     children: [
                       // Hero — app icon + version.

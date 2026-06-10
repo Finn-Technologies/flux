@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import '../services/performance_service.dart';
 import '../theme/flux_theme.dart';
 import 'flux_animations.dart';
 
@@ -35,7 +36,14 @@ class _FluxBackdropState extends State<FluxBackdrop>
     _drift = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 28),
-    )..repeat();
+    );
+    // The drifting aurora repaints the entire screen every frame. On low-end
+    // devices that continuous cost is a primary cause of dropped frames,
+    // "missing" animations, and battery drain, so we keep the backdrop static
+    // there and only animate it on capable hardware.
+    if (!PerformanceService.instance.isLowEnd) {
+      _drift.repeat();
+    }
     _loadCtrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1100),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -91,7 +92,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 right: 20,
                 child: ListView(
                   padding: EdgeInsets.only(bottom: bottomSafe + 24),
-                  cacheExtent: 500,
+                  scrollCacheExtent: const ScrollCacheExtent.pixels(500),
                   physics: const BouncingScrollPhysics(),
                   children: [
                     const _SectionLabel(label: 'General'),

@@ -275,8 +275,13 @@ class InferenceService {
         temp: 0.0,
         maxTokens: maxTokens,
         stopSequences: stopSequences,
-        streamBatchTokenThreshold: 1,
-        streamBatchByteThreshold: 1,
+        // Batch tokens before crossing the native -> Dart boundary. A
+        // threshold of 1/1 flushed on every single token, which on low-end
+        // devices spends more time marshalling and rebuilding the UI than
+        // generating text. Small batches keep streaming visibly "live" while
+        // dramatically cutting per-token overhead.
+        streamBatchTokenThreshold: 6,
+        streamBatchByteThreshold: 256,
         reusePromptPrefix: true,
         penalty: 1.0,
       );

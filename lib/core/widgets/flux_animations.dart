@@ -4,6 +4,8 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import '../services/performance_service.dart';
+
 class FluxDurations {
   static const Duration micro = Duration(milliseconds: 50);
   static const Duration fast = Duration(milliseconds: 160);
@@ -550,11 +552,15 @@ class _FluxAuraBackgroundState extends State<FluxAuraBackground> {
   void initState() {
     super.initState();
     _startedAt = DateTime.now();
-    _timer = Timer.periodic(const Duration(milliseconds: 83), (_) {
-      if (!mounted) return;
-      final elapsedMs = DateTime.now().difference(_startedAt!).inMilliseconds;
-      _drift.value = (elapsedMs / widget.period.inMilliseconds) % 1.0;
-    });
+    // Skip the continuous full-screen repaint loop on low-end devices; the
+    // aura simply renders once in its starting position there.
+    if (!PerformanceService.instance.isLowEnd) {
+      _timer = Timer.periodic(const Duration(milliseconds: 83), (_) {
+        if (!mounted) return;
+        final elapsedMs = DateTime.now().difference(_startedAt!).inMilliseconds;
+        _drift.value = (elapsedMs / widget.period.inMilliseconds) % 1.0;
+      });
+    }
   }
 
   @override

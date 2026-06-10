@@ -21,6 +21,7 @@ import 'features/settings/license_screen.dart';
 import 'core/widgets/flux_shell.dart';
 import 'core/services/inference_service.dart';
 import 'core/services/memory_service.dart';
+import 'core/services/performance_service.dart';
 import 'core/services/download_notification_service.dart';
 import 'core/theme/flux_theme.dart';
 import 'core/widgets/flux_animations.dart';
@@ -54,6 +55,10 @@ void main() async {
   await Hive.openBox('flux_code_projects');
   await MemoryService().init();
   await DownloadNotificationService.initialize();
+
+  // Resolve the device performance tier so the UI can disable expensive
+  // always-on animations on low-end devices.
+  await PerformanceService.instance.init();
 
   final prefs = await SharedPreferences.getInstance();
   final onboarded = prefs.getBool('onboarded') ?? false;

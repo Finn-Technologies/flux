@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -261,10 +262,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     String sentenceBuffer = "";
     bool hasStartedSpeaking = false;
 
+    // Throttle UI updates to ~20fps. Pushing the entire growing buffer to the
+    // widget tree on every token starves the frame pipeline on low-end
+    // devices, which makes animations stutter or freeze and scrolling jank.
+    // Coalescing updates keeps the UI smooth without changing the final text.
+    int lastUiFlushMs = 0;
+
     await for (final token in stream) {
       if (!mounted || _shouldStop) break;
       buffer.write(token);
-      _streamingTextNotifier.value = buffer.toString();
+      final nowMs = DateTime.now().millisecondsSinceEpoch;
+      if (nowMs - lastUiFlushMs >= 50) {
+        _streamingTextNotifier.value = buffer.toString();
+        lastUiFlushMs = nowMs;
+      }
       sentenceBuffer += token;
 
       if (_shouldSpeakResponse && !_isCreationMode) {
@@ -295,6 +306,10 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
         }
       }
     }
+
+    // Flush any tokens withheld by the throttle so the fully streamed text is
+    // visible before it is swapped for the persisted message bubble.
+    if (mounted) _streamingTextNotifier.value = buffer.toString();
 
     if (_shouldSpeakResponse &&
         !_isCreationMode &&
@@ -1031,7 +1046,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                       top: 8),
                                                   itemCount: messages.length +
                                                       (_isStreaming ? 1 : 0),
-                                                  cacheExtent: 600,
+                                                  scrollCacheExtent: const ScrollCacheExtent.pixels(600),
                                                   addAutomaticKeepAlives: false,
                                                   addRepaintBoundaries: true,
                                                   physics:

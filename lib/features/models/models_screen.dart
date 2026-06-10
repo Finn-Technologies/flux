@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_svg/flutter_svg.dart';
@@ -126,7 +127,7 @@ class _ModelsScreenState extends ConsumerState<ModelsScreen> {
                   backgroundColor: flux.surface,
                   child: ListView(
                     padding: EdgeInsets.only(bottom: bottomSafe + 24),
-                    cacheExtent: 500,
+                    scrollCacheExtent: const ScrollCacheExtent.pixels(500),
                     physics: const BouncingScrollPhysics(),
                     children: [
                       _StorageCard(

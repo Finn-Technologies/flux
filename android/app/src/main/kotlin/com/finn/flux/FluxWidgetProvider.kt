@@ -20,9 +20,9 @@ class FluxWidgetProvider : HomeWidgetProvider() {
     ) {
         for (appWidgetId in appWidgetIds) {
             val views = RemoteViews(context.packageName, R.layout.widget_layout).apply {
-                val title = widgetData.getString("creationTitle", "Flux Creation")
-                val colorHex = widgetData.getString("creationColor", "#FF8FAB")
-                val subtitle = widgetData.getString("content", "Tap to open")
+                val title = widgetData.getString("creationTitle", "Flux Creation") ?: "Flux Creation"
+                val colorHex = widgetData.getString("creationColor", "#FF8FAB") ?: "#FF8FAB"
+                val subtitle = widgetData.getString("content", "Tap to open") ?: "Tap to open"
                 val screenshotPath = widgetData.getString("screenshotPath", null)
 
                 setTextViewText(R.id.widget_title, title)

@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -805,7 +806,7 @@ class _CreationsScreenState extends ConsumerState<CreationsScreen> {
         childAspectRatio: 0.78,
       ),
       itemCount: filtered.length,
-      cacheExtent: 500,
+      scrollCacheExtent: const ScrollCacheExtent.pixels(500),
       addAutomaticKeepAlives: false,
       addRepaintBoundaries: true,
       physics: const BouncingScrollPhysics(),
