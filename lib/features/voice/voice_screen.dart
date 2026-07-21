@@ -10,6 +10,7 @@ import 'package:speech_to_text/speech_to_text.dart';
 
 import '../../core/providers/model_provider.dart';
 import '../../core/services/inference_service.dart';
+import '../../core/services/performance_service.dart';
 import '../../core/services/tts_service.dart';
 import '../../core/theme/flux_theme.dart';
 import '../../core/widgets/flux_animations.dart';
@@ -56,7 +57,15 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
     _orbController = AnimationController(
       vsync: this,
       duration: const Duration(seconds: 6),
-    )..repeat();
+    );
+    // The orb's always-on phase loop drives a CustomPainter that fills the
+    // orb rect every frame. Same treatment as the aurora backdrops: on
+    // constrained devices we drop the loop entirely so the saved layer is
+    // painted once and the frame budget is preserved for the audio-reactive
+    // ripple that fires when the user speaks.
+    if (!PerformanceService.instance.isConstrained) {
+      _orbController.repeat();
+    }
     _entryController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 520),
@@ -191,8 +200,9 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           "Speak like a real person chatting with a friend — natural, relaxed, and easy to listen to. "
           "Use contractions and a casual rhythm, keep it to 1–3 short sentences, and let a little personality and warmth come through. "
           "Never use markdown, bullets, lists, or code — just spoken-style words.",
-      history:
-          _history.length > 1 ? _history.sublist(0, _history.length - 1) : const [],
+      history: _history.length > 1
+          ? _history.sublist(0, _history.length - 1)
+          : const [],
       maxTokens: 256,
     );
 
@@ -332,8 +342,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
           child: Column(
             children: [
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 child: Row(
                   children: [
                     _CircleIconButton(
@@ -364,8 +374,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                         [_orbController, _entryController],
                       ),
                       builder: (context, _) {
-                        final entryT =
-                            _entryController.value;
+                        final entryT = _entryController.value;
                         return Transform.scale(
                           scale: 0.85 + 0.15 * entryT,
                           child: Opacity(
@@ -385,8 +394,8 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(
-                    horizontal: 32, vertical: 8),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 32, vertical: 8),
                 child: ConstrainedBox(
                   constraints: const BoxConstraints(minHeight: 64),
                   child: AnimatedSwitcher(
@@ -418,9 +427,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
                   mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                   children: [
                     _PillButton(
-                      icon: _muted
-                          ? Icons.mic_off_rounded
-                          : Icons.mic_rounded,
+                      icon: _muted ? Icons.mic_off_rounded : Icons.mic_rounded,
                       label: _muted ? 'Unmute' : 'Mute',
                       onTap: _toggleMute,
                       isActive: _muted,
@@ -444,7 +451,7 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen>
         ),
       ),
     );
-}
+  }
 }
 
 class _VoiceOrb extends StatelessWidget {
@@ -510,8 +517,7 @@ class _OrbHalo extends StatelessWidget {
       _VoiceState.speaking => 0.16,
       _VoiceState.unavailable => 0.0,
     };
-    final phase =
-        (state == _VoiceState.speaking ? 2.4 : 1.0) * t * 2 * math.pi;
+    final phase = (state == _VoiceState.speaking ? 2.4 : 1.0) * t * 2 * math.pi;
     final scale = 1.0 + amp * math.sin(phase);
     final alpha = state == _VoiceState.idle ? 0.18 : 0.32;
     return Transform.scale(

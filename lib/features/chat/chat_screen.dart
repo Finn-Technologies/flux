@@ -17,6 +17,7 @@ import '../../core/services/tts_service.dart';
 import '../creations/creations_screen.dart';
 import '../../core/services/inference_service.dart';
 import '../../core/services/memory_service.dart';
+import '../../core/services/performance_service.dart';
 import '../../core/services/search_service.dart';
 import '../../core/providers/model_provider.dart';
 import '../../core/providers/download_provider.dart';
@@ -267,12 +268,14 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     // devices, which makes animations stutter or freeze and scrolling jank.
     // Coalescing updates keeps the UI smooth without changing the final text.
     int lastUiFlushMs = 0;
+    final uiFlushIntervalMs =
+        PerformanceService.instance.isConstrained ? 80 : 50;
 
     await for (final token in stream) {
       if (!mounted || _shouldStop) break;
       buffer.write(token);
       final nowMs = DateTime.now().millisecondsSinceEpoch;
-      if (nowMs - lastUiFlushMs >= 50) {
+      if (nowMs - lastUiFlushMs >= uiFlushIntervalMs) {
         _streamingTextNotifier.value = buffer.toString();
         lastUiFlushMs = nowMs;
       }
@@ -438,9 +441,18 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
     _scrollToBottom(smooth: false);
 
     final currentMessages = ref.read(chatMessagesProvider);
+    // The current prompt is already visible in the message list, but
+    // streamChat appends it separately. Excluding it here avoids evaluating
+    // every new user prompt twice and improves prompt-prefix cache reuse.
+    final historyMessages =
+        currentMessages.isNotEmpty && currentMessages.last.fromUser
+            ? currentMessages.sublist(0, currentMessages.length - 1)
+            : currentMessages;
 
     // Proactively compact context before it overflows
-    await _compactContextIfNeeded(currentMessages, selectedModel);
+    if (!PerformanceService.instance.isConstrained) {
+      await _compactContextIfNeeded(historyMessages, selectedModel);
+    }
 
     final history = <Map<String, String>>[];
 
@@ -449,9 +461,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       history.add({'role': 'assistant', 'content': _contextSummary!});
 
       // And then only append the messages that were not included in the summary (the last 4 messages).
-      final recentMessages = currentMessages.length > 4
-          ? currentMessages.sublist(currentMessages.length - 4)
-          : currentMessages;
+      final recentMessages = historyMessages.length > 4
+          ? historyMessages.sublist(historyMessages.length - 4)
+          : historyMessages;
       for (final msg in recentMessages) {
         if (msg.fromUser) {
           history.add({'role': 'user', 'content': msg.text});
@@ -463,7 +475,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
       // If no compaction has occurred yet, pass the FULL conversation history.
       // This maintains an identical prefix in successive turns, allowing llama.cpp
       // to reuse the prompt prefix cache (reusePromptPrefix) for instant replies.
-      for (final msg in currentMessages) {
+      for (final msg in historyMessages) {
         if (msg.fromUser) {
           history.add({'role': 'user', 'content': msg.text});
         } else if (msg.text.isNotEmpty) {
@@ -597,7 +609,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
               );
               if (imageBytes != null) {
                 final dir = await getApplicationDocumentsDirectory();
-                final file = File('${dir.path}/creation_screenshot_$creationId.png');
+                final file =
+                    File('${dir.path}/creation_screenshot_$creationId.png');
                 await file.writeAsBytes(imageBytes);
                 screenshotPath = file.path;
               }
@@ -1018,7 +1031,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                         opacity: _isClearingChat ? 0.0 : 1.0,
                                         duration:
                                             const Duration(milliseconds: 180),
-                                        child: ShaderMask(
+                                        child: _AdaptiveShaderMask(
                                           shaderCallback: (rect) {
                                             return const LinearGradient(
                                               begin: Alignment.topCenter,
@@ -1042,16 +1055,20 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                               ? _buildEmptyState(context)
                                               : ListView.builder(
                                                   controller: _scrollController,
-                                                  padding: const EdgeInsets.only(
-                                                      top: 8),
+                                                  padding:
+                                                      const EdgeInsets.only(
+                                                          top: 8),
                                                   itemCount: messages.length +
                                                       (_isStreaming ? 1 : 0),
-                                                  scrollCacheExtent: const ScrollCacheExtent.pixels(600),
+                                                  scrollCacheExtent:
+                                                      const ScrollCacheExtent
+                                                          .pixels(600),
                                                   addAutomaticKeepAlives: false,
                                                   addRepaintBoundaries: true,
                                                   physics:
                                                       const BouncingScrollPhysics(),
-                                                  itemBuilder: (context, index) {
+                                                  itemBuilder:
+                                                      (context, index) {
                                                     if (index ==
                                                         messages.length) {
                                                       return _buildStreamingBubble(
@@ -1059,7 +1076,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                     }
                                                     final msg = messages[index];
                                                     final isLast = index ==
-                                                            messages.length - 1 &&
+                                                            messages.length -
+                                                                1 &&
                                                         !_isStreaming;
                                                     return _buildBubble(
                                                       msg,
@@ -1088,7 +1106,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                       scrollDirection: Axis.horizontal,
                                       itemCount: _attachedImages.length,
                                       itemBuilder: (context, index) => Padding(
-                                        padding: const EdgeInsets.only(right: 8),
+                                        padding:
+                                            const EdgeInsets.only(right: 8),
                                         child: Stack(
                                           clipBehavior: Clip.none,
                                           children: [
@@ -1106,7 +1125,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                               top: -6,
                                               right: -6,
                                               child: GestureDetector(
-                                                onTap: () => _removeImage(index),
+                                                onTap: () =>
+                                                    _removeImage(index),
                                                 child: Container(
                                                   width: 22,
                                                   height: 22,
@@ -1135,35 +1155,38 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               if (_isCreationMode && !_isAddMenuOpen)
                                 Padding(
                                   padding: const EdgeInsets.only(bottom: 8),
-                                  child:
-                                      _CreationChip(onDismiss: _exitCreationMode, creationType: _creationType),
+                                  child: _CreationChip(
+                                      onDismiss: _exitCreationMode,
+                                      creationType: _creationType),
                                 ),
                               if (_isLiveMode && _liveTranscript.isNotEmpty)
                                 BouncyFadeSlide(
                                   duration: const Duration(milliseconds: 280),
                                   slideOffset: 14,
                                   child: Padding(
-                                  padding: const EdgeInsets.only(bottom: 20),
-                                  child: Container(
-                                    constraints: const BoxConstraints(
-                                      minHeight: 40,
-                                      maxHeight: 100,
+                                    padding: const EdgeInsets.only(bottom: 20),
+                                    child: Container(
+                                      constraints: const BoxConstraints(
+                                        minHeight: 40,
+                                        maxHeight: 100,
+                                      ),
+                                      padding: const EdgeInsets.symmetric(
+                                          horizontal: 16, vertical: 10),
+                                      decoration: BoxDecoration(
+                                        color: flux.surface
+                                            .withValues(alpha: 0.92),
+                                        borderRadius:
+                                            BorderRadius.circular(999),
+                                        border: Border.all(
+                                            color: flux.border, width: 1),
+                                      ),
+                                      child: Text(
+                                        _liveTranscript,
+                                        style: textTheme.bodyMedium,
+                                        maxLines: 3,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
                                     ),
-                                    padding: const EdgeInsets.symmetric(
-                                        horizontal: 16, vertical: 10),
-                                    decoration: BoxDecoration(
-                                      color: flux.surface.withValues(alpha: 0.92),
-                                      borderRadius: BorderRadius.circular(999),
-                                      border:
-                                          Border.all(color: flux.border, width: 1),
-                                    ),
-                                    child: Text(
-                                      _liveTranscript,
-                                      style: textTheme.bodyMedium,
-                                      maxLines: 3,
-                                      overflow: TextOverflow.ellipsis,
-                                    ),
-                                  ),
                                   ),
                                 ),
                             ],
@@ -1189,19 +1212,17 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   // the audio-reactive width is smoothed quickly
                                   // so the pill stays snappy while listening.
                                   return TweenAnimationBuilder<double>(
-                                    duration:
-                                        const Duration(milliseconds: 120),
+                                    duration: const Duration(milliseconds: 120),
                                     curve: Curves.easeOut,
                                     tween: Tween<double>(
                                         begin: audioWidth, end: audioWidth),
                                     builder: (context, smoothAudio, __) {
-                                      final currentWidth =
-                                          constraints.maxWidth +
-                                              (smoothAudio -
-                                                      constraints.maxWidth) *
-                                                  mt;
-                                      final btnT = ((mt - 0.35) / 0.65)
-                                          .clamp(0.0, 1.0);
+                                      final currentWidth = constraints
+                                              .maxWidth +
+                                          (smoothAudio - constraints.maxWidth) *
+                                              mt;
+                                      final btnT =
+                                          ((mt - 0.35) / 0.65).clamp(0.0, 1.0);
 
                                       final circleLeft = (constraints.maxWidth -
                                               currentWidth) /
@@ -1219,9 +1240,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                 duration: const Duration(
                                                     milliseconds: 460),
                                                 curve: Curves.easeOutCubic,
-                                                height: _isLiveMode
-                                                    ? 44.0
-                                                    : null,
+                                                height:
+                                                    _isLiveMode ? 44.0 : null,
                                                 constraints: _isLiveMode
                                                     ? null
                                                     : const BoxConstraints(
@@ -1267,8 +1287,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                       opacity: Curves.easeOut
                                                           .transform(cv),
                                                       child: Transform.scale(
-                                                        scale:
-                                                            0.95 + 0.05 * cv,
+                                                        scale: 0.95 + 0.05 * cv,
                                                         alignment: Alignment
                                                             .centerLeft,
                                                         child: child,
@@ -1278,147 +1297,149 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                                   child: IgnorePointer(
                                                     ignoring: _isLiveMode,
                                                     child: Padding(
-                                                            padding:
-                                                                const EdgeInsets
-                                                                    .only(
-                                                                    left: 6,
-                                                                    right: 6,
-                                                                    top: 6,
-                                                                    bottom: 6),
-                                                            child: Row(
-                                                              crossAxisAlignment:
-                                                                  CrossAxisAlignment
-                                                                      .center,
-                                                              children: [
-                                                                _ComposerAddButton(
-                                                                  isOpen: _isAddMenuOpen ||
-                                                                      _isCreationMode,
-                                                                  onTap: _isCreationMode
-                                                                      ? _exitCreationMode
-                                                                      : _toggleAddMenu,
+                                                      padding:
+                                                          const EdgeInsets.only(
+                                                              left: 6,
+                                                              right: 6,
+                                                              top: 6,
+                                                              bottom: 6),
+                                                      child: Row(
+                                                        crossAxisAlignment:
+                                                            CrossAxisAlignment
+                                                                .center,
+                                                        children: [
+                                                          _ComposerAddButton(
+                                                            isOpen: _isAddMenuOpen ||
+                                                                _isCreationMode,
+                                                            onTap: _isCreationMode
+                                                                ? _exitCreationMode
+                                                                : _toggleAddMenu,
+                                                          ),
+                                                          const SizedBox(
+                                                              width: 10),
+                                                          Expanded(
+                                                            child: Theme(
+                                                              data: Theme.of(
+                                                                      context)
+                                                                  .copyWith(
+                                                                inputDecorationTheme:
+                                                                    const InputDecorationTheme(
+                                                                  border:
+                                                                      InputBorder
+                                                                          .none,
+                                                                  enabledBorder:
+                                                                      InputBorder
+                                                                          .none,
+                                                                  focusedBorder:
+                                                                      InputBorder
+                                                                          .none,
                                                                 ),
-                                                                const SizedBox(
-                                                                    width: 10),
-                                                                Expanded(
-                                                                  child: Theme(
-                                                                    data: Theme.of(
-                                                                            context)
-                                                                        .copyWith(
-                                                                      inputDecorationTheme:
-                                                                          const InputDecorationTheme(
-                                                                        border:
-                                                                            InputBorder.none,
-                                                                        enabledBorder:
-                                                                            InputBorder.none,
-                                                                        focusedBorder:
-                                                                            InputBorder.none,
-                                                                      ),
-                                                                    ),
-                                                                    child:
-                                                                        TextField(
-                                                                      controller:
-                                                                          _controller,
-                                                                      focusNode:
-                                                                          _focusNode,
-                                                                      minLines:
-                                                                          1,
-                                                                      maxLines:
-                                                                          4,
-                                                                      keyboardType:
-                                                                          TextInputType
-                                                                              .multiline,
-                                                                      textInputAction:
-                                                                          TextInputAction
-                                                                              .newline,
-                                                                      style: textTheme
-                                                                          .bodyMedium,
-                                                                      decoration:
-                                                                          InputDecoration(
-                                                                        hintText: _isCreationMode
-                                                                            ? 'Describe your creation…'
-                                                                            : 'Ask anything',
-                                                                        hintStyle: textTheme
-                                                                            .bodyMedium
-                                                                            ?.copyWith(color: flux.textSecondary),
-                                                                        filled:
-                                                                            false,
-                                                                        fillColor:
-                                                                            Colors.transparent,
-                                                                        border:
-                                                                            InputBorder.none,
-                                                                        enabledBorder:
-                                                                            InputBorder.none,
-                                                                        focusedBorder:
-                                                                            InputBorder.none,
-                                                                        errorBorder:
-                                                                            InputBorder.none,
-                                                                        disabledBorder:
-                                                                            InputBorder.none,
-                                                                        contentPadding: const EdgeInsets
-                                                                            .symmetric(
-                                                                            vertical:
-                                                                                10),
-                                                                        isDense:
-                                                                            true,
-                                                                        counterText:
-                                                                            '',
-                                                                      ),
-                                                                      onSubmitted:
-                                                                          (_) =>
-                                                                              _sendMessage(),
-                                                                    ),
-                                                                  ),
+                                                              ),
+                                                              child: TextField(
+                                                                controller:
+                                                                    _controller,
+                                                                focusNode:
+                                                                    _focusNode,
+                                                                minLines: 1,
+                                                                maxLines: 4,
+                                                                keyboardType:
+                                                                    TextInputType
+                                                                        .multiline,
+                                                                textInputAction:
+                                                                    TextInputAction
+                                                                        .newline,
+                                                                style: textTheme
+                                                                    .bodyMedium,
+                                                                decoration:
+                                                                    InputDecoration(
+                                                                  hintText: _isCreationMode
+                                                                      ? 'Describe your creation…'
+                                                                      : 'Ask anything',
+                                                                  hintStyle: textTheme
+                                                                      .bodyMedium
+                                                                      ?.copyWith(
+                                                                          color:
+                                                                              flux.textSecondary),
+                                                                  filled: false,
+                                                                  fillColor: Colors
+                                                                      .transparent,
+                                                                  border:
+                                                                      InputBorder
+                                                                          .none,
+                                                                  enabledBorder:
+                                                                      InputBorder
+                                                                          .none,
+                                                                  focusedBorder:
+                                                                      InputBorder
+                                                                          .none,
+                                                                  errorBorder:
+                                                                      InputBorder
+                                                                          .none,
+                                                                  disabledBorder:
+                                                                      InputBorder
+                                                                          .none,
+                                                                  contentPadding:
+                                                                      const EdgeInsets
+                                                                          .symmetric(
+                                                                          vertical:
+                                                                              10),
+                                                                  isDense: true,
+                                                                  counterText:
+                                                                      '',
                                                                 ),
-                                                                if (_searchEnabled &&
-                                                                    !_isCreationMode)
-                                                                  _ComposerIconButton(
-                                                                    tooltip:
-                                                                        'Web search on',
-                                                                    icon: Icons
-                                                                        .language_rounded,
-                                                                    isActive:
-                                                                        true,
-                                                                    onTap: () {
-                                                                      HapticFeedback
-                                                                          .lightImpact();
-                                                                      setState(() =>
-                                                                          _searchEnabled =
-                                                                              false);
-                                                                    },
-                                                                  ),
-                                                                if (_searchEnabled &&
-                                                                    !_isCreationMode)
-                                                                  const SizedBox(
-                                                                      width: 6),
-                                                                if (!_isCreationMode)
-                                                                  _ComposerIconButton(
-                                                                    tooltip:
-                                                                        'Flux Voice',
-                                                                    svgAsset:
-                                                                        'assets/images/mic.svg',
-                                                                    onTap: () {
-                                                                      HapticFeedback
-                                                                          .mediumImpact();
-                                                                      _toggleLiveMode();
-                                                                    },
-                                                                  ),
-                                                                if (!_isCreationMode)
-                                                                  const SizedBox(
-                                                                      width: 6),
-                                                                FluxSendButton(
-                                                                  onTap:
-                                                                      _sendMessage,
-                                                                  onStop:
-                                                                      _stopGeneration,
-                                                                  isEnabled: _hasText ||
-                                                                      _attachedImages
-                                                                          .isNotEmpty,
-                                                                  isStreaming:
-                                                                      _isStreaming,
-                                                                ),
-                                                              ],
+                                                                onSubmitted: (_) =>
+                                                                    _sendMessage(),
+                                                              ),
                                                             ),
                                                           ),
+                                                          if (_searchEnabled &&
+                                                              !_isCreationMode)
+                                                            _ComposerIconButton(
+                                                              tooltip:
+                                                                  'Web search on',
+                                                              icon: Icons
+                                                                  .language_rounded,
+                                                              isActive: true,
+                                                              onTap: () {
+                                                                HapticFeedback
+                                                                    .lightImpact();
+                                                                setState(() =>
+                                                                    _searchEnabled =
+                                                                        false);
+                                                              },
+                                                            ),
+                                                          if (_searchEnabled &&
+                                                              !_isCreationMode)
+                                                            const SizedBox(
+                                                                width: 6),
+                                                          if (!_isCreationMode)
+                                                            _ComposerIconButton(
+                                                              tooltip:
+                                                                  'Flux Voice',
+                                                              svgAsset:
+                                                                  'assets/images/mic.svg',
+                                                              onTap: () {
+                                                                HapticFeedback
+                                                                    .mediumImpact();
+                                                                _toggleLiveMode();
+                                                              },
+                                                            ),
+                                                          if (!_isCreationMode)
+                                                            const SizedBox(
+                                                                width: 6),
+                                                          FluxSendButton(
+                                                            onTap: _sendMessage,
+                                                            onStop:
+                                                                _stopGeneration,
+                                                            isEnabled: _hasText ||
+                                                                _attachedImages
+                                                                    .isNotEmpty,
+                                                            isStreaming:
+                                                                _isStreaming,
+                                                          ),
+                                                        ],
+                                                      ),
+                                                    ),
                                                   ),
                                                 ),
                                               ),
@@ -1487,8 +1508,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                               );
                             },
                           ),
-                          ],
-                        ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -1669,8 +1690,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
                                   isOpen: _isModelSelectorExpanded,
                                   onCloseComplete: () {
                                     if (mounted) {
-                                      setState(
-                                          () => _isModelSelectorClosing = false);
+                                      setState(() =>
+                                          _isModelSelectorClosing = false);
                                     }
                                   },
                                   onSelect: (model) {
@@ -2177,6 +2198,31 @@ class _ChatScreenState extends ConsumerState<ChatScreen>
   }
 }
 
+/// ShaderMask creates an offscreen layer while the conversation scrolls.
+/// Keep the Figma edge fade on capable devices and skip that layer on phones
+/// where it competes with inference for frame time.
+class _AdaptiveShaderMask extends StatelessWidget {
+  const _AdaptiveShaderMask({
+    required this.shaderCallback,
+    required this.blendMode,
+    required this.child,
+  });
+
+  final ShaderCallback shaderCallback;
+  final BlendMode blendMode;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (PerformanceService.instance.isConstrained) return child;
+    return ShaderMask(
+      shaderCallback: shaderCallback,
+      blendMode: blendMode,
+      child: child,
+    );
+  }
+}
+
 class _LiveWaveIndicator extends StatefulWidget {
   const _LiveWaveIndicator();
 
@@ -2410,12 +2456,12 @@ class _AddMenuPanelState extends State<_AddMenuPanel>
           _cascadeItem(
             1,
             _AddMenuRow(
-              label: widget.isCreationMode
-                  ? 'Creation mode is on'
-                  : 'Creations',
+              label:
+                  widget.isCreationMode ? 'Creation mode is on' : 'Creations',
               onTap: widget.isCreationMode
                   ? null
-                  : () => setState(() => _isCreationsExpanded = !_isCreationsExpanded),
+                  : () => setState(
+                      () => _isCreationsExpanded = !_isCreationsExpanded),
               active: widget.isCreationMode,
               trailing: widget.isCreationMode
                   ? Icon(Icons.check_rounded, color: flux.textPrimary, size: 18)
@@ -2456,8 +2502,7 @@ class _AddMenuPanelState extends State<_AddMenuPanel>
             _cascadeItem(
               2,
               _AddMenuRow(
-                label:
-                    widget.searchEnabled ? 'Web search · on' : 'Web search',
+                label: widget.searchEnabled ? 'Web search · on' : 'Web search',
                 onTap: widget.onToggleSearch,
                 active: widget.searchEnabled,
                 trailing: widget.searchEnabled
@@ -2720,7 +2765,8 @@ class _ModelPickerDropdownState extends State<_ModelPickerDropdown>
 class _CreationChip extends StatelessWidget {
   final VoidCallback onDismiss;
   final String creationType;
-  const _CreationChip({required this.onDismiss, this.creationType = 'playground'});
+  const _CreationChip(
+      {required this.onDismiss, this.creationType = 'playground'});
 
   @override
   Widget build(BuildContext context) {

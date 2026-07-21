@@ -51,21 +51,58 @@ Net effect on low-end devices: the constant background load is removed, so page
 transitions, taps, and the typing indicator get the frames they need and play
 smoothly.
 
-## Recommended follow-ups (not applied here)
+### 4. Prompt evaluation: do not submit the newest message twice
+`lib/features/chat/chat_screen.dart`
+
+The composer adds the current user message to Riverpod before starting
+inference. That same message was then copied into `history` and also supplied
+as the new `prompt`, so every turn evaluated the newest prompt twice. The
+history builder now excludes that visible, just-added message. This reduces
+prompt work, context consumption, and improves llama.cpp prefix-cache reuse.
+
+### 5. Model runtime: tier batches, threads, and context by hardware
+`lib/core/services/inference_service.dart`
+
+- <=4 GB mobile devices use 128/64 batch and micro-batch sizes.
+- 5-8 GB devices use 256/128; larger devices retain the throughput-oriented
+  desktop settings.
+- Generation threads leave CPU headroom for Flutter's UI and raster threads.
+- The lightweight model now correctly receives the 4096-token mid-tier
+  context profile (its file is about 533 MB; the previous 300 MB cutoff could
+  never match it).
+- Native-to-Dart token batches and UI flush cadence scale with device tier.
+
+### 6. Scrolling and entrances: remove avoidable low-tier layers
+`lib/features/chat/chat_screen.dart`,
+`lib/core/widgets/flux_animations.dart`
+
+Constrained phones skip the conversation-wide `ShaderMask` save-layer and
+staggered entrance controllers. Content and interaction remain identical; the
+decorative edge fade and entrance motion remain enabled on capable devices.
+
+## Validation
+
+`flutter analyze` completes without errors. Actual speedup varies by model,
+prompt length, quantization, thermal state, and device. A 3x claim must be
+validated on target hardware using release/profile builds and the existing
+prompt/output token-per-second metrics; it cannot be guaranteed from static
+analysis or a desktop build.
+
+## Recommended follow-ups
 
 These need a device/SDK to validate and were intentionally left out to keep the
 build safe:
 
-- **Inference thread count.** Pin llama.cpp to the number of *performance*
-  cores (e.g. `Platform.numberOfProcessors`, clamped, minus the little cores)
-  via the `llamadart` model/generation params. Letting it spread across
-  efficiency cores hurts both speed and thermals on big.LITTLE phones. Confirm
-  the exact `ModelParams` field name against the installed `llamadart` version
-  before wiring it up.
 - **Run model load off the UI isolate** (or show a determinate progress state)
   so the first-load stall doesn't freeze the UI.
-- **Gate the remaining decorative `..repeat()` controllers** (`you_screen.dart`,
-  parts of `voice_screen.dart`) behind `PerformanceService.isLowEnd` the same
-  way as the backdrops.
 - **Lower `batchSize`/`microBatchSize` on <=4 GB devices** if you observe
   prompt-processing OOM pressure (trades a little prompt speed for stability).
+
+### Follow-up completed
+
+- **Gate the remaining decorative `..repeat()` controllers** (`you_screen.dart`,
+  parts of `voice_screen.dart`) — `you_screen.dart`'s orbit and central-pulse
+  controllers were already gated behind `isLowEnd`; the voice orb's continuous
+  phase loop (`voice_screen.dart`) now follows the same `isConstrained` gate as
+  the aurora backdrops, so on phones the orb renders once at its rest position
+  instead of repainting its `CustomPainter` every frame.

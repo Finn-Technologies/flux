@@ -121,10 +121,10 @@ class _YouScreenState extends ConsumerState<YouScreen>
             Positioned(
               left: 20,
               top: topPadding + 100,
-              child: FluxRevealItem(
+              child: const FluxRevealItem(
                 index: 1,
                 slideOffset: 12,
-                child: const FluxTitle(title: "You"),
+                child: FluxTitle(title: "You"),
               ),
             ),
 
@@ -478,8 +478,8 @@ class _OrbitingNode extends StatelessWidget {
         padding: const EdgeInsets.all(28),
         decoration: BoxDecoration(
           color: flux.surface,
-          borderRadius:
-              const BorderRadius.vertical(top: Radius.circular(FluxRadii.sheet)),
+          borderRadius: const BorderRadius.vertical(
+              top: Radius.circular(FluxRadii.sheet)),
         ),
         child: Column(
           mainAxisSize: MainAxisSize.min,

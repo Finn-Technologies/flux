@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:llamadart/llamadart.dart';
 import 'package:path_provider/path_provider.dart';
 import 'model_service.dart';
+import 'performance_service.dart';
 
 class InferenceService {
   static final InferenceService _instance = InferenceService._internal();
@@ -50,6 +51,15 @@ class InferenceService {
       if (totalMem >= 6000) return 16;
     } catch (_) {}
     return 0;
+  }
+
+  static int _optimalGenerationThreads(bool constrained) {
+    final processors = Platform.numberOfProcessors;
+    if (processors <= 2) return processors;
+    // Leave CPU headroom for Flutter's UI/raster threads. This also avoids
+    // saturating every efficiency core on big.LITTLE mobile chipsets.
+    final target = constrained ? processors - 2 : processors - 1;
+    return target.clamp(2, constrained ? 4 : 8);
   }
 
   static int _deviceTotalMemoryMB() {
@@ -103,16 +113,14 @@ class InferenceService {
       } else if (ram <= 8) {
         // OnePlus Nord 1 / typical mid-range device (6GB - 8GB RAM):
         // Lite model can run with 4096 context, Steady/Smart models with 3072 context
-        ctx = fileSizeMB < 300 ? 4096 : 3072;
+        ctx = fileSizeMB < 1000 ? 4096 : 3072;
       } else {
         // High-end mobile devices (12GB+ RAM): 4096 context for all models
         ctx = 4096;
       }
     } else {
       // Desktop platforms: keep high context size since there is plenty of memory and swap space
-      ctx = fileSizeMB < 300
-          ? 4096
-          : (fileSizeMB < 1000 ? 6144 : 8192);
+      ctx = fileSizeMB < 300 ? 4096 : (fileSizeMB < 1000 ? 6144 : 8192);
     }
 
     final gpuLayers = _detectOptimalGpuLayers();
@@ -122,13 +130,23 @@ class InferenceService {
     // Configure model with optimized parameters:
     // - On mobile: enable Flash Attention and Q8_0 KV Cache quantization to reduce RAM by 50%
     final isMobile = Platform.isAndroid || Platform.isIOS;
+    final constrained = isMobile &&
+        (PerformanceService.instance.isConstrained ||
+            PerformanceService.instance.deviceRamGb <= 8);
+    final lowEnd = isMobile && PerformanceService.instance.isLowEnd;
+    final generationThreads = _optimalGenerationThreads(constrained);
     await _engine!.loadModel(
       localPath,
       modelParams: ModelParams(
         contextSize: ctx,
         gpuLayers: gpuLayers,
-        batchSize: 1024,
-        microBatchSize: 512,
+        // Smaller native batches substantially reduce peak allocation and
+        // scheduler stalls on mid/low-tier phones. Desktop keeps the larger
+        // batches for throughput.
+        numberOfThreads: generationThreads,
+        numberOfThreadsBatch: generationThreads,
+        batchSize: lowEnd ? 128 : (constrained ? 256 : 1024),
+        microBatchSize: lowEnd ? 64 : (constrained ? 128 : 512),
         flashAttention: isMobile ? FlashAttention.enabled : FlashAttention.auto,
         cacheTypeK: isMobile ? KvCacheType.q8_0 : KvCacheType.f16,
         cacheTypeV: isMobile ? KvCacheType.q8_0 : KvCacheType.f16,
@@ -150,7 +168,8 @@ class InferenceService {
     // Loads the last-used model in the background so it's ready.
     try {
       final directory = await getApplicationDocumentsDirectory();
-      final modelPath = '${directory.path}/models/${modelId.replaceAll('/', '_')}.gguf';
+      final modelPath =
+          '${directory.path}/models/${modelId.replaceAll('/', '_')}.gguf';
       if (File(modelPath).existsSync()) {
         await loadModel(modelPath);
       }
@@ -158,6 +177,7 @@ class InferenceService {
       // Silently ignore — inference will lazy-load if warmup fails
     }
   }
+
   Future<void> unloadModel() async {
     if (_engine != null) {
       await _engine!.dispose();
@@ -233,12 +253,20 @@ class InferenceService {
       ));
 
       int historyChars = 0;
-      const int maxHistoryChars = 8000;
-      for (final turn in history) {
+      final maxHistoryChars = (contextSize * 3.5 * 0.55).round();
+      final retainedHistory = <Map<String, String>>[];
+      // Retain the newest turns. Iterating from the beginning used to keep
+      // stale context and silently discard the most relevant recent messages.
+      for (final turn in history.reversed) {
         final role = turn['role'] ?? 'user';
         final content = turn['content'] ?? '';
+        if (historyChars + content.length > maxHistoryChars) break;
         historyChars += content.length;
-        if (historyChars > maxHistoryChars) break;
+        retainedHistory.add({'role': role, 'content': content});
+      }
+      for (final turn in retainedHistory.reversed) {
+        final role = turn['role'] ?? 'user';
+        final content = turn['content'] ?? '';
         messages.add(LlamaChatMessage.fromText(
           role: role == 'assistant'
               ? LlamaChatRole.assistant
@@ -263,25 +291,30 @@ class InferenceService {
         ));
       }
 
-      final totalPromptChars = effectiveSystem.length + historyChars + prompt.length;
+      final totalPromptChars =
+          effectiveSystem.length + historyChars + prompt.length;
       final estimatedPromptTokens = (totalPromptChars / 3.5).round();
+      final availableOutputTokens =
+          (contextSize - estimatedPromptTokens - 128).clamp(64, maxTokens);
 
       const stopSequences = [
         "<|im_end|>",
         "<|endoftext|>",
       ];
 
+      final lowEnd = PerformanceService.instance.isLowEnd;
+      final constrained = PerformanceService.instance.isConstrained;
       final baseParams = GenerationParams(
         temp: 0.0,
-        maxTokens: maxTokens,
+        maxTokens: availableOutputTokens,
         stopSequences: stopSequences,
         // Batch tokens before crossing the native -> Dart boundary. A
         // threshold of 1/1 flushed on every single token, which on low-end
         // devices spends more time marshalling and rebuilding the UI than
         // generating text. Small batches keep streaming visibly "live" while
         // dramatically cutting per-token overhead.
-        streamBatchTokenThreshold: 6,
-        streamBatchByteThreshold: 256,
+        streamBatchTokenThreshold: lowEnd ? 10 : (constrained ? 8 : 6),
+        streamBatchByteThreshold: lowEnd ? 512 : (constrained ? 384 : 256),
         reusePromptPrefix: true,
         penalty: 1.0,
       );
@@ -330,8 +363,7 @@ class InferenceService {
         if (!hasEmittedContent && !firstTokenEmitted) {
           final ttftMs = stopwatch.elapsedMilliseconds;
           if (ttftMs > 0) {
-            _lastPromptTokPerSec =
-                estimatedPromptTokens / (ttftMs / 1000.0);
+            _lastPromptTokPerSec = estimatedPromptTokens / (ttftMs / 1000.0);
           }
           _lastPromptTokens = estimatedPromptTokens;
           firstTokenEmitted = true;
@@ -420,5 +452,4 @@ class InferenceService {
       yield "Error: ${e.toString()}";
     }
   }
-
 }

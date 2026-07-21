@@ -7,6 +7,47 @@ import 'flux_animations.dart';
 
 enum BackdropState { idle, loading, streaming }
 
+class FluxSectionLabel extends StatelessWidget {
+  const FluxSectionLabel(this.label, {super.key});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    return Text(
+      label.toUpperCase(),
+      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+            color: flux.textSecondary,
+            letterSpacing: 0.8,
+          ),
+    );
+  }
+}
+
+class FluxStickerChip extends StatelessWidget {
+  const FluxStickerChip({super.key, required this.icon, this.size = 44});
+
+  final IconData icon;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) {
+    final flux = Theme.of(context).extension<FluxColorsExtension>()!;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        color: flux.surfaceSecondary,
+        shape: BoxShape.circle,
+        border: Border.all(color: flux.border),
+      ),
+      alignment: Alignment.center,
+      child: Icon(icon, size: size * 0.48, color: flux.textPrimary),
+    );
+  }
+}
+
 /// A living "aurora" backdrop: a handful of soft, slowly drifting colour blobs
 /// over the page background. It breathes gently while idle and warms to a rosy
 /// palette while a model is loading, transitioning smoothly between the two.
@@ -41,7 +82,7 @@ class _FluxBackdropState extends State<FluxBackdrop>
     // devices that continuous cost is a primary cause of dropped frames,
     // "missing" animations, and battery drain, so we keep the backdrop static
     // there and only animate it on capable hardware.
-    if (!PerformanceService.instance.isLowEnd) {
+    if (!PerformanceService.instance.isConstrained) {
       _drift.repeat();
     }
     _loadCtrl = AnimationController(
@@ -211,10 +252,7 @@ class _AuroraPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_AuroraPainter old) =>
-      t != old.t ||
-      loadT != old.loadT ||
-      isDark != old.isDark ||
-      bg != old.bg;
+      t != old.t || loadT != old.loadT || isDark != old.isDark || bg != old.bg;
 }
 
 // ============================================================================

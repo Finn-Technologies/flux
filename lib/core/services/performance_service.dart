@@ -18,10 +18,18 @@ class PerformanceService {
 
   bool _initialized = false;
   bool _isLowEnd = false;
+  bool _isConstrained = false;
+  int _deviceRamGb = 0;
 
   /// Whether this device should avoid continuous/expensive animations.
   /// Returns `false` until [init] has completed.
   bool get isLowEnd => _isLowEnd;
+
+  /// Mobile hardware where continuous full-screen effects should be avoided,
+  /// while short interaction and navigation animations remain enabled.
+  bool get isConstrained => _isConstrained;
+
+  int get deviceRamGb => _deviceRamGb;
 
   bool get initialized => _initialized;
 
@@ -32,16 +40,20 @@ class PerformanceService {
     try {
       if (Platform.isAndroid || Platform.isIOS) {
         final ram = await ModelService.getDeviceRAM();
+        _deviceRamGb = ram;
         // 4 GB or less of RAM is our "low tier" threshold. These devices also
         // tend to ship weaker GPUs/CPUs, so we treat them conservatively.
         _isLowEnd = ram <= 4;
+        _isConstrained = ram <= 8;
       } else {
         // Desktop platforms have ample resources.
         _isLowEnd = false;
+        _isConstrained = false;
       }
     } catch (_) {
       // If detection fails, assume low-end so cheap hardware still benefits.
       _isLowEnd = true;
+      _isConstrained = true;
     }
     _initialized = true;
   }

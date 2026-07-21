@@ -19,12 +19,49 @@ class FluxDurations {
 class FluxCurves {
   /// Default deceleration for most entrances and movement.
   static const Curve smooth = Curves.easeOutCubic;
+
   /// Symmetric ease for reversible state changes.
   static const Curve gentle = Curves.easeInOutCubic;
+
   /// Slight overshoot for playful, tactile moments.
   static const Curve emphasized = Curves.easeOutBack;
+
   /// Quick settle for exits.
   static const Curve linearOut = Curves.easeOut;
+}
+
+/// Lightweight route entrance shared by full-screen feature pages.
+class FluxPageReveal extends StatelessWidget {
+  const FluxPageReveal({super.key, required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => child;
+}
+
+/// Staggered entrance that degrades to a static child on constrained devices.
+class FluxRevealItem extends StatelessWidget {
+  const FluxRevealItem({
+    super.key,
+    required this.index,
+    required this.child,
+    this.slideOffset = 16,
+  });
+
+  final int index;
+  final Widget child;
+  final double slideOffset;
+
+  @override
+  Widget build(BuildContext context) {
+    if (PerformanceService.instance.isConstrained) return child;
+    return StaggeredEntrance(
+      index: index,
+      slideOffset: slideOffset,
+      child: child,
+    );
+  }
 }
 
 class BouncyTap extends StatefulWidget {
@@ -133,8 +170,13 @@ class _StaggeredEntranceState extends State<StaggeredEntrance>
       vsync: this,
     );
 
-    final delay = Duration(
-        milliseconds: widget.delayStep.inMilliseconds * widget.index);
+    if (PerformanceService.instance.isConstrained) {
+      _controller.value = 1;
+      return;
+    }
+
+    final delay =
+        Duration(milliseconds: widget.delayStep.inMilliseconds * widget.index);
     Future.delayed(delay, () {
       if (mounted) _controller.forward();
     });
@@ -196,6 +238,11 @@ class _BouncyFadeSlideState extends State<BouncyFadeSlide>
       duration: widget.duration,
       vsync: this,
     );
+
+    if (PerformanceService.instance.isConstrained) {
+      _controller.value = 1;
+      return;
+    }
 
     Future.delayed(widget.delay, () {
       if (mounted) _controller.forward();
@@ -268,8 +315,10 @@ class FluxPageTransition extends StatelessWidget {
 
     final inScale = Tween<double>(begin: 0.985, end: 1.0).animate(inCurve);
 
-    final isDismissing = secondaryAnimation == null || secondaryAnimation!.value == 0.0;
-    final exitDriver = isDismissing ? const AlwaysStoppedAnimation(0.0) : secondaryAnimation!;
+    final isDismissing =
+        secondaryAnimation == null || secondaryAnimation!.value == 0.0;
+    final exitDriver =
+        isDismissing ? const AlwaysStoppedAnimation(0.0) : secondaryAnimation!;
     final exitCurve = CurvedAnimation(
       parent: exitDriver,
       curve: Curves.easeInOutCubic,
@@ -502,8 +551,7 @@ class _FluxPulseGlowState extends State<FluxPulseGlow>
       animation: _c,
       builder: (context, child) {
         final t = _c.value;
-        final blur =
-            lerpDouble(widget.minBlur, widget.maxBlur, t)!;
+        final blur = lerpDouble(widget.minBlur, widget.maxBlur, t)!;
         return DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: widget.borderRadius,
@@ -554,7 +602,7 @@ class _FluxAuraBackgroundState extends State<FluxAuraBackground> {
     _startedAt = DateTime.now();
     // Skip the continuous full-screen repaint loop on low-end devices; the
     // aura simply renders once in its starting position there.
-    if (!PerformanceService.instance.isLowEnd) {
+    if (!PerformanceService.instance.isConstrained) {
       _timer = Timer.periodic(const Duration(milliseconds: 83), (_) {
         if (!mounted) return;
         final elapsedMs = DateTime.now().difference(_startedAt!).inMilliseconds;
@@ -641,10 +689,7 @@ class _AuraPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _AuraPainter old) =>
-      old.a != a ||
-      old.b != b ||
-      old.colorA != colorA ||
-      old.colorB != colorB;
+      old.a != a || old.b != b || old.colorA != colorA || old.colorB != colorB;
 }
 
 class FluxBlurReveal extends StatefulWidget {
@@ -779,8 +824,7 @@ class _CheckPainter extends CustomPainter {
     } else {
       path.lineTo(p2.dx, p2.dy);
       final f = ((drawLen - seg1) / (p3 - p2).distance).clamp(0.0, 1.0);
-      path.lineTo(
-          p2.dx + (p3.dx - p2.dx) * f, p2.dy + (p3.dy - p2.dy) * f);
+      path.lineTo(p2.dx + (p3.dx - p2.dx) * f, p2.dy + (p3.dy - p2.dy) * f);
     }
     canvas.drawPath(path, stroke);
   }

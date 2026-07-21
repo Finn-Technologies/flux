@@ -48,19 +48,20 @@ void main() async {
   }
 
   await Hive.initFlutter();
-  await Hive.openBox('models');
-  await Hive.openBox('settings');
-  await Hive.openBox('chats');
-  await Hive.openBox('creations');
-  await Hive.openBox('flux_code_projects');
-  await MemoryService().init();
-  await DownloadNotificationService.initialize();
-
-  // Resolve the device performance tier so the UI can disable expensive
-  // always-on animations on low-end devices.
-  await PerformanceService.instance.init();
-
-  final prefs = await SharedPreferences.getInstance();
+  await Future.wait([
+    Hive.openBox('models'),
+    Hive.openBox('settings'),
+    Hive.openBox('chats'),
+    Hive.openBox('creations'),
+    Hive.openBox('flux_code_projects'),
+  ]);
+  final startup = await Future.wait<dynamic>([
+    SharedPreferences.getInstance(),
+    MemoryService().init(),
+    DownloadNotificationService.initialize(),
+    PerformanceService.instance.init(),
+  ]);
+  final prefs = startup.first as SharedPreferences;
   final onboarded = prefs.getBool('onboarded') ?? false;
 
   // Pre-warm the model on app start so the first message is near-instant
@@ -92,8 +93,8 @@ class FluxTransitionPage extends CustomTransitionPage {
     required super.child,
     this.isForwardLayout = true,
     bool? exitToRight,
-  }) : exitToRight = exitToRight ?? isForwardLayout,
-       super(
+  })  : exitToRight = exitToRight ?? isForwardLayout,
+        super(
           transitionDuration: FluxDurations.pageTransition,
           transitionsBuilder: (context, animation, secondaryAnimation, child) {
             return FluxPageTransition(
@@ -149,7 +150,8 @@ class _FluxAppState extends State<FluxApp> {
   void _setupWidgetClickHandler() {
     HomeWidget.widgetClicked.listen((_) async {
       if (!mounted) return;
-      final creationId = await HomeWidget.getWidgetData<String>('creationId', defaultValue: '');
+      final creationId = await HomeWidget.getWidgetData<String>('creationId',
+          defaultValue: '');
       if (creationId != null && creationId.isNotEmpty) {
         _router.push('/creations/app/$creationId');
       }
@@ -163,7 +165,7 @@ class _FluxAppState extends State<FluxApp> {
     _router = GoRouter(
       initialLocation: widget.onboarded ? '/home' : '/onboarding',
       routes: [
-          GoRoute(
+        GoRoute(
           path: '/onboarding',
           pageBuilder: (context, state) => buildSlidePage(
             state: state,
@@ -196,7 +198,8 @@ class _FluxAppState extends State<FluxApp> {
               pageBuilder: (context, state) => buildSlidePageInverse(
                 state: state,
                 child: const SettingsScreen(),
-                exitToRight: false, // Forces Settings to slide left when covered so it returns from left-to-right
+                exitToRight:
+                    false, // Forces Settings to slide left when covered so it returns from left-to-right
               ),
               routes: [
                 GoRoute(
@@ -248,7 +251,6 @@ class _FluxAppState extends State<FluxApp> {
             child: const ModelsScreen(),
           ),
         ),
-
         GoRoute(
           path: '/model/:id',
           pageBuilder: (context, state) => buildSlidePage(
@@ -256,7 +258,6 @@ class _FluxAppState extends State<FluxApp> {
             child: ChatScreen(modelId: state.params['id']),
           ),
         ),
-
         GoRoute(
           path: '/creations/app/:id',
           pageBuilder: (context, state) {

@@ -51,3 +51,6 @@ app.*.map.json
 **/ohos/build/
 **/ohos/local.properties
 *.hprof
+
+# Local freebuff cache
+.freebuff/

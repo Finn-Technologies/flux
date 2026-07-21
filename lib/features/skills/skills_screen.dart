@@ -73,10 +73,10 @@ class SkillsScreen extends ConsumerWidget {
             Positioned(
               left: 20,
               top: topPadding + 100,
-              child: FluxRevealItem(
+              child: const FluxRevealItem(
                 index: 1,
                 slideOffset: 12,
-                child: const FluxTitle(title: "Skills"),
+                child: FluxTitle(title: "Skills"),
               ),
             ),
             Positioned.fill(
